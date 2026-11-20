@@ -55,6 +55,11 @@ typedef struct cn_dst {
 	int hold, ihold;
 	unsigned mpar, imcid, impcid;
 	int mx, my;
+	/* Its view (Blit #159): "SX SY SW SH DW DH", or null for its frame's
+	   own pixels; and the one Blit was last told, under ivcid. Blit keeps
+	   a view on the input route, so a route said again is told it again. */
+	char *view, *vsaid;
+	unsigned ivcid;
 } cn_dst;
 
 /* Which stream a kitty id belonged to, kept after the picture has gone,
@@ -477,6 +482,7 @@ int cn_d3read(void *ctx, int fd)
 				cn_dsts[i].ion = 0;
 				cn_dsts[i].ihold = 0;
 				cn_dsts[i].imcid = 0;
+				cn_dsts[i].ivcid = 0;
 			}
 			cn_imgdmaresend();
 			s_free(&o);
@@ -778,9 +784,81 @@ int cn_dsay(sh *s, const char *line)
 	return bf_say(fd, line);
 }
 
+/* A stream's own route said to Blit: the socket once per id, then whether
+   it is on and how a held pointer behaves, whenever those or the id have
+   changed. */
+void cn_drsync(sh *s, cn_dst *d)
+{
+	str o;
+
+	s_init(&o);
+	if (d->icid != d->cid) {
+		s_cat(&o, "INPUT sock ");
+		s_num(&o, (long)d->cid);
+		s_ch(&o, ' ');
+		s_cat(&o, d->sock);
+		if (!cn_dsay(s, o.p)) {
+			s_free(&o);
+			return;
+		}
+		d->icid = d->cid;
+		d->ion = 0;
+		d->ihold = 0;
+		d->ivcid = 0;
+	}
+	if (d->ion != d->on) {
+		o.n = 0;
+		s_cat(&o, d->on ? "INPUT on " : "INPUT off ");
+		s_num(&o, (long)d->cid);
+		if (cn_dsay(s, o.p))
+			d->ion = d->on;
+	}
+	if (d->hold && d->ihold != d->hold) {
+		o.n = 0;
+		s_cat(&o, "INPUT hold ");
+		s_num(&o, (long)d->cid);
+		s_cat(&o, d->hold == 2 ? " confine" : " relative");
+		if (cn_dsay(s, o.p))
+			d->ihold = d->hold;
+	}
+	s_free(&o);
+}
+
+/* A stream's view said to Blit (Blit #159), which maps the pointer through
+   it: only once the picture is in a route under its id now -- its own,
+   after INPUT sock, or its window's, after INPUT member -- since Blit
+   refuses a view for a picture in none; and only where it differs from
+   what Blit has for that id, a picture new to Blit being at its frame's
+   own pixels. */
+void cn_dvsync(sh *s, cn_dst *d)
+{
+	const char *want = d->view ? d->view : "-";
+	const char *had;
+	str o;
+
+	if (!d->cid || d->fcid != d->cid)
+		return;
+	if (!(d->sock && d->icid == d->cid) && !(d->mpar && d->imcid == d->cid))
+		return;
+	had = d->ivcid == d->cid && d->vsaid ? d->vsaid : "-";
+	if (!strcmp(want, had))
+		return;
+	s_init(&o);
+	s_cat(&o, "INPUT view ");
+	s_num(&o, (long)d->cid);
+	s_ch(&o, ' ');
+	s_cat(&o, want);
+	if (cn_dsay(s, o.p)) {
+		free(d->vsaid);
+		d->vsaid = xs(want);
+		d->ivcid = d->cid;
+	}
+	s_free(&o);
+}
+
 /* Tell Blit what a stream's input route is now, once a frame of it has
-   gone under its picture's id: the socket once per id, then whether it
-   is on, whenever that or the id has changed. */
+   gone under its picture's id: its membership of its window's route, its
+   own route, then its view. */
 void cn_dinsync(sh *s, struct cn_dst *d)
 {
 	str o;
@@ -801,48 +879,21 @@ void cn_dinsync(sh *s, struct cn_dst *d)
 		if (cn_dsay(s, o.p)) {
 			d->imcid = d->cid;
 			d->impcid = p->cid;
+			d->ivcid = 0;
 		}
 		s_free(&o);
 	}
-	if (!d->sock || !d->fcid || d->fcid != d->cid)
-		return;
-	s_init(&o);
-	if (d->icid != d->cid) {
-		s_cat(&o, "INPUT sock ");
-		s_num(&o, (long)d->cid);
-		s_ch(&o, ' ');
-		s_cat(&o, d->sock);
-		if (!cn_dsay(s, o.p)) {
-			s_free(&o);
-			return;
-		}
-		d->icid = d->cid;
-		d->ion = 0;
-		d->ihold = 0;
-	}
-	if (d->ion != d->on) {
-		o.n = 0;
-		s_cat(&o, d->on ? "INPUT on " : "INPUT off ");
-		s_num(&o, (long)d->cid);
-		if (cn_dsay(s, o.p))
-			d->ion = d->on;
-	}
-	if (d->hold && d->ihold != d->hold) {
-		o.n = 0;
-		s_cat(&o, "INPUT hold ");
-		s_num(&o, (long)d->cid);
-		s_cat(&o, d->hold == 2 ? " confine" : " relative");
-		if (cn_dsay(s, o.p))
-			d->ihold = d->hold;
-	}
-	s_free(&o);
+	if (d->sock && d->fcid && d->fcid == d->cid)
+		cn_drsync(s, d);
+	cn_dvsync(s, d);
 }
 
 /* A stream's input route: "sock" with the socket blit-compositor offers,
    which Blit writes the input to itself, "on"
    or "off" as its window gains and loses the keys, "hold" with confine or
-   relative for how a held pointer behaves (Blit 0.3.70). 1 when kept; it
-   reaches Blit as soon as a frame of the stream has. */
+   relative for how a held pointer behaves (Blit 0.3.70), "view" with "SX
+   SY SW SH DW DH" or "-" for its picture's view (Blit #159). 1 when kept;
+   it reaches Blit as soon as a frame of the stream has. */
 int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
 {
 	cn_dst *d = cn_dget(sid, 1);
@@ -858,6 +909,10 @@ int cn_dinput(sh *s, unsigned sid, const char *verb, const char *path)
 	} else if (!strcmp(verb, "member") && path &&
 		   sscanf(path, "%u %d %d", &d->mpar, &d->mx, &d->my) == 3) {
 		d->imcid = 0;
+	} else if (!strcmp(verb, "view") && path && *path &&
+		   !strchr(path, '\n')) {
+		free(d->view);
+		d->view = strcmp(path, "-") ? xs(path) : 0;
 	} else if (!strcmp(verb, "hold") && path &&
 		   (!strcmp(path, "confine") || !strcmp(path, "relative"))) {
 		d->hold = !strcmp(path, "confine") ? 2 : 1;
@@ -881,6 +936,8 @@ void cn_ddrop(sh *s, unsigned sid)
 	cn_dunsent(d);
 	cn_dclose(d);
 	free(d->sock);
+	free(d->view);
+	free(d->vsaid);
 	i = (size_t)(d - cn_dsts);
 	cn_dsts[i] = cn_dsts[cn_ndst - 1];
 	cn_ndst--;

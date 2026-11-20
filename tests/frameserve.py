@@ -191,7 +191,25 @@ def inputline(conn, held, routes, data, fds):
         if int(w[3]) not in routes.get(conn, {}) or iid == int(w[3]):
             why = "EINVAL"
         else:
+            MEMBERS.setdefault(conn, set()).add(iid)
             note(kind="member", id=iid, top=int(w[3]), x=int(w[4]), y=int(w[5]))
+    elif len(w) >= 3 and w[1] == "view":
+        # Blit 0.3.125 (Gitea #159): a picture's view, its rectangle and
+        # shown size or "-"; refused for a picture in no route on this
+        # connection, its own or as a member, or a rectangle empty,
+        # negative or past 32767.
+        tops = routes.get(conn, {})
+        nums = w[3:]
+        if iid not in tops and iid not in MEMBERS.get(conn, set()):
+            why = "EINVAL"
+        elif nums == ["-"]:
+            note(kind="view", id=iid, view=None)
+        elif len(nums) == 6 and all(x.isdigit() for x in nums) and \
+                all(0 < int(x) <= 32767 for x in nums[2:]) and \
+                all(int(x) <= 32767 for x in nums[:2]):
+            note(kind="view", id=iid, view=[int(x) for x in nums])
+        else:
+            why = "EINVAL"
     elif len(w) >= 2 and w[1] == "imekeys":
         # Blit 0.3.109 (hibr-ime #1): which chords are an input method's
         # actions, action=chord, the whole set each time, not answered; a
@@ -225,6 +243,7 @@ def inputline(conn, held, routes, data, fds):
 
 
 SOCKS = {}
+MEMBERS = {}
 
 # The keyboards (Blit ADR 0231, api.md "Keyboards (layouts)", 0.3.94): a
 # channel that sends `KEYBOARD list` is answered with an item a keyboard,

@@ -282,6 +282,7 @@ static struct hd_in {
 	int on;
 	int hold;
 	str mem;
+	str view;	/* its INPUT view (Blit #159), or empty for none */
 } *hd_ins;
 static size_t hd_nin;
 /* The chords the desktop keeps from programs (`INPUT keep`, Gitea #530):
@@ -559,6 +560,7 @@ void hd_f3prod(int fd)
 		if (hd_ins[i].prod == fd) {
 			s_free(&hd_ins[i].sock);
 			s_free(&hd_ins[i].mem);
+			s_free(&hd_ins[i].view);
 			hd_ins[i] = hd_ins[--hd_nin];
 		}
 	for (i = hd_nf3; i--;)
@@ -617,6 +619,7 @@ void hd_insame(size_t k)
 		   hd_ins[k].id);
 		s_free(&hd_ins[i].sock);
 		s_free(&hd_ins[i].mem);
+		s_free(&hd_ins[i].view);
 		hd_ins[i] = hd_ins[--hd_nin];
 		if (k == hd_nin)
 			k = i;
@@ -695,6 +698,7 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 		memset(&hd_ins[i], 0, sizeof hd_ins[i]);
 		s_init(&hd_ins[i].sock);
 		s_init(&hd_ins[i].mem);
+		s_init(&hd_ins[i].view);
 		hd_nin++;
 	}
 	hd_ins[i].id = (unsigned)id;
@@ -710,6 +714,10 @@ void hd_inputput(vec *cls, int prod, const char *line, size_t n)
 	} else if (n > 13 && !memcmp(line, "INPUT member ", 13)) {
 		hd_ins[i].mem.n = 0;
 		s_add(&hd_ins[i].mem, line, n);
+	} else if (n > 11 && !memcmp(line, "INPUT view ", 11)) {
+		hd_ins[i].view.n = 0;
+		if (n < 2 || memcmp(line + n - 2, " -", 2))
+			s_add(&hd_ins[i].view, line, n);
 	} else if (n > 11 && !memcmp(line, "INPUT hold ", 11)) {
 		hd_ins[i].hold = n >= 7 && !memcmp(line + n - 7, "confine", 7) ? 2 : 1;
 	}
@@ -804,6 +812,12 @@ void hd_inreplay(struct hd_cli *cn)
 		if (!hd_ins[i].mem.n)
 			continue;
 		if (hd_send(cn->fd, HD_INPUT, hd_ins[i].mem.p, hd_ins[i].mem.n))
+			cn->inrep++;
+	}
+	for (i = 0; i < hd_nin; i++) {
+		if (!hd_ins[i].view.n)
+			continue;
+		if (hd_send(cn->fd, HD_INPUT, hd_ins[i].view.p, hd_ins[i].view.n))
 			cn->inrep++;
 	}
 	for (i = 0; i < hd_nin; i++) {

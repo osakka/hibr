@@ -385,9 +385,12 @@ int bf_say(int fd, const char *line)
 		return 0;
 	/* A line an older Blit does not know is read by it as a malformed
 	   frame and counted as one refused: `KEYBOARD` before 0.3.94,
-	   `DISPLAY` before 0.3.98. Not sent, and taken as said. */
+	   `DISPLAY` before 0.3.98; and `INPUT view` (Blit #159) is refused
+	   before 0.3.125, its answer an error the compositor would log as a
+	   route ended. Not sent, and taken as said. */
 	if ((!strncmp(line, "KEYBOARD ", 9) && bf_blitver() < 3094) ||
-	    (!strncmp(line, "DISPLAY ", 8) && bf_blitver() < 3098)) {
+	    (!strncmp(line, "DISPLAY ", 8) && bf_blitver() < 3098) ||
+	    (!strncmp(line, "INPUT view ", 11) && bf_blitver() < 3125)) {
 		lg(HIBR_LDBG, "frames: Blit %ld does not know \"%s\"", bf_blitver(), line);
 		return 1;
 	}

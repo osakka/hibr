@@ -25,7 +25,10 @@ each ask once, as its own title bar would; LOG.copy (a line of text, and
 clipboard offers are read at once, as a program pasting would read them.
 LOG.chatter says a title every 5 ms, so the desktop always has something
 unread from it. LOG.shm, there from the start, draws 7 in shared memory (FRM1), its subs
-by dmabuf, as Firefox does. When the desktop goes it dials again for sixty seconds and announces every
+by dmabuf, as Firefox does. LOG.scale draws 7 at twice its size each way and
+says so with WINDOW view (wp_viewporter's scale, Blit #159), and its removal
+says WINDOW view 7 -; LOG.vpopup opens a popup, 16, of 7 at 12,63 whose
+buffer of 160 by 120 is shown at 80 by 60, and LOG.vpopupgone ends it. When the desktop goes it dials again for sixty seconds and announces every
 window again under the same ids, as blit-compositor does across a Restart
 Desktop. Everything it is told is a JSON line in LOG.
 """
@@ -114,6 +117,12 @@ def announce():
     if subs and 7 in size:
         for l in SUBS:
             say(l)
+    # A view is said again on a new channel, before the picture's frame.
+    if scale7 and 7 in size:
+        say(view7())
+    if 16 in size:
+        say("WINDOW popup 16 7 12 63")
+        say("WINDOW view 16 0 0 160 120 80 60")
 
 
 # Two subsurfaces of 7 (Gitea #496), bottom to top: 11 under the window's
@@ -122,7 +131,7 @@ def announce():
 SUBS = ("WINDOW sub 11 7 -8 -8 64 32 below", "WINDOW sub 10 7 24 40 96 48 above")
 
 
-full = child = popup = csd = lock = subs = geom = False
+full = child = popup = csd = lock = subs = geom = scale7 = False
 fs7 = False
 ans = dial()
 note(kind="hello", answer=ans)
@@ -155,6 +164,15 @@ def reconnect():
     sys.exit(0)
 
 
+def view7():
+    """7's view while it is drawn at twice its size (LOG.scale): the whole
+    buffer, shown at its surface's size -- the shadow round it included."""
+    w, h = size[7]
+    if geom:
+        w, h = w + 20, h + 20
+    return "WINDOW view 7 0 0 %d %d %d %d" % (2 * w, 2 * h, w, h)
+
+
 SHM = os.path.exists(LOG + ".shm")
 # The size a window draws at when it is left to choose, from LOG.own as
 # "W H", 300 by 200 otherwise.
@@ -168,6 +186,8 @@ def frame(wid):
         # A shadow of ten pixels round the window, as a program drawing
         # its own frame has: its geometry says where the window is.
         w, h = w + 20, h + 20
+    if wid == 7 and scale7:
+        w, h = 2 * w, 2 * h
     if w <= 0 or h <= 0:
         return
     if wid == 7 and SHM:
@@ -321,6 +341,12 @@ while True:
                         size[int(w[2])] = (int(w[3]), int(w[4]))
                     if w[2] == "7" and geom:
                         say("WINDOW geometry 7 10 10 %s %s" % (w[3], w[4]))
+                    if w[2] == "7" and (scale7 or os.path.exists(LOG + ".scale")):
+                        # A new size is a new view, said with the frame --
+                        # the first one too, before the program's first
+                        # picture, when LOG.scale is there from the start.
+                        scale7 = True
+                        say(view7())
                     if w[2] == "7" and full:
                         # The states it was given are its own, and what a
                         # reconnect announces again.
@@ -452,6 +478,21 @@ while True:
     if not csd and os.path.exists(LOG + ".csd"):
         csd = True
         say("WINDOW decor 7 client")
+    if not scale7 and os.path.exists(LOG + ".scale") and 7 in size:
+        scale7 = True
+        say(view7())
+    if scale7 and not os.path.exists(LOG + ".scale"):
+        scale7 = False
+        say("WINDOW view 7 -")
+    if 16 not in size and os.path.exists(LOG + ".vpopup"):
+        os.unlink(LOG + ".vpopup")
+        say("WINDOW popup 16 7 12 63")
+        say("WINDOW view 16 0 0 160 120 80 60")
+        size[16] = (160, 120)
+    if os.path.exists(LOG + ".vpopupgone"):
+        os.unlink(LOG + ".vpopupgone")
+        if size.pop(16, None):
+            say("WINDOW gone 16")
     for wid in list(size):
         frame(wid)
     time.sleep(0.005 if os.path.exists(LOG + ".chatter") else 0.1)

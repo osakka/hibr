@@ -555,6 +555,66 @@ gp = wait(lambda: scr() and [a for a in aps() if "i=%s," % cid in a and "x=10,y=
 check("a window drawing its own shadow is cut to its geometry, the shadow "
       "never shown", gp, [a for a in aps() if "i=%s," % cid in a][-2:])
 
+# A program drawing at twice its size, scaled down by wp_viewporter (Blit
+# #159, `WINDOW view`): its buffer is cut through the view and the geometry
+# together -- the geometry is in its surface's pixels, the buffer twice
+# them -- and its window keeps its size. Blit maps the pointer through the
+# view, so the view goes up on the frame channel under the console's id.
+szs7 = told("WINDOW size 7 ")
+W7, H7 = (int(szs7[-1].split()[3]), int(szs7[-1].split()[4])) if szs7 else (0, 0)
+nsz7 = len(szs7)
+nv0 = len(blitkind("input", verb="view", id=cid))
+open(complog + ".scale", "w").close()
+t.keys([b"x"])
+sp = wait(lambda: scr() and [a for a in aps() if "i=%s," % cid in a and
+                             "x=20,y=20,w=%d,h=%d," % (2 * W7, 2 * H7) in a])
+check("a window whose program draws it at twice its size is shown through "
+      "its view: the buffer cut by its geometry at twice the pixels, and "
+      "the window not resized", sp and W7 and
+      not [l for l in told("WINDOW size 7 ")[nsz7:] if l.split()[3:5] != [str(W7), str(H7)]],
+      ((W7, H7), [a for a in aps() if "i=%s," % cid in a][-2:], told("WINDOW size 7 ")[nsz7:]))
+vu = wait(lambda: blitkind("input", verb="view", id=cid)[nv0:])
+V7 = [0, 0, 2 * (W7 + 20), 2 * (H7 + 20), W7 + 20, H7 + 20]
+check("and its view goes up to the display's Blit on the frame channel, "
+      "under the picture's id there, after its route, rectangle and shown "
+      "size exact, and is taken",
+      vu and wait(lambda: [x for x in blitkind("view", id=cid) if x.get("view") == V7])
+      and [x for x in blitkind("input", verb="view", id=cid) if x.get("ok") is False] == []
+      and [x for x in lines(blitlog) if x["kind"] == "input" and x.get("id") == cid
+              and x.get("verb") in ("sock", "view")][0]["verb"] == "sock",
+      [x for x in lines(blitlog) if x["kind"] == "input"][-4:])
+na = len(aps())
+nv1 = len(blitkind("input", verb="view", id=cid))
+os.unlink(complog + ".scale")
+t.keys([b"x"])
+dp = wait(lambda: scr() and [a for a in aps()[na:] if "i=%s," % cid in a and
+                             "x=10,y=10,w=%d,h=%d," % (W7, H7) in a])
+check("a view dropped (`WINDOW view 7 -`) shows the buffer at its own "
+      "pixels again, cut by its geometry alone", dp,
+      [a for a in aps()[na:] if "i=%s," % cid in a][-2:])
+check("and the drop goes up too", wait(lambda: blitkind("input", verb="view", id=cid)[nv1:])
+      and wait(lambda: [x for x in blitkind("view", id=cid) if x.get("view") is None]),
+      (blitkind("input", verb="view"), blitkind("view")))
+# A popup drawn at twice its size: its pane is the size it is shown at,
+# its picture the whole buffer, and its view goes up under its own id.
+open(complog + ".vpopup", "w").close()
+t.keys([b"x"])
+m16 = wait(lambda: [x for x in blitkind("member", top=cid) if x["x"] == 12 and x["y"] == 63
+                    and x["id"] not in (pid9,)])
+i16 = m16[-1]["id"] if m16 else None
+pv = wait(lambda: i16 and scr() and [a for a in aps() if "i=%d," % i16 in a and
+                                     "x=0,y=0,w=160,h=120,c=10,r=4" in a])
+check("a popup drawn at twice its size is a pane the size it is shown at, "
+      "its whole buffer scaled into it", pv,
+      (i16, [a for a in aps() if i16 and "i=%d," % i16 in a][-2:]))
+check("and its view goes up under its own id, after its membership, "
+      "160x120 shown at 80x60",
+      i16 and wait(lambda: [x for x in blitkind("view", id=i16) if x.get("view") == [0, 0, 160, 120, 80, 60]]),
+      [x for x in lines(blitlog) if x["kind"] in ("input", "member")][-4:])
+open(complog + ".vpopupgone", "w").close()
+t.keys([b"x"])
+wait(lambda: not os.path.exists(complog + ".vpopupgone"))
+
 # Its own title bar asking to move it, a button down: the desktop's own
 # drag takes over from that press, the program's route off until the
 # button comes up and on again after.
@@ -957,6 +1017,9 @@ complog2 = os.path.join(D, "comp2.log")
 # Firefox draws its own frame round its page: held, a memfd frame once went
 # without being recorded and the window's route was never asked (#499).
 open(complog2 + ".shm", "w").close()
+# And at twice its size from its first picture, scaled down by its view
+# (Blit #159): the window is fitted round the size it is shown at.
+open(complog2 + ".scale", "w").close()
 # A compositor that takes the displays' layout (Blit 0.3.88, Gitea #514).
 open(complog2 + ".version", "w").write("0.3.88\n")
 wrap2 = os.path.join(D, "blit-compositor2")
@@ -1073,6 +1136,24 @@ check("held, a minimised program window leaves the display and keeps its "
 check("held, the keyboards reach the bar through hold (Gitea #529)",
       wait(lambda: hk("kbd", verb="list") and " US " in hscr().row(0), 6),
       (hscr().row(0), hk("kbd")))
+# Held, a view goes up through hold to the display's Blit, and after
+# `hold upgrade` -- whose new server knows nothing -- it is said again after
+# the route, from the console's own record.
+hcid = hsock[-1]["id"] if hsock else None
+ht.keys([b"x"])
+h7 = [l.split()[3:5] for x in comp_of(complog2, "line") for l in [x["line"]]
+      if l.startswith("WINDOW size 7 ")]
+check("held, a program drawing at twice its size from its first picture is "
+      "told its own size back, the size it is shown at, not its buffer's",
+      ["300", "200"] in h7 and ["600", "400"] not in h7, h7)
+check("and its picture reaches the display as its whole buffer, scaled into "
+      "the window", wait(lambda: hscr() and [m for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", ht.out)
+                                           if b"x=0,y=0,w=600,h=400," in m], 6),
+      [m[:90] for m in re.findall(rb"\x1b_G(a=p[^;\x1b]*)", ht.out)][-4:])
+check("held, a window's view reaches the display's Blit through hold",
+      wait(lambda: hk("input", verb="view", id=hcid), 6),
+      [x for x in lines(blitlog2) if x["kind"] == "input"][-4:])
+nhv = len(lines(blitlog2))
 nkb = len(hk("kbd", verb="list"))
 ns, nmb, nkp = len(hk("input", verb="sock")), len(hk("member")), len(hk("keep"))
 nik = len(hk("imekeys"))
@@ -1086,11 +1167,40 @@ check("after `hold upgrade` both are said to the display's Blit again, and "
       "the chords the desktop keeps", up.returncode == 0 and again,
       (up.stderr, len(hk("input", verb="sock")), ns, len(hk("member")), nmb,
        len(hk("keep")), nkp))
+def hafter():
+    return [x for x in lines(blitlog2)[nhv:] if x["kind"] == "input" and
+            x.get("id") == hcid and x.get("verb") in ("sock", "view")]
+
+
+hre = wait(lambda: [x["verb"] for x in hafter()][-1:] == ["view"] and hafter(), 10)
+check("and so is the window's view, after its route",
+      hre and hre[0]["verb"] == "sock", hafter())
 check("and so are the input method's chords",
       wait(lambda: len(hk("imekeys")) > nik, 6), hk("imekeys")[-2:])
 check("and the keyboards are asked for again (Gitea #529)",
       wait(lambda: len(hk("kbd", verb="list")) > nkb, 6),
       (len(hk("kbd", verb="list")), nkb))
+# A display that comes to the session afresh -- a Blit restarted and
+# dialling in again is one -- is told each picture's view again, after its
+# route, by hold itself (hd_inreplay), since the console says a view only
+# when it changes.
+nre = len(lines(blitlog2))
+a1 = os.path.join(D, "att2.hibr")
+open(a1, "w").write(load("hold") + "hold attach -m -n again %s 0 0\n" % hn)
+ht2 = Term(a1, rows=26, cols=82, settle=1.0, cellw=10, cellh=20, caps=["kitty"],
+           env=dict(henv, BLIT_FRAME_SOCKET="@" + nm2, BLIT_FRAME_TOKEN="tok2"))
+
+
+def hjoin():
+    return [x for x in lines(blitlog2)[nre:] if x["kind"] == "input" and
+            x.get("id") == hcid and x.get("verb") in ("sock", "view")]
+
+
+rj = wait(lambda: [x["verb"] for x in hjoin()][-1:] == ["view"] and hjoin(), 10)
+check("a display coming to the session afresh, as a restarted Blit does, is "
+      "told the window's view again, after its route", rj and rj[0]["verb"] == "sock",
+      hjoin())
+ht2.close()
 open(MARK2 + ".quit", "w").close()
 ht.keys([b"x"])
 wait(lambda: [x for x in lines(complog2) if x["kind"] == "quit"], 6)
@@ -1293,4 +1403,4 @@ check("a Blit older than 0.3.94 is asked for no keyboards and no rate, its "
 vg.quit(None, 0.3)
 pv.terminate()
 shutil.rmtree(D, True)
-report(104)
+report(115)

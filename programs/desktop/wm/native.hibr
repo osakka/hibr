@@ -719,12 +719,14 @@ fn dt_natfirst(int id, int n) {
 	local i kv fw=0 fh=0 o=1 bh bw h w r c pl p pid
 	local -a a
 
+	# The size it is shown at, its view's (Blit #159), not its buffer's:
+	# a program drawing at twice its size is told its own size back.
 	i := frames info "$n" 2> /dev/null
 	read -ra a <<< "$i"
 	for kv in "${a[@]}"; do
 		case $kv in
-		"width="*) fw=${kv#*=} ;;
-		"height="*) fh=${kv#*=} ;;
+		"vwidth="*) fw=${kv#*=} ;;
+		"vheight="*) fh=${kv#*=} ;;
 		esac
 	done
 	if [ "${fw:-0}" -le 0 ] || [ "${fh:-0}" -le 0 ]; then
@@ -982,10 +984,11 @@ fn dt_natpopclose(int id) {
 	return 0
 }
 
-# A window's popups, each with the size of its newest frame in pixels:
-# "N:W:H ...", what _dirty compares and the drawing works from.
+# A window's popups, each with the size it is shown at in pixels -- its
+# newest frame's, or its view's (Blit #159) -- and its view: "N:W:H ...",
+# what _dirty compares and the drawing works from.
 fn dt_natpopkey(int id) {
-	local n pid x y i kv fw fh key=
+	local n pid x y i kv fw fh v key=
 	local -a a
 
 	for n in "${!NWP[@]}" "${!NWS[@]}"; do
@@ -997,14 +1000,15 @@ fn dt_natpopkey(int id) {
 		[ "$pid" = "$id" ] || continue
 		i := frames info "$n" 2> /dev/null
 		read -ra a <<< "$i"
-		fw=0 fh=0
+		fw=0 fh=0 v=-
 		for kv in "${a[@]}"; do
 			case $kv in
-			"width="*) fw=${kv#*=} ;;
-			"height="*) fh=${kv#*=} ;;
+			"vwidth="*) fw=${kv#*=} ;;
+			"vheight="*) fh=${kv#*=} ;;
+			"view="*) v=${kv#*=} ;;
 			esac
 		done
-		key="$key $n:$fw:$fh:${NWS["$n"]// /,}"
+		key="$key $n:$fw:$fh:${NWS["$n"]// /,}:$v"
 	done
 	ret "$key"
 }
@@ -1158,9 +1162,10 @@ fn dt_natsize(int id, int h, int w) {
 }
 
 # What of a window's frames can change what it shows: whether one has come,
-# and a picture it has to draw itself.
+# a picture it has to draw itself, and its view (Blit #159), which may
+# change with no frame.
 fn dt_natseen(int n) {
-	local i kv f=0 r=0
+	local i kv f=0 r=0 v=-
 	local -a a
 
 	i := frames info "$n" 2> /dev/null
@@ -1169,9 +1174,10 @@ fn dt_natseen(int n) {
 		case $kv in
 		"frames="*) f=${kv#*=} ;;
 		"rgb="*) r=${kv#*=} ;;
+		"view="*) v=${kv#*=} ;;
 		esac
 	done
-	ret "$((f > 0)) $r"
+	ret "$((f > 0)) $r $v"
 }
 
 # The refresh rate of a display, in millihertz: the one at row and column
@@ -1650,8 +1656,8 @@ fn dt_naticondraw(int r, int c) {
 	read -ra a <<< "$i"
 	for kv in "${a[@]}"; do
 		case $kv in
-		"width="*) fw=${kv#*=} ;;
-		"height="*) fh=${kv#*=} ;;
+		"vwidth="*) fw=${kv#*=} ;;
+		"vheight="*) fh=${kv#*=} ;;
 		"frames="*) f=${kv#*=} ;;
 		esac
 	done

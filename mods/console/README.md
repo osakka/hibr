@@ -383,7 +383,14 @@ producer has only a few buffers, and one waiting on frames nobody will ever
 hold stops sending. Version 2 of `"dpframes"` (Blit 0.3.64) adds `input`: a
 stream's input route, the EIS socket its producer offered and whether it is
 on, told to every display's Blit once a frame has gone under the picture's
-id, and told again when the picture comes back under a new one.
+id, and told again when the picture comes back under a new one. A picture's
+**view** (Blit #159, a program cropping or scaling with wp_viewporter) is
+given as `input`'s `view` verb, `SX SY SW SH DW DH` or `-`, and said to Blit
+as `INPUT view <id> ...` once the picture is in a route under its id --
+its own, after `INPUT sock`, or its window's, after `INPUT member` -- since
+Blit maps the pointer through it and refuses one for a picture in no route.
+It is said again whenever a route is (a new id, or a new connection after
+`hold upgrade`), and only to a Blit of 0.3.125 or newer (`bf_say`).
 
 The same channel carries things that concern no picture.
 - **`console keep CHORD...`** tells Blit the chords the desktop keeps from

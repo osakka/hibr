@@ -15,7 +15,10 @@
  *   frames input N on|off      from the window: whether it has the keys
  *   frames input N hold confine|relative   how a held pointer behaves (Blit 0.3.70)
  *   frames info N              what has passed, one line of key=value;
- *                              pid= the process connected, 0 for none
+ *                              pid= the process connected, 0 for none;
+ *                              width= height= the newest frame's pixels,
+ *                              vwidth= vheight= the size it is shown at,
+ *                              view= its view as SX,SY,SW,SH,DW,DH or -
  *   frames stop N              the socket closed and the picture gone
  *   frames list                every socket, "N SOCKET" a line
  *
@@ -41,7 +44,11 @@
  *                              (the window within its buffer; its picture
  *                              is cut to it), move W, resize W EDGE, menu W
  *                              X Y (its own title bar asking, a button
- *                              down), gone W -- W a window's number
+ *                              down), view W SX SY SW SH DW DH or view W -
+ *                              (its buffer's SW by SH at SX, SY shown at DW
+ *                              by DH, wp_viewporter's crop and scale, Blit
+ *                              #159; - the buffer at its own pixels again),
+ *                              gone W -- W a window's number
  *   frames window W size PW PH [fullscreen] [activated] [maximized]
  *   frames window W close|output PW PH MHZ   said to the compositor
  *   frames quit N              the person quit: the compositor ends
@@ -140,6 +147,10 @@ typedef struct fl_srv {
 	/* Where the window is in its own buffer, round which a program draws
 	   its shadow (Wayland's window geometry, Gitea #496): gset once said. */
 	int gset, gx, gy, gw, gh;
+	/* Its view (Blit #159, wp_viewporter): the vw by vh pixels at vx, vy
+	   of its buffer shown at vdw by vdh, its surface's size; vset once
+	   said, and not since dropped. */
+	int vset, vx, vy, vw, vh, vdw, vdh;
 	/* A server's clipboard with its programs (Gitea #496, Blit ADR 0229),
 	   [0] the clipboard and [1] the primary selection: the desktop's own
 	   offers, each its text, whether a secret, and the number it went
@@ -661,6 +672,91 @@ int fl_subslot(const fl_srv *t)
 	return t->sab > 0 ? k + 1 : k - n;
 }
 
+/* A picture's view as text: "SX SY SW SH DW DH", or "-" for none. */
+void fl_vtext(const fl_srv *t, str *o, char sep)
+{
+	int v[6], k;
+
+	if (!t->vset) {
+		s_ch(o, '-');
+		return;
+	}
+	v[0] = t->vx;
+	v[1] = t->vy;
+	v[2] = t->vw;
+	v[3] = t->vh;
+	v[4] = t->vdw;
+	v[5] = t->vdh;
+	for (k = 0; k < 6; k++) {
+		if (k)
+			s_ch(o, sep);
+		s_num(o, v[k]);
+	}
+}
+
+/* A picture's view said (Blit #159): "SX SY SW SH DW DH" after its id, or
+   "-". Kept for its drawing, told to the console for Blit, which maps the
+   pointer through it, and news for the desktop, which sizes the picture
+   by what is shown. A sub's is kept and not yet told: it is drawn at its
+   buffer's pixels, and Blit mapping the pointer through a view the picture
+   is not drawn through would put every click somewhere else. */
+void fl_wview(fl_srv *f, fl_srv *t, const char *rest)
+{
+	int v[6], k = 0;
+	str o;
+
+	if (!strcmp(rest, "-")) {
+		t->vset = 0;
+	} else if (sscanf(rest, "%d %d %d %d %d %d%n", &v[0], &v[1], &v[2],
+			  &v[3], &v[4], &v[5], &k) == 6 && !rest[k] &&
+		   v[0] >= 0 && v[1] >= 0 && v[2] > 0 && v[3] > 0 && v[4] > 0 &&
+		   v[5] > 0) {
+		t->vset = 1;
+		t->vx = v[0];
+		t->vy = v[1];
+		t->vw = v[2];
+		t->vh = v[3];
+		t->vdw = v[4];
+		t->vdh = v[5];
+	} else {
+		lg(HIBR_LWRN, "frames %u: a WINDOW view not understood: %s", f->n, rest);
+		return;
+	}
+	s_init(&o);
+	fl_vtext(t, &o, ' ');
+	if (!t->sub)
+		fl_dpf->input(f->s, t->n, "view", o.p);
+	fl_ev(f, "view", t->n, o.p);
+	lg(HIBR_LDBG, "frames %u: window %u is viewed as %s", f->n, t->n, o.p);
+	s_free(&o);
+}
+
+/* The rectangle of a picture's buffer its window shows, into *x, *y, *w,
+   *h: its geometry where it has one, through its view where it has one --
+   the geometry is in surface pixels, and a buffer pixel is sx + x * sw /
+   dw. Without a view the two are the same pixels. */
+void fl_vcrop(const fl_srv *t, int *x, int *y, int *w, int *h)
+{
+	long gx = t->gset ? t->gx : 0, gy = t->gset ? t->gy : 0;
+	long gw = t->gset ? t->gw : t->vdw, gh = t->gset ? t->gh : t->vdh;
+
+	if (!t->vset) {
+		*x = (int)gx;
+		*y = (int)gy;
+		*w = (int)gw;
+		*h = (int)gh;
+		return;
+	}
+	*x = t->vx + (int)(gx * t->vw / t->vdw);
+	*y = t->vy + (int)(gy * t->vh / t->vdh);
+	*w = t->vx + (int)((gx + gw) * t->vw / t->vdw) - *x;
+	*h = t->vy + (int)((gy + gh) * t->vh / t->vdh) - *y;
+	if (*w < 1)
+		*w = 1;
+	if (*h < 1)
+		*h = 1;
+}
+
 /* A WINDOW line from a compositor (Blit ADR 0228): kept as news for the
    desktop in its own numbers, a window made for a new one or a popup and
    taken away for a gone one. 1: the desktop wakes to read it. */
@@ -720,6 +816,8 @@ int fl_window(fl_srv *f, const char *m, size_t k)
 			t->gset = 1;
 			fl_ev(f, "geometry", t->n, r.p);
 		}
+	} else if (!strcmp(v.p, "view")) {
+		fl_wview(f, t, r.p);
 	} else if (!strcmp(v.p, "parent")) {
 		fl_wnum(f, r.p, &o);
 		fl_ev(f, "parent", t->n, o.p);
@@ -1832,7 +1930,7 @@ int m_frames(sh *s, int ac, char **av)
 		return r;
 	}
 	if (!strcmp(av[1], "place")) {
-		int r, c, h, w, ok = 0, gx, gy;
+		int r, c, h, w, ok = 0, gx, gy, cx, cy, cw, ch;
 		fl_srv *pt;
 
 		if (ac < 8) {
@@ -1853,10 +1951,10 @@ int m_frames(sh *s, int ac, char **av)
 		if (f->frames && f->sub)
 			ok = fl_dpf->sub(s, av[3], r, c, h, w, f->n, f->sx - gx,
 					 f->sy - gy, f->sw, f->sh, fl_subslot(f));
-		else if (f->frames && f->gset)
-			ok = fl_dpf->crop(s, av[3], r, c, h, w, f->n, f->gx, f->gy,
-					  f->gw, f->gh);
-		else if (f->frames)
+		else if (f->frames && (f->gset || f->vset)) {
+			fl_vcrop(f, &cx, &cy, &cw, &ch);
+			ok = fl_dpf->crop(s, av[3], r, c, h, w, f->n, cx, cy, cw, ch);
+		} else if (f->frames)
 			ok = fl_dpf->place(s, av[3], r, c, h, w, f->n);
 		/* Where frames cannot go by descriptor a window is drawn from
 		   its RGB, and its subsurfaces are not drawn at all. */
@@ -1915,6 +2013,12 @@ int m_frames(sh *s, int ac, char **av)
 		s_num(&o, (long)f->fw);
 		s_cat(&o, " height=");
 		s_num(&o, (long)f->fh);
+		s_cat(&o, " vwidth=");
+		s_num(&o, f->vset ? (long)f->vdw : (long)f->fw);
+		s_cat(&o, " vheight=");
+		s_num(&o, f->vset ? (long)f->vdh : (long)f->fh);
+		s_cat(&o, " view=");
+		fl_vtext(f, &o, ',');
 		s_cat(&o, " pid=");
 		s_num(&o, fl_peerpid(f));
 		fl_out(s, &o);
