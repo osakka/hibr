@@ -1216,12 +1216,14 @@ fn fb_paint(int id, int h, int w, int row, int col) {
 # with the one it drew last. The focused window is drawn on every frame, as
 # keys and the search reach only it; an unfocused one changes only when a
 # listing comes back, a copy lands in its folder or the clipboard's cut
-# marks move, all of which this names.
+# marks move, all of which this names -- and when a Files setting it draws
+# with changes, Control Panel > Files being where that happens: the icons'
+# size and colour, the default background, the covers.
 fn fb_drawkey(int id) {
 	local c=
 
 	[ "${DT_CLIPKIND-}" = paths ] && c=$DT_CLIP
-	ret "${DT[$id]["h"]} ${DT[$id]["w"]} ${FB[$id]["dir"]} ${FB[$id]["n"]} ${FB[$id]["lgen"]:-0} ${FB[$id]["top"]} ${FB[$id]["sel"]} ${FB[$id]["view"]} ${FB[$id]["sort"]} ${FB[$id]["marks"]} ${FB[$id]["cgen"]} ${FB[$id]["covers"]} ${FB[$id]["meta"]} ${FB[$id]["bg"]-} ${FB[$id]["band"]-} ${FB[$id]["bandr"]-} ${FB[$id]["hx"]-} ${FB[$id]["per"]} ${FB[$id]["q"]-}|${DT_CLIPKIND-}|$c|$DT_MIRRORON|$FB_TITLE"
+	ret "${DT[$id]["h"]} ${DT[$id]["w"]} ${FB[$id]["dir"]} ${FB[$id]["n"]} ${FB[$id]["lgen"]:-0} ${FB[$id]["top"]} ${FB[$id]["sel"]} ${FB[$id]["view"]} ${FB[$id]["sort"]} ${FB[$id]["marks"]} ${FB[$id]["cgen"]} ${FB[$id]["covers"]} ${FB[$id]["meta"]} ${FB[$id]["bg"]-} ${FB[$id]["band"]-} ${FB[$id]["bandr"]-} ${FB[$id]["hx"]-} ${FB[$id]["per"]} ${FB[$id]["q"]-}|${DT_CLIPKIND-}|$c|$DT_MIRRORON|$FB_TITLE|$FB_ICONSIZE $FB_ICONCOLOUR $FB_BGDEF ${FB_USECOVER-} ${FB_COVER-}"
 }
 
 # Whether this window has anything new to draw (see fb_drawkey). A window

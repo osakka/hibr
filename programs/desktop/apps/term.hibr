@@ -432,7 +432,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	[ "$DT_FOCUS" = "$id" ] && TW[$id]["drawnfoc"]=1
 	TW[$id]["drawnh"]=${DT[$id]["h"]}
 	TW[$id]["drawnw"]=${DT[$id]["w"]}
-	TW[$id]["drawntrans"]="${DT_TERMTRANS:-0} $DT_FACE $DT_TERMBAR $DT_TERMCOLOURS"
+	TW[$id]["drawntrans"]="${DT_TERMTRANS:-0} $DT_FACE $DT_TERMBAR $DT_TERMCOLOURS $DT_TERMTITLE|$DT_WALLIMG|$DT_WALLIMGMODE $DT_IMGMODE"
 	TW[$id]["drawncur"]=$DT_CURSOR
 	sb := term scroll "$t"
 	TW[$id]["drawnview"]=$sb
@@ -828,11 +828,13 @@ fn term_dirty(int id) {
 	[ "$v" = "${TW[$id]["drawnview"]}" ] || return 0
 	# A translucent window's background is computed from the wallpaper, so
 	# what it should look like can change without a byte arriving from the
-	# program: the setting moving, or the theme's face under it. The
-	# wallpaper's own picture changing forces a full frame of its own. So
-	# can its scrollbar and whose colours it draws in, the terminal's own
-	# settings, which no frame of the desktop's makes whole.
-	[ "${TW[$id]["drawntrans"]}" = "${DT_TERMTRANS:-0} $DT_FACE $DT_TERMBAR $DT_TERMCOLOURS" ] || return 0
+	# program: the setting moving, the theme's face under it, or the
+	# wallpaper's picture and the mode it is drawn in -- which also decide
+	# the terminal's own colours, a picture under them taking this window's
+	# face (tw_colours), and which no whole frame follows. So can its
+	# scrollbar and whose colours it draws in, the terminal's own settings,
+	# and whether a program's title is the window's.
+	[ "${TW[$id]["drawntrans"]}" = "${DT_TERMTRANS:-0} $DT_FACE $DT_TERMBAR $DT_TERMCOLOURS $DT_TERMTITLE|$DT_WALLIMG|$DT_WALLIMGMODE $DT_IMGMODE" ] || return 0
 	# And the cursor's shape, which changes with no byte from the program
 	# either: Control Panel > Terminal > Cursor and the Control Strip set
 	# it on every open terminal (term_cursorapply), and a window called

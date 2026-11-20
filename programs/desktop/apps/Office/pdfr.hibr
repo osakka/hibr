@@ -145,7 +145,7 @@ fn pr_astext(int id) {
 }
 
 # Drawn again only when something it shows has changed: a key, the mouse,
-# a new size, the focus.
+# a new size, the focus, the picture mode its pages are drawn in.
 fn pdfr_dirty(int id) {
 	local foc=0
 
@@ -154,6 +154,7 @@ fn pdfr_dirty(int id) {
 	[ "$foc" = "${PR[$id]["dfoc"]}" ] || return 0
 	[ "${PR[$id]["dh"]}" = "${DT[$id]["h"]}" ] || return 0
 	[ "${PR[$id]["dw"]}" = "${DT[$id]["w"]}" ] || return 0
+	[ "${PR[$id]["dmode"]}" = "$DT_IMGMODE" ] || return 0
 	return 1
 }
 
@@ -164,6 +165,7 @@ fn pdfr_draw(int id, int h, int w, int row, int col) {
 	PR[$id]["dh"]=$((h + 2))
 	PR[$id]["dw"]=$((w + 2))
 	PR[$id]["dfoc"]=0
+	PR[$id]["dmode"]=$DT_IMGMODE
 	[ "$DT_FOCUS" = "$id" ] && PR[$id]["dfoc"]=1
 	console pen "$DT_INK" "$DT_FACE"
 	if [ -z "${PR[$id]["path"]}" ]; then

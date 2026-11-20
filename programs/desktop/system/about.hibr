@@ -712,6 +712,7 @@ fn about_draw(int id, int h, int w, int row, int col) {
 	AB[$id]["drawnoff"]=$off
 	AB[$id]["drawnh"]=${DT[$id]["h"]}
 	AB[$id]["drawnw"]=${DT[$id]["w"]}
+	AB[$id]["drawnwsn"]=$DT_WSN
 }
 
 # The wheel over the window scrolls the facts, DT_SCROLLWHEEL rows a notch
@@ -724,9 +725,10 @@ fn about_draw(int id, int h, int w, int row, int col) {
 # Whether this window has any reason to be drawn again. Everything it shows
 # is on the AB_SLOWMS clock -- sysinfo's block, the two meters, what the
 # terminal can do, whether this is held, who is in -- so a frame inside
-# that window would draw what is already on screen, cell for cell. The two
-# things not on that clock are where the box is scrolled to and how big the
-# window is, and both are compared against what was last drawn.
+# that window would draw what is already on screen, cell for cell. The
+# things not on that clock are where the box is scrolled to, how big the
+# window is and how many workspaces there are (Control Panel > Workspaces),
+# each compared against what was last drawn.
 #
 # Nothing can be stale for longer than AB_SLOWMS, because the reading
 # falling due is itself what makes this dirty: the staleness is the one the
@@ -746,6 +748,7 @@ fn about_dirty(int id) {
 	[ "${AB[$id]["drawnoff"]}" = "${AB[$id]["off"]:-0}" ] || return 0
 	[ "${AB[$id]["drawnh"]}" = "${DT[$id]["h"]}" ] || return 0
 	[ "${AB[$id]["drawnw"]}" = "${DT[$id]["w"]}" ] || return 0
+	[ "${AB[$id]["drawnwsn"]}" = "$DT_WSN" ] || return 0
 	# The dt_want that asks for the next reading is in _draw, which this
 	# has just said to skip -- so it is asked for here instead, for
 	# whatever is left of the period. Without it a frame some other

@@ -28,12 +28,12 @@ DT_MIRRORON	19	0	wm/lang.hibr	local
 DT_GLYPHSET	13	0	wm/glyphs.hibr	shared
 TB	6	6	widgets/textarea.hibr	local
 DAV_CODE	4	6	wm/native.hibr	local
+DT_IMGMODE	9	0	wm/picmode.hibr	shared
 DT_WALLIMG	9	0	wm/settings.hibr	shared
 DT_CLIPKIND	2	6	wm/state.hibr	arg
 DT_KEYS	8	0	wm/settings.hibr	shared
 DT_PW	6	2	wm/powerlist.hibr	local
 DT_WHY	4	4	wm/frame.hibr	local
-DT_IMGMODE	7	0	wm/picmode.hibr	shared
 DT_LANG	7	0	wm/lang.hibr	shared
 DT_APPS	6	0	wm/menus.hibr	shared
 DT_BARI	6	0	wm/bar.hibr	shared
@@ -114,6 +114,7 @@ DT_TITLEBARS	4	0	wm/settings.hibr	shared
 DT_VER	4	0	desktop.hibr	shared
 DT_VWA	4	0	wm/vault.hibr	shared
 DT_VWJOB	4	0	wm/vault.hibr	shared
+DT_WALLIMGMODE	3	1	wm/picmode.hibr	shared
 DT_WINTRANS	4	0	wm/settings.hibr	shared
 DT_WS	4	0	wm/workspaces.hibr	shared
 LANG	4	0	wm/locale.hibr	local
@@ -138,7 +139,6 @@ DT_WALLBAD	0	3	wm/settings.hibr	request
 DT_WALLDIMG	2	1	wm/wallpaper.hibr	shared
 DT_WALLDMODE	2	1	wm/wallpaper.hibr	shared
 DT_WALLDPIC	2	1	wm/wallpaper.hibr	shared
-DT_WALLIMGMODE	2	1	wm/picmode.hibr	shared
 MB_CY	3	0	wm/menus.hibr	call
 PM	2	1	wm/programs.hibr	shared
 PMOWN	2	1	wm/programs.hibr	shared
