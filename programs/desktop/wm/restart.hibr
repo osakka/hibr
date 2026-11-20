@@ -682,6 +682,10 @@ fn dt_catrenewed(int n, int st) {
 				t := dt_tr "%s, a copy of your own, hides the %s hibr ships" "${r["title"]}" "${r["to"]}"
 				mine="$mine${mine:+. }$t"
 				;;
+			changed)
+				t := dt_tr "%s, changed by you, kept: the Catalogue updates it when you ask" "${r["title"]}"
+				mine="$mine${mine:+. }$t"
+				;;
 			kept)
 				dt_log "after the upgrade to hibr $v, ${r["id"]} was not updated: the catalogue's ${r["to"]} cannot run here"
 				;;

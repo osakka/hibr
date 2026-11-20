@@ -70,11 +70,21 @@ def entry(name, title, ver):
 # What was installed, and what the catalogue offers after the upgrade:
 # Audio has moved on; Image Viewer, Clock and Calculator are no longer in
 # it, because hibr ships them now.
+# And two the person changed by hand after they were placed: Sheet, which the
+# catalogue has moved on from, and Notes, which it published again at the
+# same version with other bytes (a fix without a new number).
+NOTES2 = app("notes", "Notes", "1.0") + "# fixed in the catalogue\n"
 OLD = {"apps": {"audio": entry("audio", "Audio", "0.7.2"),
+                "sheet": entry("sheet", "Sheet", "1.0"),
+                "notes": entry("notes", "Notes", "1.0"),
                 "imgview": entry("imgview", "Image Viewer", "1.0"),
                 "clock": entry("clock", "Clock", "1.0"),
                 "calc": entry("calc", "Calculator", "2.0")}}
-NEW = {"apps": {"audio": entry("audio", "Audio", "0.7.3")}}
+NEW = {"apps": {"audio": entry("audio", "Audio", "0.7.3"),
+                "sheet": entry("sheet", "Sheet", "1.1"),
+                "notes": {"title": "Notes", "version": "1.0", "kind": "apps",
+                          "bundle": "bundles/notes-1.0b.hibr",
+                          "sha256": put("bundles/notes-1.0b.hibr", NOTES2)}}}
 put("old.json", json.dumps(OLD))
 put("new.json", json.dumps(NEW))
 
@@ -144,12 +154,13 @@ try:
 
     E = home("one")
     rc, out, err = cat(E, "install", "audio", "imgview", "clock", "calc",
-                       ix="old.json")
+                       "sheet", "notes", ix="old.json")
     DATA = os.path.join(E["XDG_DATA_HOME"], "hibr")
     # The person edits their Clock, and has put a Puzzle of their own in
     # the catalogue's folder by hand.
-    with open(os.path.join(DATA, "apps", "clock.hibr"), "a") as f:
-        f.write("# mine\n")
+    for n in ("clock", "sheet", "notes"):
+        with open(os.path.join(DATA, "apps", n + ".hibr"), "a") as f:
+            f.write("# mine\n")
     open(os.path.join(DATA, "apps", "puzzle.hibr"), "w").write(
         app("puzzle", "Puzzle", "0.5"))
     rc, out, err = cat(E, "-j", "update")
@@ -178,6 +189,13 @@ try:
           p.get("op") == "yours" and p.get("from") == "0.5"
           and os.path.exists(os.path.join(DATA, "apps", "puzzle.hibr")),
           out + err)
+    for n, why in (("sheet", "the catalogue's is newer"),
+                   ("notes", "the catalogue published the same version again")):
+        r = by.get("apps/" + n, {})
+        check("a copy changed by hand is kept and named when %s" % why,
+              r.get("op") == "changed"
+              and "# mine" in open(os.path.join(DATA, "apps", n + ".hibr")).read(),
+              out + err)
     check("one newer than what hibr ships is not touched",
           "apps/calc" not in by
           and os.path.exists(os.path.join(DATA, "apps", "calc.hibr")), out + err)
@@ -222,4 +240,4 @@ finally:
     srv.terminate()
     srv.wait()
 
-report(7 if ONLYCAT else 12)
+report(9 if ONLYCAT else 14)

@@ -92,6 +92,7 @@
   "%s, a cell is %s by %s": "⟪%s, a cell is %s by %s⟫",
   "%s, a copy of your own, hides the %s hibr ships": "⟪%s, a copy of your own, hides the %s hibr ships⟫",
   "%s, and %s more could not go": "⟪%s, and %s more could not go⟫",
+  "%s, changed by you, kept: the Catalogue updates it when you ask": "⟪%s, changed by you, kept: the Catalogue updates it when you ask⟫",
   "%s, replaced by %s": "⟪%s, replaced by %s⟫",
   "%s? Enter: yes  Esc: no": "⟪%s? Enter: yes  Esc: no⟫",
   "(empty)": "⟪(empty)⟫",

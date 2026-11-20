@@ -3334,6 +3334,15 @@ fn cat_update(...names) {
 		[ "${CAT_ENT["version"]}" = "${CAT_ST["installed"]["$name"]["version"]}" ] &&
 			same=1
 		[ -n "$same" ] && [ -z "$moved" ] && cat_current "$kind" && continue
+		# A copy changed by hand since it was placed is the person's: an
+		# update of everything -- which the desktop runs by itself after
+		# hibr is upgraded -- keeps it and says so, the same version or a
+		# newer one. Named on the command line, it is updated: they asked.
+		if [ "${#names[@]}" = 0 ] && cat_handedit "$name"; then
+			cat_say "$name: changed since it was placed, kept (catalogue update $name takes the catalogue's ${CAT_ENT["version"]})"
+			cat_rec changed "$name" "${CAT_ENT["title"]}" "${CAT_ST["installed"]["$name"]["version"]}" "${CAT_ENT["version"]}"
+			continue
+		fi
 		# Three different things, and each says which it is. An
 		# entry installed before 0.99.183 recorded no paths at all,
 		# so there is nothing to compare and it is reinstalled once
@@ -3383,8 +3392,10 @@ fn cat_update(...names) {
 # catalogue's that hid a newer one hibr ships, taken away so hibr's
 # runs), kept (not updated, and why is on standard error), edited (a
 # catalogue copy that hides a newer one hibr ships and was changed since
-# it was placed, so it stays) and yours (a file the catalogue never
-# placed that hides a newer one hibr ships, which stays).
+# it was placed, so it stays), yours (a file the catalogue never
+# placed that hides a newer one hibr ships, which stays) and changed (a
+# catalogue copy changed by hand since it was placed, which an update of
+# everything keeps rather than replacing; to is the catalogue's version).
 fn cat_rec(op, id, title = "", from = "", to = "", by = "") {
 	local j
 	local -A r=()
@@ -3416,6 +3427,18 @@ fn cat_older(a, b) {
 # itself for a one-file entry; a part is checked against the index, which
 # says the same thing only for the version installed; and a tarball's hash
 # is the tarball's, so nothing placed from one can be shown untouched.
+# Whether an installed entry's own file is no longer what was placed: its
+# bytes against the ledger's sha256, which is the first path's. Its parts
+# cannot be told apart from a catalogue change, the ledger keeping one hash.
+fn cat_handedit(id) {
+	local f got
+
+	f=${CAT_ST["installed"]["$id"]["paths"]["0"]-}
+	[ -n "$f" ] && [ -f "$CAT_DATA/$f" ] || return 1
+	got := cat_sha "$CAT_DATA/$f"
+	[ "$got" != "${CAT_ST["installed"]["$id"]["sha256"]}" ]
+}
+
 fn cat_asplaced(id) {
 	local f n got kind
 
