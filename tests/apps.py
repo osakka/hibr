@@ -1243,7 +1243,11 @@ check("a key two actions share is marked on both",
 # Cleared is kept as cleared: an empty value is saved, not left out, so a
 # shortcut that ships with a default does not come back at the next start.
 KCONF = tempfile.mkdtemp(prefix="hibr-keyconf-")
-KSET = '. %s\ndt_keyset quit ""\ndt_keyset app:term ""\n' % WM
+# Saves are written in the background since 0.99.546 (dt_writelater), a second
+# one queued behind the first: a process ends as the desktop does, with
+# dt_writeflush, or its last change is still waiting when it exits -- which
+# under a loaded gate is what this check once saw.
+KSET = '. %s\ndt_keyset quit ""\ndt_keyset app:term ""\ndt_writeflush\n' % WM
 KGET = ('. %s\ndt_load\necho "quit=[${DT_KEYS[quit]}] '
         'term=[${DT_APPKEY[term]}]"\n' % WM)
 subprocess.run([sx.HIBR, "-c", KSET], capture_output=True,
