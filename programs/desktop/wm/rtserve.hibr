@@ -341,7 +341,10 @@ dt_rttick() {
 				fi
 				DT_RTC["$x"]=-
 				DT_RTBUF["$x"]=
-				command -v console > /dev/null && console watch "$x" 2> /dev/null
+				# As input: an app waiting on an asked request must not wait
+				# out a frame the desktop is holding back (console key -q),
+				# which cost 70 ms an ask (ADR 0050, measured).
+				command -v console > /dev/null && console watch -i "$x" 2> /dev/null
 			done
 			continue
 		fi

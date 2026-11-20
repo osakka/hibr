@@ -502,7 +502,17 @@ lets the app send its next ask, which then queues behind the frame the last
 one asked for: in-process, 300 notes are drawn once; asked one by one, they
 are 300 frames. So an ask costs up to a desktop frame by construction, which
 is why the asks reachable from a frame path are counted (`FRAMEASKS`) and only
-ever lowered, and why a request whose status nobody needs is told. Finding it turned up a core bug in every
+ever lowered, and why a request whose status nobody needs is told. **Fixed
+the same day (2026-11-20): 1.7 ms an ask, and 3 frames for a hundred asks
+where there had been one each.** The app's socket is watched as input
+(`console watch -i`, the cells work's), so a request ends the held frame's
+quiet wait; and the held pass serves it (`dt_rttick` beside `dt_drain`)
+without drawing, so the frame comes once when the hold ends, however many
+asks were answered meanwhile. `tests/rtchan.py` holds it at under 15 ms an
+ask, measured before anything has filled the screen -- 300 notes on screen
+cost every frame 133 ms, which an earlier reading took for the ask's cost --
+and reading the terminal while it waits, since a desktop whose frames nobody
+reads blocks writing them and then answers nothing. Finding it turned up a core bug in every
 release before: once `RET` had held a map, a later scalar result kept the
 map's array mark, so the window's id went out as `[]`
 (`tests/999-ret-scalar-after-map.t`).

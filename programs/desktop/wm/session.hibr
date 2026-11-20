@@ -710,6 +710,14 @@ dt_run() {
 				   [ $((now - lastdraw)) -lt "$hold" ] &&
 				   ! dt_answer "$now"; then
 					dt_drain
+					# And an app's requests are served here too,
+					# without a frame: its socket is input
+					# (console watch -i), so it ends the quiet
+					# wait below, and waiting for the frame the
+					# hold keeps back cost every ask 70 ms (ADR
+					# 0050, measured). The frame comes when the
+					# hold ends, once for however many asks.
+					[ -z "$DT_RTLFD" ] || dt_rttick
 					# The wait is the hold's remainder and
 					# nothing shorter: no frame woken without
 					# a key draws before it ends, and a want
