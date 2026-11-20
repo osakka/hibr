@@ -374,7 +374,10 @@ int b_unset(sh *s, int ac, char **av)
 					lg(HIBR_LERR, "unset: `%s': not a valid identifier", av[i]);
 					rc = HIBR_FAIL;
 				} else {
+					v_refused = 0;
 					v_delp(s, av[i], (char **)ks->p, (int)ks->n);
+					if (v_refused)
+						rc = HIBR_FAIL;
 					*br = '[';
 				}
 				vb_put(s, ks);
@@ -414,7 +417,10 @@ int b_unset(sh *s, int ac, char **av)
 			continue;
 		}
 		lg(HIBR_LTRC, "unset: %s%s", nm, nm == av[i] ? "" : " through a nameref");
+		v_refused = 0;
 		v_del(s, nm);
+		if (v_refused)
+			rc = HIBR_FAIL;
 	}
 	return rc;
 }

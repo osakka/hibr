@@ -143,12 +143,12 @@ int vr_told(sh *s, const char *nm, const char *key, int ev)
 		vr_note(w, 0);
 		return 0;
 	}
+	if (ev == 3)
+		return 0;
 	if (vr_guard && !vr_apply) {
 		lg(HIBR_LERR, "%s: the desktop's, read only in an app's own process", nm);
 		return 1;
 	}
-	if (ev == 3)
-		return 0;
 	if (ev == 1 && !w->gone)
 		vr_pend(w, 1);
 	vr_note(w, ev == 1 ? 0 : key);

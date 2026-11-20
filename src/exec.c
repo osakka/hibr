@@ -1652,6 +1652,7 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 		else
 			break;
 	}
+	v_refused = 0;
 	if (plus) {
 		const char *old = v_getp(s, kv, (char **)ks->p, (int)ks->n);
 		const char *tn = kv;
@@ -1672,7 +1673,7 @@ int ex_asg(sh *s, char *kv, const char *mask, int ex_flag)
 	}
 	*br = '[';
 	*q = '=';
-	return s->stop || ro ? HIBR_FAIL : HIBR_OK;
+	return s->stop || ro || v_refused ? HIBR_FAIL : HIBR_OK;
 }
 
 /* Print an execution trace line, after PS4 expanded as bash expands it:

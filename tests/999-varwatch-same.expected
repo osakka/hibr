@@ -1,0 +1,9 @@
+0
+default line over a set value: 0 X=5
+the same value again: 0 X=5
+the same key value again: 0 a=1
+hibr: X: the desktop's, read only in an app's own process
+a change: 1 X=5
+hibr: M: the desktop's, read only in an app's own process
+a key's change: 1 a=1
+an unset: 1 X=5
