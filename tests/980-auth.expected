@@ -29,3 +29,6 @@ seat: seat0 vt: 7
 -e without =: 2
 root: 1 [root cannot log in here]
 nobody: 1 [Authentication failure]
+token, right: 0 []
+token, wrong: 1 [stand-in: not the token]
+token, open: 0 []

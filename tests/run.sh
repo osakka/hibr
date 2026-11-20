@@ -81,6 +81,13 @@ for t in "$here"/*.t; do
 	if [ -f "$exp" ]; then
 		got=$(SH="$SH_ABS" "$HIBR" "$t" 2>&1)
 		grc=$?
+		# 77 is a test saying this machine cannot run it, its reason on
+		# a line of its own beginning "skip: " (Gitea #80)
+		if [ "$grc" = 77 ]; then
+			skip=$((skip + 1))
+			printf 'SKIP %s (%s)\n' "$name" "$(printf '%s\n' "$got" | sed -n 's/^skip: //p' | head -1)"
+			continue
+		fi
 		want=$(sed -n '2,$p' "$exp")
 		wrc=$(sed -n '1p' "$exp")
 		mode=recorded

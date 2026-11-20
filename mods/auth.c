@@ -32,13 +32,16 @@
 #define AU_INFO 4
 #define AU_SUCCESS 0
 #define AU_BUF_ERR 5
-#define AU_CONV_ERR 19
-#define AU_NEWTOK 12
 #define AU_TTY 3
+#define AU_AUTHTOK 6
 #ifdef __APPLE__
+#define AU_CONV_ERR 6
+#define AU_NEWTOK 10
 #define AU_ESTCRED 0x1
 #define AU_DELCRED 0x2
 #else
+#define AU_CONV_ERR 19
+#define AU_NEWTOK 12
 #define AU_ESTCRED 0x2
 #define AU_DELCRED 0x4
 #endif
@@ -192,6 +195,21 @@ int au_talkfn(int n, const au_msg **m, au_resp **out, void *data)
 	return AU_SUCCESS;
 }
 
+/* Hand PAM the password as its token too, for a stack that takes it rather
+   than asks (use_first_pass: macOS's screensaver). */
+void au_tok(void *h, const char *pass)
+{
+	int r;
+
+	if (!au.setitem)
+		return;
+	r = au.setitem(h, AU_AUTHTOK, pass);
+	if (r != AU_SUCCESS)
+		lg(HIBR_LDBG, "auth: PAM takes no token from a program (%s); "
+			      "its stack asks through the conversation",
+		   au.err(h, r));
+}
+
 /* The PAM service to ask when none is named: hibr's own when installed,
    else the system's login (macOS: screensaver). */
 const char *au_service(void)
@@ -265,8 +283,10 @@ int au_check(sh *s, int ac, char **av)
 	} else {
 		r = au.start(svc, user, &conv, &h);
 	}
-	if (r == AU_SUCCESS)
+	if (r == AU_SUCCESS) {
+		au_tok(h, pass);
 		r = au.authn(h, 0);
+	}
 	if (r == AU_SUCCESS)
 		r = au.acct(h, 0);
 	if (r != AU_SUCCESS) {
@@ -458,8 +478,10 @@ int au_open(sh *s, int ac, char **av)
 		r = au.putenv(au_s.h, envs.p[ei]);
 	}
 	v_free(&envs);
-	if (r == AU_SUCCESS)
+	if (r == AU_SUCCESS) {
+		au_tok(au_s.h, pass);
 		r = au.authn(au_s.h, 0);
+	}
 	if (r == AU_SUCCESS)
 		r = au.acct(au_s.h, 0);
 	au_wipe(pass, pn);
