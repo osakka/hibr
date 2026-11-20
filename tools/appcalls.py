@@ -404,10 +404,7 @@ def nextver():
 # is compared with: function -> (that tag, why). It goes at the next release,
 # and an entry that names another tag, or a row that did not change, fails
 # as stale -- an exception never outlives the break it admits (ADR 0050).
-BREAKS = {
-    "dt_openerverb": ("v0.99.554", "an opener's verb is declared data: its fifth word is a "
-                      "test letter (f, e, d, x), never a function the desktop calls into"),
-}
+BREAKS = {}
 
 
 def params(sig):
