@@ -643,6 +643,15 @@ os.environ["DBUS_SESSION_BUS_ADDRESS"] = ""
 # screen and it is about to wait for input -- an OSC a terminal ignores,
 # carrying how many bytes of input it has read by then.
 IDLE = re.compile(rb"\x1b\]7777;idle;(\d+)(?:;(\d+))?\x07")
+# And, once, that the program is a desktop at all (wm/session.hibr, before any
+# app loads): its first frame is then waited for, up to FIRSTFRAME seconds,
+# rather than settle's, and one that never comes fails the suite -- a slow
+# build used to have its desktop driven as a plain program, onto a blank screen.
+DESKTOP = b"\x1b]7777;desktop\x07"
+FIRSTFRAME = 30
+# Unless it then becomes a display's client (dt_holdgo), which draws none of
+# its own: the held desktop's frames stay inside hold.
+CLIENT = b"\x1b]7777;client\x07"
 
 # An error the shell printed: "hibr: " and a message, then a newline. The
 # console draws by moving the cursor and never sends one, so a line ending
@@ -662,11 +671,12 @@ EXPECTED = []
 # drew the Control Panel past four times the mark. A `late:` line -- input
 # that reached the screen past the same mark (wm/latency.hibr) -- fails the
 # same way. A `slow:` line is advice and fails nothing.
-# And a setting refused (dt_set, ADR 0050): a name that is no kept setting,
-# or one an app's own files never name. A refusal is a status a caller like
+# And a request refused (ADR 0050): a setting that is no kept setting or one an
+# app's own files never name (dt_set), or a declaration an app makes for
+# another's opener or verb ("refused:"). A refusal is a status a caller like
 # cp_toggle does not test, so a pane whose toggle silently did nothing would
 # otherwise pass; a test provoking one on purpose says expect().
-SLOWLINE = re.compile(rb" desktop: ((?:held|late): [^\r\n]*"
+SLOWLINE = re.compile(rb" desktop: ((?:held|late|refused): [^\r\n]*"
                       rb"|dt_set: [^\r\n]*"
                       rb"|app runtime: [^\r\n]* set [A-Z][A-Z0-9_]*, which its own file never names)\r?\n")
 os.environ.setdefault("DT_HOLDMS", str(300 * (8 if os.environ.get("ASAN_OPTIONS") else 1)))
@@ -813,6 +823,25 @@ class Term:
         if settle:
             if self.until_idle(settle + 0.4):
                 self.idle = True
+            elif DESKTOP in self.out:
+                end, gone = time.time() + FIRSTFRAME, False
+                while time.time() < end and not self.idled() and CLIENT not in self.out:
+                    if not select.select([self.fd], [], [], 0.05)[0]:
+                        continue
+                    try:
+                        d = os.read(self.fd, 65536)
+                    except OSError:
+                        d = b""
+                    if not d:
+                        gone = True
+                        break
+                    self.out += d
+                    self.answer()
+                if self.idled():
+                    self.idle = True
+                elif not gone and CLIENT not in self.out:
+                    ERRS.append("a desktop that drew no first frame in %d s (in the session %s)"
+                                % (FIRSTFRAME, self.what))
             else:
                 self.collect(0.05)
 

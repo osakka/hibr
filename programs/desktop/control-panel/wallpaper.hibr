@@ -60,7 +60,7 @@ fn wp_put(field, value = "") {
 		return 0
 	fi
 	case $field in
-	img) dt_set DT_WALLIMG "$value"; DT_WALLBAD= ;;
+	img) dt_wallretry; dt_set DT_WALLIMG "$value" ;;
 	*) dt_set DT_WALLMODE "$value" ;;
 	esac
 }
@@ -79,7 +79,8 @@ fn wallpick_open(int id, arg = "") {
 }
 
 fn wallpick_close(int id) {
-	unset "WPK[$id]" "FP[$id]"
+	unset "WPK[$id]"
+	fp_drop "$id"
 }
 
 # Start in the folder the picker was last left in -- run on the first
@@ -97,10 +98,11 @@ fn wp_init(int id) {
 	fi
 	[ "$d" = . ] && d=$PWD
 	[ -d "$d" ] && [ -r "$d" ] || d=${HOME:-/}
-	FP[$id]["types"]=$WPK_TYPES
-	FP[$id]["ti"]=0
+	fp_set "$id" types "$WPK_TYPES" ti 0
 	dt_dblclear
 	fp_go "$id" "$d" || fp_go "$id" /
+	WPK[$id]["sel"]=0
+	WPK[$id]["top"]=0
 	WPK[$id]["previewfor"]=
 }
 
@@ -123,6 +125,8 @@ fn wp_goto(int id, dir) {
 		d="${d%/}/$dir"
 	fi
 	fp_go "$id" "$d" || return 0
+	WPK[$id]["sel"]=0
+	WPK[$id]["top"]=0
 	dt_dblclear
 	dt_set WPK_DIR "${FP[$id]["dir"]}"
 	wp_refresh "$id"
@@ -150,11 +154,12 @@ fn wp_preview(int id, path) {
 # clear (nothing there yet makes sense to preview), a plain up/down only
 # updates it when it actually lands on an image. Reads its own sizing
 # from WPK[$id], laid out fresh by _draw every frame before this could
-# ever run from a key or a click.
+# ever run from a key or a click. The selection and the scroll are the
+# picker's own, in WPK: the desktop's FP record holds the folder.
 fn wp_refresh(int id) {
 	local sel path
 
-	sel=${FP[$id]["sel"]}
+	sel=${WPK[$id]["sel"]}
 	if [ "$sel" -ge "${FP[$id]["n"]:-0}" ] || wp_isdir "$id" "$sel"; then
 		WPK[$id]["previewfor"]=
 		return 0
@@ -262,8 +267,8 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 "$bx" "$t"
 
 	n=${FP[$id]["n"]}
-	top=${FP[$id]["top"]}
-	sel=${FP[$id]["sel"]}
+	top=${WPK[$id]["top"]}
+	sel=${WPK[$id]["sel"]}
 	i=$top
 	r=2
 	while [ "$r" -le $((h - 2)) ]; do
@@ -340,8 +345,8 @@ fn wallpick_key(int id, key) {
 	esac
 	[ "$f" = list ] || return 0
 	n=${FP[$id]["n"]}
-	sel=${FP[$id]["sel"]}
-	top=${FP[$id]["top"]}
+	sel=${WPK[$id]["sel"]}
+	top=${WPK[$id]["top"]}
 	case $key in
 	up) sel=$((sel - 1)) ;;
 	down) sel=$((sel + 1)) ;;
@@ -365,11 +370,11 @@ fn wallpick_key(int id, key) {
 	esac
 	[ "$sel" -lt 0 ] && sel=0
 	[ "$sel" -ge "$n" ] && sel=$((n - 1))
-	FP[$id]["sel"]=$sel
 	vis=${WPK[$id]["vis"]}
 	[ "$sel" -lt "$top" ] && top=$sel
 	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))
-	FP[$id]["top"]=$top
+	WPK[$id]["sel"]=$sel
+	WPK[$id]["top"]=$top
 	wp_refresh "$id"
 	return 0
 }
@@ -385,10 +390,10 @@ fn wallpick_key(int id, key) {
 fn wallpick_wheel(int id, dir, r = "", c = "") {
 	local top
 
-	top=${FP[$id]["top"]}
+	top=${WPK[$id]["top"]}
 	top := dt_scrollmove "$dir" "$top" "${FP[$id]["n"]}" \
 		"${WPK[$id]["vis"]}" "$DT_SCROLLWHEEL" || return 0
-	FP[$id]["top"]=$top
+	WPK[$id]["top"]=$top
 	wp_refresh "$id"
 }
 
@@ -446,9 +451,9 @@ fn wallpick_click(int id, int r, int c, btn = "") {
 	[ "$c" -lt $((bx + listw)) ] || return 0
 	[ "$r" -lt 2 ] && return 0
 	n=${FP[$id]["n"]}
-	i=$((FP[$id]["top"] + r - 2))
+	i=$((WPK[$id]["top"] + r - 2))
 	[ "$i" -ge "$n" ] && return 0
-	if dt_isdbl "$id" "$i" && [ "$i" = "${FP[$id]["sel"]}" ]; then
+	if dt_isdbl "$id" "$i" && [ "$i" = "${WPK[$id]["sel"]}" ]; then
 		if wp_isdir "$id" "$i"; then
 			wp_goto "$id" "${FP[$id]["e$i"]}"
 		else
@@ -456,6 +461,6 @@ fn wallpick_click(int id, int r, int c, btn = "") {
 		fi
 		return 0
 	fi
-	FP[$id]["sel"]=$i
+	WPK[$id]["sel"]=$i
 	wp_refresh "$id"
 }

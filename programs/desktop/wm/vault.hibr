@@ -127,21 +127,31 @@ fn dt_vwerrs(int st, ef) {
 	rm -f "$ef"
 }
 
-# Vault work as a job (ADR 0049): FUNCTION runs in the child and leaves
-# its status in DT_VWST and its reason in DT_VWERR, and those and the
-# names in VARS come back here when it ends -- unless the vault was locked
-# meanwhile, since a lock takes precedence over anything still running.
-# THEN n status runs after.
+# Vault work as a job (ADR 0049): FUNCTION runs in the child and the
+# job's status is its own, which becomes DT_VWST; the reason dt_vw gave,
+# DT_VWERR, and the names in VARS come back here when it ends -- unless
+# the vault was locked meanwhile, since a lock takes precedence over
+# anything still running. THEN n status runs after.
 fn dt_vwjob(tag, then, f, ...vars) {
 	local n
 
-	DT_VWST=0
 	DT_VWERR=
-	n := dt_job vault "$tag" dt_vwjobdone dt_jobvarsrun "$f" DT_VWST DT_VWERR "${vars[@]}" || return 1
+	n := dt_job vault "$tag" dt_vwjobdone dt_vwjobrun "$f" DT_VWERR "${vars[@]}" || return 1
 	DTJ[$n]["vwthen"]=$then
 	DTJ[$n]["vwowner"]=$DT_CALLER
 	DTJ[$n]["vwgen"]=$DT_VWGEN
 	ret "$n"
+}
+
+# The job's side: FUNCTION, then the names brought back as any
+# dt_jobvarsrun job's, and the job ends with the function's own status.
+fn dt_vwjobrun(f, ...vars) {
+	local st
+
+	"$f" > /dev/null 2>&1
+	st=$?
+	dt_jobvarsrun : "${vars[@]}"
+	return "$st"
 }
 
 fn dt_vwjobdone(int n, int st) {
@@ -149,7 +159,7 @@ fn dt_vwjobdone(int n, int st) {
 
 	if [ "${DTJ[$n]["vwgen"]}" = "$DT_VWGEN" ]; then
 		dt_jobvarsread "$n"
-		[ "$st" = 0 ] || DT_VWST=$st
+		DT_VWST=$st
 	else
 		DT_VWST=1
 		DT_VWERR := dt_tr "The vault was locked meanwhile"
@@ -252,7 +262,7 @@ dt_vwlock() {
 }
 
 # The job's side of a lock.
-dt_vwlockjob() { dt_vw "" lock || DT_VWST=$?; }
+dt_vwlockjob() { dt_vw "" lock; }
 
 # Forget the session and everything read with it. VW_SESSION stays
 # exported, empty, which every vw reads as locked.
@@ -558,8 +568,8 @@ fn dt_vwsyncnow(int hand = 0) {
 
 # The job's side of a sync: the sync, then the list.
 dt_vwsyncjob() {
-	dt_vw "" sync || { DT_VWST=$?; return 0; }
-	dt_vwlist || DT_VWST=$?
+	dt_vw "" sync || return $?
+	dt_vwlist
 }
 
 # A finished sync, said how it went when asked for.
@@ -628,7 +638,7 @@ dt_vwtick() {
 dt_ticker dt_vwtick
 
 # The job's side of reading a session found already open: the list.
-dt_vwlistjob() { dt_vwlist || DT_VWST=$?; }
+dt_vwlistjob() { dt_vwlist; }
 
 # A session found open whose list cannot be read is one to forget.
 fn dt_vwlistdone(int n, int st) {
@@ -864,13 +874,13 @@ fn vwd_do(int id, what) {
 # The job's side of the dialog: what its mode does, with what it was given.
 vwd_job() {
 	case $VWJ_MODE in
-	login) dt_vwlogin "$VWJ_SERVER" "$VWJ_EMAIL" "$VWJ_PASS" "$VWJ_VERIFY" "$VWJ_CODE" || DT_VWST=$? ;;
-	unlock) dt_vwunlock "$VWJ_PASS" "$VWJ_USEPIN" || DT_VWST=$? ;;
+	login) dt_vwlogin "$VWJ_SERVER" "$VWJ_EMAIL" "$VWJ_PASS" "$VWJ_VERIFY" "$VWJ_CODE" ;;
+	unlock) dt_vwunlock "$VWJ_PASS" "$VWJ_USEPIN" ;;
 	*)
 		if [ "$VWJ_KEEP" = 1 ]; then
-			dt_vw "$VWJ_PASS" pin set --keep || DT_VWST=$?
+			dt_vw "$VWJ_PASS" pin set --keep
 		else
-			dt_vw "$VWJ_PASS" pin set || DT_VWST=$?
+			dt_vw "$VWJ_PASS" pin set
 		fi
 		;;
 	esac

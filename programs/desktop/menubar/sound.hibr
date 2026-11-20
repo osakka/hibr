@@ -419,16 +419,14 @@ fn dt_sndactl(int card, ctl) {
 }
 
 # Read everything the kind of sound here can say.
-# Counted for `desktop ctl stats` (Gitea #343); declared here as well as in
-# wm/session.hibr, so this file still loads on its own.
+# Counted for `desktop ctl stats` (Gitea #343).
 #
 # It is several runs of pactl, wpctl or amixer, so it is a job (ADR 0049,
 # Gitea #412), as the network's and Bluetooth's are: the bar shows what it
 # had until the answer is back, and a read asked for meanwhile is owed.
-declare -gA DT_STAT
 dt_sndread() {
 	DT_SNDREAD=$EPOCHREALTIME
-	DT_STAT["r:sound"]=$((${DT_STAT["r:sound"]:-0} + 1))
+	dt_statadd r:sound
 	if [ -n "$DT_SNDRJOB" ]; then
 		DT_SNDRAGAIN=1
 		return 0

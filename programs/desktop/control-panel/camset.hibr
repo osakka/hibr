@@ -34,8 +34,7 @@ fn camset_list() {
 
 fn cp_set_camsize(int? id = "", value = "") {
 	[ "$value" = Automatic ] && value=
-	CAM_SIZE=$value
-	cp_save
+	dt_set CAM_SIZE "$value"
 	dt_has cam_resize && cam_resize
 	return 0
 }
@@ -57,7 +56,8 @@ fn camset_rows(int w) {
 
 fn camset_do(int? w = "", k = "", int? dir = "") {
 	case $k in
-	CAM_SOUND) cp_toggle "$k"; cp_save ;;
+	CAM_SOUND) cp_toggle "$k" ;;
 	esac
+	return 0
 }
 

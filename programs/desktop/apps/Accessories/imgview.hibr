@@ -363,7 +363,7 @@ fn imgview_setwall(int id) {
 		dt_notep low "No picture open to set as wallpaper"
 		return 0
 	fi
-	DT_WALLBAD=
+	dt_wallretry
 	dt_set DT_WALLIMG "$path"
 	dt_notep low "Wallpaper set"
 }

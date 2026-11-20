@@ -24,7 +24,7 @@ DT_PIMEVERY="${DT_PIMEVERY-15}"
 command -v dt_keep > /dev/null && dt_keep DT_PIMSERVERS DT_PIMEVERY
 
 PS_EVERYL=(5 15 30 60)
-fn cp_set_pimevery(int? id = "", value = "") { DT_PIMEVERY=$value; cp_save; }
+fn cp_set_pimevery(int? id = "", value = "") { dt_set DT_PIMEVERY "$value"; }
 
 # Whether a server is one of those chosen.
 fn pims_on(name) {
@@ -40,7 +40,7 @@ fn pims_on(name) {
 
 # Choose a server or let it go.
 fn pims_toggle(name) {
-	local s out=
+	local s out= add=
 	local -a l
 
 	IFS=$'\t' read -ra l <<< "$DT_PIMSERVERS"
@@ -48,12 +48,13 @@ fn pims_toggle(name) {
 		for s in "${l[@]}"; do
 			[ "$s" = "$name" ] || out+="${out:+$'\t'}$s"
 		done
-		DT_PIMSERVERS=$out
 	else
-		DT_PIMSERVERS+="${DT_PIMSERVERS:+$'\t'}$name"
-		dt_has pe_sync && pe_sync "$name"
+		out="$DT_PIMSERVERS${DT_PIMSERVERS:+$'\t'}$name"
+		add=1
 	fi
-	cp_save
+	dt_set DT_PIMSERVERS "$out"
+	[ -n "$add" ] && dt_has pe_sync && pe_sync "$name"
+	return 0
 }
 
 # What a server keeps -- "cal", "card", both, "none" -- as its last probe

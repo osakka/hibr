@@ -246,6 +246,70 @@ dt_progsave() {
 	return 0
 }
 
+# The person's own entries kept and the menu put right: after every change
+# Control Panel > Applications Menu asks for.
+dt_progstore() {
+	dt_progsave
+	dt_progload
+}
+
+# One of the person's own entries made or changed (Control Panel >
+# Applications Menu): its name, its command, the folder under Applications
+# it goes in, 1 when it runs in a Terminal window and 1 when it is hidden.
+# KEY is the entry changed -- one of the machine's, or one of theirs -- or
+# empty for a new one, given the next own-N free here rather than in the
+# pane, whose copy of the entries may be behind.
+fn dt_progput(key, name, cmd, dir, term, hidden) {
+	local i n=0
+
+	if [ -z "${name// /}" ] || [ -z "${cmd// /}" ]; then
+		dt_log "dt_progput: an entry needs a name and a command"
+		return 1
+	fi
+	case $term in 0 | 1) ;; *) dt_log "dt_progput: term is 0 or 1"; return 1 ;; esac
+	case $hidden in '' | 1) ;; *) dt_log "dt_progput: hidden is empty or 1"; return 1 ;; esac
+	if [ -z "$key" ]; then
+		for i in "${!PMOWN[@]}"; do
+			case $i in own-*) [ "${i#own-}" -ge "$n" ] && n=$((${i#own-} + 1)) ;; esac
+		done
+		key=own-$n
+	elif [ -z "${PM["$key"]["name"]-}" ]; then
+		dt_log "dt_progput: $key is no entry on the menu"
+		return 1
+	fi
+	PMOWN["$key"]["name"]=$name
+	PMOWN["$key"]["cmd"]=$cmd
+	PMOWN["$key"]["dir"]=$dir
+	PMOWN["$key"]["term"]=$term
+	PMOWN["$key"]["hidden"]=$hidden
+	dt_progstore
+}
+
+# Take an entry off the menu (ON 1), or put it back (ON empty): for one of
+# the machine's that the person has not changed, only that it is hidden is
+# kept, so the program's own entry still says the rest, and putting it back
+# forgets it.
+fn dt_proghide(key, on = "") {
+	[ -n "$key" ] && [ -n "${PM["$key"]["name"]-}" ] || return 0
+	case $on in '' | 1) ;; *) dt_log "dt_proghide: on is empty or 1"; return 1 ;; esac
+	if [ "${PM["$key"]["from"]}" = own ] || [ -n "${PMOWN["$key"]["name"]-}" ]; then
+		PMOWN["$key"]["hidden"]=$on
+	elif [ -n "$on" ]; then
+		PMOWN["$key"]["hidden"]=1
+	else
+		unset PMOWN["$key"]
+	fi
+	dt_progstore
+}
+
+# Forget one of the person's own entries: one they made goes from the menu,
+# and one of the machine's they changed is the machine's again.
+fn dt_progdrop(key) {
+	[ -n "$key" ] && [ -n "${PMOWN["$key"]["name"]-}" ] || return 0
+	unset PMOWN["$key"]
+	dt_progstore
+}
+
 # Start an entry's program: detached from the desktop, so it outlives it
 # and opens where Wayland and X programs started from here open -- a window
 # of the desktop's through Blit's compositor -- or in a Terminal window
@@ -279,4 +343,4 @@ fn prog_launch(arg = "") {
 
 # What of this file's state every app process that reads it is sent (ADR
 # 0050, wm/rtwire.hibr).
-dt_share PM
+dt_share PM PMOWN

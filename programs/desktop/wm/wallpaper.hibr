@@ -137,6 +137,18 @@ fn dt_walldisp(name, img = "", mode = "", pic = "") {
 	DT_WALLDPIC["$name"]=${pic:-follow}
 }
 
+# Forget a display's own wallpaper, so it follows All Displays again, and
+# save.
+fn dt_wallforget(name) {
+	unset DT_WALLDIMG["$name"] DT_WALLDMODE["$name"] DT_WALLDPIC["$name"]
+	dt_save
+	return 0
+}
+
+# Every display's own wallpaper is the desktop's, shown to Control Panel >
+# Wallpaper and changed through dt_walldisp and dt_wallforget (ADR 0050).
+dt_share DT_WALLDIMG DT_WALLDMODE DT_WALLDPIC
+
 # Put the wallpaper settings in force for the display called name: its own
 # record if it has one, otherwise gi, gm and gp -- the settings every
 # display follows, which dt_wall keeps aside while it walks the displays.
@@ -484,7 +496,7 @@ dt_wall() {
 # wallpaper, where it was tried on every frame that painted: a theme's
 # picture left behind by a package that stopped shipping it filled one
 # desktop's log with 135,170 lines of it (Gitea #301). Choosing another
-# picture, or the same one again, tries afresh.
+# picture, or the same one again, tries afresh: dt_wallretry.
 dt_wallbad() {
 	[ "$DT_WALLBAD" = "$DT_WALLIMG" ] && return 0
 	DT_WALLBAD=$DT_WALLIMG
@@ -492,6 +504,15 @@ dt_wallbad() {
 	# Raised in the middle of a frame, after the notes were drawn: an idle
 	# desktop would draw no other to show it in.
 	dt_want 30
+}
+
+# A picture chosen -- another, or the same one again -- is tried afresh:
+# what dt_wallbad and dt_wall learned about the last one is forgotten. The
+# setters call it before they set the picture.
+fn dt_wallretry() {
+	DT_WALLBAD=
+	DT_WALLTRIED=
+	return 0
 }
 
 # Right-click on the bare desktop.

@@ -562,8 +562,11 @@ DT_RSTILL=150
 # wait -- and how many bytes of input have been read by then, so a frame a
 # timer asked for is never taken for the one after its key. It can send the
 # next key the moment the last one has been drawn, rather than sleeping for
-# a time long enough on a slow day.
+# a time long enough on a slow day. It says first that this is a desktop,
+# before any app loads, so the harness waits for the first frame however
+# slow the build is, and never drives a desktop as a plain program.
 DT_TESTIDLE=${HIBR_TESTIDLE-}
+[ -n "$DT_TESTIDLE" ] && printf '\e]7777;desktop\a'
 # A desktop hosting one app for another desktop (lib/apphost.hibr, ADR
 # 0050's prototype) stamps this file with the time each pass goes idle, so
 # the desktop showing it can tell an app that has answered its input from

@@ -12,7 +12,7 @@ strict
 app notes "The Control Panel pane for Stickies" 1.1
 command -v cp_pane > /dev/null && cp_pane notes "Stickies" "▤" app
 
-fn cp_set_stickycolor(int? id = "", value = "") { DT_STICKYCOLOR=$value; cp_save; }
+fn cp_set_stickycolor(int? id = "", value = "") { dt_set DT_STICKYCOLOR "$value"; }
 
 fn notes_rows(int w) {
 	local n=0
@@ -47,6 +47,6 @@ fn notes_do(int? w = "", k = "", int? dir = "") {
 	stickynew) dt_needs stickies st_new && st_new ;;
 	stickyall) dt_needs stickies stickies_launch && stickies_launch ;;
 	esac
-	cp_save
+	return 0
 }
 

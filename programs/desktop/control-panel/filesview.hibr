@@ -15,9 +15,9 @@ strict
 app filesview "The Control Panel pane for Files" 1.6
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
-fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
+fn cp_set_fileview(int? id = "", value = "") { dt_set FB_DEFAULTVIEW "$value"; }
 fn cp_set_termhere(int? id = "", value = "") { dt_set DT_TERMHERE "$value"; }
-fn cp_set_cover(int? id = "", value = "") { FB_COVER=$value; cp_save; }
+fn cp_set_cover(int? id = "", value = "") { dt_set FB_COVER "$value"; }
 
 # Files' own, repeated so the pane can set them with the app not loaded.
 FB_HIDDENDEF="${FB_HIDDENDEF-0}"
@@ -47,23 +47,20 @@ FV_BGS=("Follow Theme" White Grey Blue Green Yellow Rose Lavender Charcoal)
 fn fv_sortname(v) {
 	case $v in kind) ret Kind ;; time) ret Date ;; size) ret Size ;; *) ret Name ;; esac
 }
-fn cp_set_fvsort(int? id = "", value = "") { FB_SORTDEF=$value; cp_save; }
+fn cp_set_fvsort(int? id = "", value = "") { dt_set FB_SORTDEF "$value"; }
 fn fv_sizename(v) {
 	case $v in single) ret Small ;; *) ret Large ;; esac
 }
-fn cp_set_fvsize(int? id = "", value = "") { FB_ICONSIZE=$value; cp_save; }
+fn cp_set_fvsize(int? id = "", value = "") { dt_set FB_ICONSIZE "$value"; }
 fn fv_colourname(v) {
 	ret "${v^}"
 }
-fn cp_set_fvcolour(int? id = "", value = "") { FB_ICONCOLOUR=$value; cp_save; }
+fn cp_set_fvcolour(int? id = "", value = "") { dt_set FB_ICONCOLOUR "$value"; }
 fn fv_titlename(v) {
 	case $v in pathend) ret "Path, End Showing" ;; path) ret "Path" ;; *) ret "Folder Name" ;; esac
 }
-fn cp_set_fvtitle(int? id = "", value = "") { FB_TITLE=$value; cp_save; }
-fn cp_set_fvbg(int? id = "", value = "") {
-	FB_BGDEF=$value
-	cp_save
-}
+fn cp_set_fvtitle(int? id = "", value = "") { dt_set FB_TITLE "$value"; }
+fn cp_set_fvbg(int? id = "", value = "") { dt_set FB_BGDEF "$value"; }
 
 fn filesview_rows(int w) {
 	local n=0 v
@@ -140,6 +137,6 @@ fn filesview_do(int w, k, int dir) {
 	resetviews) dt_needs files fb_reset_views && fb_reset_views ;;
 	DT_FBOPENWITH | DT_FBTERMHERE | FB_USECOVER | FB_HIDDENDEF | FB_OPENNEW | FB_SHOWUP) cp_toggle "$k" ;;
 	esac
-	cp_save
+	return 0
 }
 

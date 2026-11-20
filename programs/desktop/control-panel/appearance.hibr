@@ -285,6 +285,7 @@ fn cp_theme(t) {
 	done
 	g=${CP_TH["$t"]["glyphs"]}
 	[ "$DT_GLYPHSET" != "$g" ] && gl=1
+	dt_wallretry
 	cp_colours "${CP_TH["$t"]["colours"]}" \
 		CP_THEME "$t" \
 		DT_GLYPH "${CP_TH["$t"]["wallpaper"]}" \
@@ -310,8 +311,6 @@ fn cp_theme(t) {
 		DT_WINTRANS "${CP_TH["$t"]["wintrans"]}" \
 		DT_BARTRANS "${CP_TH["$t"]["bartrans"]}" \
 		DT_GLYPHSET "$g"
-	DT_WALLTRIED=
-	DT_WALLBAD=
 	dt_treespec
 	DT_BARWAS=
 	[ -n "$gl" ] && dt_glyphs "$g"

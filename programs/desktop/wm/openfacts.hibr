@@ -1,0 +1,159 @@
+# wm/openfacts -- what opens a file and what else can be done to it, read
+# from what the installables declared (wm/handlers.hibr): the openers, the
+# right-click verbs and the File Types handlers. Each answer reads only that
+# data and the file itself -- its extension, whether it is a folder, a test
+# a verb declared -- and never asks the installable anything, so Files and
+# File Types work it out on their own copy with no round trip, once a
+# folder entry and once a menu.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# The answers, each process's own: the openers for the last path asked
+# about, whether that list was configured, and the verbs of a selection.
+DT_OWLIST=()
+DT_OWCONF=
+DT_OVLIST=()
+
+# Whether a path's extension is among types, a space-separated list with
+# a space at each end: * is anything, and a name ending .tar.gz is tar.gz
+# as well as gz.
+fn dt_extin(path, ext, types) {
+	case $types in *" * "*) return 0 ;; esac
+	[ -n "$ext" ] || return 1
+	case $types in *" $ext "*) return 0 ;; esac
+	case ${path##*/} in
+	*.tar."$ext") case $types in *" tar.$ext "*) return 0 ;; esac ;;
+	esac
+	return 1
+}
+
+# Whether a path passes a verb's declared test: f a regular file, e there
+# at all (a link to nothing counts), d a folder, x one that may be run,
+# empty none.
+fn dt_opentest(t, p) {
+	case $t in
+	"") return 0 ;;
+	f) [ -f "$p" ] ;;
+	e) [ -e "$p" ] || [ -L "$p" ] ;;
+	d) [ -d "$p" ] ;;
+	x) [ -x "$p" ] ;;
+	*) return 1 ;;
+	esac
+}
+
+# The verbs a selection offers, by number into DT_OVLIST, in the order they
+# were declared: those that take every path in it. A verb that opens an app
+# opens it for one path. One whose declarer has gone, or that its declarer
+# no longer offers, has no types and is never offered.
+fn dt_openverbs(...paths) {
+	local ext i=0 ty p ok t
+
+	DT_OVLIST=()
+	while [ "$i" -lt "$DT_OVN" ]; do
+		ty=${DT_OPENVERBS[$i]["ext"]-}
+		t=${DT_OPENVERBS[$i]["test"]-}
+		ok=1
+		[ -n "$ty" ] || ok=0
+		[ -n "${DT_OPENVERBS[$i]["call"]-}" ] || [ "${#paths[@]}" = 1 ] || ok=0
+		for p in "${paths[@]}"; do
+			[ "$ok" = 1 ] || break
+			ext := dt_ext "$p"
+			dt_extin "$p" "$ext" " $ty " || ok=0
+			dt_opentest "$t" "$p" || ok=0
+		done
+		[ "$ok" = 1 ] && DT_OVLIST+=("$i")
+		i=$((i + 1))
+	done
+	return 0
+}
+
+# Whether a path is a bundle: a folder an opener claims by its extension.
+# Leaves that opener first in DT_OWLIST.
+fn dt_isbundle(path) {
+	[ -d "$path" ] || return 1
+	dt_openers "$path"
+	[ "${#DT_OWLIST[@]}" -gt 0 ]
+}
+
+# Whether an opener can open this path. `dir` is 1 when the path is a
+# folder, worked out once by the caller -- or asserted by one asking about
+# a kind of folder with none on disk. An opener whose declarer has gone, or
+# that opens nothing now, has no types.
+fn dt_opencan(name, path, ext, int dir) {
+	local ty=${DT_OPENERS[$name]["types"]-}
+
+	[ -n "$ty" ] || return 1
+	if [ "${DT_OPENERS[$name]["dir"]}" = 1 ]; then
+		[ "$dir" = 1 ] || return 1
+	else
+		[ "$dir" = 1 ] && return 1
+	fi
+	case $ty in
+	*" * "*) return 0 ;;
+	*" x "*) [ -x "$path" ] && return 0 ;;
+	esac
+	dt_extin "$path" "$ext" "$ty" && return 0
+	return 1
+}
+
+# The openers for a path, in their order, into DT_OWLIST: the configured
+# list for its extension where there is one, then anything else that can
+# open it; "handler" stands for a File Types handler of the extension. With
+# all, the configured list is left out: every opener that can, in its own
+# order (File Types' Open With dialog, which offers them all to choose from).
+fn dt_openers(path, kind = "", all = "") {
+	local ext n e dir=0
+	local -a conf can ow
+
+	DT_OWLIST=()
+	DT_OWCONF=
+	ext := dt_ext "$path"
+	# A caller asking what opens a kind of folder -- the File Types pane,
+	# which has an extension and no folder to show it (#318) -- says so,
+	# since x.boxer is no folder on disk and would be asked about as a file.
+	{ [ "$kind" = dir ] || [ -d "$path" ]; } && dir=1
+	if [ "$all" != all ]; then
+		read -ra ow <<< "$DT_OPENWITH"
+		for e in "${ow[@]}"; do
+			[ "${e%%:*}" = "$ext" ] || continue
+			IFS=, read -ra conf <<< "${e#*:}"
+		done
+	fi
+	[ -n "$ext" ] && [ -n "${DT_HANDLERS[$ext]["n"]}" ] && [ "$dir" = 0 ] &&
+		can+=(handler)
+	# What names the extension comes before what takes any file.
+	for n in "${DT_OPENERORDER[@]}"; do
+		case ${DT_OPENERS[$n]["types"]-} in *" * "* | *" x "*) continue ;; esac
+		dt_opencan "$n" "$path" "$ext" "$dir" && can+=("$n")
+	done
+	for n in "${DT_OPENERORDER[@]}"; do
+		case ${DT_OPENERS[$n]["types"]-} in *" * "* | *" x "*) ;; *) continue ;; esac
+		dt_opencan "$n" "$path" "$ext" "$dir" && can+=("$n")
+	done
+	if [ "${#conf[@]}" -gt 0 ]; then
+		DT_OWCONF=1
+		for n in "${conf[@]}"; do
+			case " ${can[*]} " in *" $n "*) DT_OWLIST+=("$n") ;; esac
+		done
+		return 0
+	fi
+	DT_OWLIST=("${can[@]}")
+}
+
+# Where a path goes when it is opened from a Files window, or status 1 when
+# it opens as anything else: scheme://PATH, for a browse opener that comes
+# first for it. A window goes there itself where a new one would be opened.
+fn dt_openbrowse(path) {
+	local o
+
+	dt_openers "$path"
+	[ "${#DT_OWLIST[@]}" -gt 0 ] || return 1
+	o=${DT_OWLIST[0]}
+	[ "${DT_OPENERS[$o]["how"]}" = browse ] || return 1
+	ret "${DT_OPENERS[$o]["app"]}://$path"
+}

@@ -17,8 +17,7 @@ fn workspaces_draw(int row, int col) {
 	# Two cells a number, so a change in how many there are is a change
 	# in how wide the module is: the strip lays itself out again.
 	if [ "${CS_MODS["workspaces"]["w"]}" != "$w" ]; then
-		CS_MODS["workspaces"]["w"]=$w
-		dt_want 10
+		cs_modwidth workspaces "$w"
 	fi
 	while [ "$i" -le "$DT_WSN" ]; do
 		if [ "$i" = "$DT_WS" ]; then

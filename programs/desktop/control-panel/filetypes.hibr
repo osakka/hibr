@@ -97,12 +97,13 @@ owt_exts() {
 
 # What opens a type, asked as a folder when an app claims the extension
 # for a kind of folder (a bundle, #318): asked as a file, x.boxer found
-# every opener that takes any file -- the editor -- and never Boxer.
-fn owt_ask(ext) {
-	case " ${DT_BUNDLEEXT-} " in
-	*" $ext "*) dt_openers "x.$ext" dir ;;
-	*) dt_openers "x.$ext" ;;
-	esac
+# every opener that takes any file -- the editor -- and never Boxer. With
+# all, every opener that can, whatever the type's list says.
+fn owt_ask(ext, all = "") {
+	local k=
+
+	case " ${DT_BUNDLEEXT-} " in *" $ext "*) k=dir ;; esac
+	dt_openers "x.$ext" "$k" "$all"
 	return 0
 }
 
@@ -336,10 +337,7 @@ fn owt_dialog(ext) {
 		OWT[$rid]["on$i"]=1
 		i=$((i + 1))
 	done
-	DT_OPENWITH_SAVE=$DT_OPENWITH
-	DT_OPENWITH := owt_without "$ext"
-	owt_ask "$ext"
-	DT_OPENWITH=$DT_OPENWITH_SAVE
+	owt_ask "$ext" all
 	for o in "${DT_OWLIST[@]}"; do
 		case " ${cand[*]} " in *" $o "*) continue ;; esac
 		OWT[$rid]["o$i"]=$o
@@ -351,7 +349,6 @@ fn owt_dialog(ext) {
 	OWT[$rid]["sel"]=0
 	OWT[$rid]["focus"]=list
 }
-DT_OPENWITH_SAVE=
 
 # DT_OPENWITH without the given type's entry, answered.
 fn owt_without(ext) {

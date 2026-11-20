@@ -57,7 +57,7 @@ fn cp_set_vwlock(int? id = "", int value = 0) {
 }
 
 # The job's side of setting the timeout.
-cp_vwlockjob() { dt_vw "" timeout "$CP_VWN" || DT_VWST=$?; }
+cp_vwlockjob() { dt_vw "" timeout "$CP_VWN"; }
 
 fn cp_vwlockdone(int n, int st) {
 	[ "$st" = 0 ] && return 0
@@ -69,7 +69,7 @@ fn cp_vwlockdone(int n, int st) {
 }
 
 # The job's side of clearing the PIN.
-cp_vwpinjob() { dt_vw "" pin clear || DT_VWST=$?; }
+cp_vwpinjob() { dt_vw "" pin clear; }
 
 fn cp_vwpindone(int n, int st) {
 	[ "$st" = 0 ] && dt_notep low "The PIN is cleared"

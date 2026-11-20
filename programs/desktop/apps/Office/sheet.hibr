@@ -687,8 +687,7 @@ fn ss_trustset(p, h = "") {
 		[ -n "$l" ] && [ "${l%%$'\t'*}" != "$p" ] && out+="$l"$'\n'
 	done
 	[ -n "$h" ] && out+="$p"$'\t'"$h"$'\n'
-	SS_TRUST=${out%$'\n'}
-	command -v dt_save > /dev/null && dt_save
+	dt_set SS_TRUST "${out%$'\n'}"
 }
 
 # A sheet has been opened: full access if it was given to these formulas,

@@ -58,8 +58,10 @@ dt_kbmore() {
 
 # Show or hide the keyboard's name beside the glyph.
 dt_kbnameflip() {
-	if [ "${DT_KBNAME:-1}" = 1 ]; then DT_KBNAME=0; else DT_KBNAME=1; fi
-	dt_has dt_save && dt_save
+	local v=1
+
+	[ "${DT_KBNAME:-1}" = 1 ] && v=0
+	dt_set DT_KBNAME "$v"
 	dt_kbbar
 }
 

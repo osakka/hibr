@@ -736,7 +736,8 @@ dt_opener imgview "Image Viewer" "png ans" app imgview
 
 `dt_opener <name> <title> <extensions> app|edit|run [app] [dir]` -- the
 extensions space-separated, `*` for any file and `x` for one that may be
-run.
+run. It is data: Files and the desktop decide from it alone and never ask
+the app, and it goes when the app does.
 
 With `dir` after the app, the extensions are a **folder's**: a bundle, a
 folder that is really one thing -- a game, a notebook, a photo library
@@ -753,22 +754,29 @@ dt_opener boxerplay "Boxer" "boxer" app boxerplay dir
 dt_openerverb boxer "Get Info..." boxerinfo
 ```
 
-An extension nobody registered, or one whose app is not loaded, is an
+An extension nobody declared, or one whose app is not loaded, is an
 ordinary folder.
 
 A verb is not only for bundles. Its first word is a list of extensions,
 or `*` for anything; given a function after the app, it calls that with
-every path selected instead of opening the app; and a last function,
-asked of each path, decides whether the verb is offered at all, so one
-that needs a missing program is absent rather than failing. An opener
-whose how is `browse` goes in instead of opening: Files shows
-`scheme://PATH` as a folder, through the location of that scheme, and a
-two-word extension such as `tar.gz` is a type of its own.
+every path selected instead of opening the app; and a last letter is a
+test each path must pass: `f` a regular file, `e` there at all, `d` a
+folder, `x` one that may be run. An opener whose how is `browse` goes in
+instead of opening: Files shows `scheme://PATH` as a folder, through the
+location of that scheme, and a two-word extension such as `tar.gz` is a
+type of its own.
+
+What an app declares is what it can do now. One that needs programs to
+do it declares only what the programs here allow, and declares again
+from a function it names with `dt_onrescan`, which the desktop runs on
+every rescan -- Refresh Desktop, or the catalogue installing something --
+so a program installed or removed shows then, and not before.
 
 <!-- not run: lines from a desktop file, read when the desktop loads it -->
 ```sh
 dt_opener archives "Show Contents" "zip tar.gz" browse archive
-dt_openerverb "*" "Compress" archives arc_compress arc_cancompress
+dt_openerverb "*" "Compress" archives arc_compress e
+dt_onrescan arc_declare
 ```
 
 The **Archives** extension, from the catalogue, is built on both. It shows

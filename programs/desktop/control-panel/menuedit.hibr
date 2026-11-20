@@ -18,11 +18,9 @@ command -v cp_pane > /dev/null && cp_pane menuedit "Applications Menu" "☰"
 command -v dt_app > /dev/null &&
 	dt_app pmfield "Program" 14 70 "" "" fixed hidden
 
-# Declared, never emptied: wm/programs.hibr reads them; repeated so the
-# pane can be loaded without it.
-DT_PROGAUTO="${DT_PROGAUTO-1}"
-command -v dt_keep > /dev/null && dt_keep DT_PROGAUTO
-declare -gA PM PMOWN PMF
+# The dialogs' own records. The entries themselves, PM and the person's
+# PMOWN, are the desktop's (wm/programs.hibr), changed only by asking it.
+declare -gA PMF
 # The entries in the order the pane lists them, by name.
 declare -ga PME_IDS
 PME_RUNS=(window terminal)
@@ -76,7 +74,7 @@ fn menuedit_rows(int w) {
 
 fn menuedit_do(int? w = "", k = "", int? dir = "") {
 	case $k in
-	DT_PROGAUTO) cp_toggle "$k"; cp_save; dt_progload ;;
+	DT_PROGAUTO) cp_toggle "$k"; dt_progload ;;
 	add) pme_dialog "" ;;
 	ent[0-9]*) pme_dialog "${PME_IDS[${k#ent}]}" ;;
 	hide[0-9]*) pme_hide "${PME_IDS[${k#hide}]}" 1 ;;
@@ -86,24 +84,9 @@ fn menuedit_do(int? w = "", k = "", int? dir = "") {
 	return 0
 }
 
-# Take one off the menu, or put it back: for one of the machine's, only
-# that is kept, so the program's own entry still says the rest.
+# Hide and Show: one off the menu, or back on it.
 fn pme_hide(id = "", on = "") {
-	[ -n "$id" ] && [ -n "${PM["$id"]["name"]-}" ] || return 0
-	if [ "${PM["$id"]["from"]}" = own ] || [ -n "${PMOWN["$id"]["name"]-}" ]; then
-		PMOWN["$id"]["hidden"]=$on
-	elif [ -n "$on" ]; then
-		PMOWN["$id"]["hidden"]=1
-	else
-		unset PMOWN["$id"]
-	fi
-	pme_store
-}
-
-# Save the person's entries and put the menu right.
-pme_store() {
-	dt_has dt_progsave && dt_progsave
-	dt_has dt_progload && dt_progload
+	dt_proghide "$id" "$on"
 	return 0
 }
 
@@ -213,7 +196,7 @@ fn pmf_flip(int id) {
 # Keep it: a name and a command; a folder of nothing but slashes and
 # blanks is Other.
 fn pmfield_ok(int id) {
-	local k=${PMF[$id]["id"]} nm=${PMF[$id]["name"]} cm=${PMF[$id]["cmd"]} d=${PMF[$id]["dir"]} n=0 i
+	local k=${PMF[$id]["id"]} nm=${PMF[$id]["name"]} cm=${PMF[$id]["cmd"]} d=${PMF[$id]["dir"]} t=0 hd=
 
 	nm=${nm//[$'\t\n']/ }
 	cm=${cm//[$'\t\n']/ }
@@ -225,19 +208,9 @@ fn pmfield_ok(int id) {
 		return 0
 	fi
 	[ -n "${d// /}" ] || d=Other
-	if [ -z "$k" ]; then
-		for i in "${!PMOWN[@]}"; do
-			case $i in own-*) [ "${i#own-}" -ge "$n" ] && n=$((${i#own-} + 1)) ;; esac
-		done
-		k=own-$n
-	fi
-	PMOWN["$k"]["name"]=$nm
-	PMOWN["$k"]["cmd"]=$cm
-	PMOWN["$k"]["dir"]=$d
-	PMOWN["$k"]["term"]=0
-	[ "${PMF[$id]["run"]}" = terminal ] && PMOWN["$k"]["term"]=1
-	PMOWN["$k"]["hidden"]=${PM["$k"]["hidden"]-}
-	pme_store
+	[ "${PMF[$id]["run"]}" = terminal ] && t=1
+	[ -n "$k" ] && hd=${PM["$k"]["hidden"]-}
+	dt_progput "$k" "$nm" "$cm" "$d" "$t" "$hd"
 	dt_del "$id"
 }
 
@@ -248,8 +221,7 @@ fn pmfield_extra(int id, x) {
 	local k=${PMF[$id]["id"]} t
 
 	if [ "$x" = back ]; then
-		unset PMOWN["$k"]
-		pme_store
+		dt_progdrop "$k"
 		dt_del "$id"
 		return 0
 	fi
@@ -261,9 +233,8 @@ pmf_delok() {
 	local id=$PMF_DEL
 
 	[ -n "$id" ] || return 0
-	unset PMOWN["${PMF[$id]["id"]}"]
+	dt_progdrop "${PMF[$id]["id"]}"
 	PMF_DEL=
-	pme_store
 	dt_del "$id"
 }
 
@@ -279,9 +250,9 @@ fn pme_delask(id = "") {
 }
 pme_delok() {
 	[ -n "$PME_DEL" ] || return 0
-	unset PMOWN["$PME_DEL"]
+	dt_progdrop "$PME_DEL"
 	PME_DEL=
-	pme_store
+	return 0
 }
 
 fn pmfield_click(int id, int r, int c, btn = "") {

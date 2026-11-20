@@ -22,7 +22,7 @@ fn cp_set_cursor(int? id = "", value = "") {
 # Theme or terminal colours for a terminal window -- see DT_TERMCOLOURS in
 # programs/desktop/apps/term.hibr.
 CP_TERMCOLOURS=(theme terminal)
-fn cp_set_termcolours(int? id = "", value = "") { DT_TERMCOLOURS=$value; cp_save; }
+fn cp_set_termcolours(int? id = "", value = "") { dt_set DT_TERMCOLOURS "$value"; }
 # How much of a picture wallpaper shows through a terminal window -- see
 # DT_TERMTRANS in programs/desktop/apps/term.hibr. It is a percentage of
 # the picture's own brightness, so 0 is an opaque window and the small
@@ -40,12 +40,11 @@ DT_TERMTRANS="${DT_TERMTRANS-0}"
 fn cp_termtrans(int v) {
 	[ "$v" -lt 0 ] && v=0
 	[ "$v" -gt 100 ] && v=100
-	DT_TERMTRANS=$(((v + 5) / 10 * 10))
-	cp_save
+	dt_set DT_TERMTRANS "$(((v + 5) / 10 * 10))"
 	return 0
 }
 CP_TERMENDS=(success always never)
-fn cp_set_termend(int? id = "", value = "") { DT_TERMEND=$value; cp_save; }
+fn cp_set_termend(int? id = "", value = "") { dt_set DT_TERMEND "$value"; }
 
 # Repeated from the app, as every pane must: the panel's own tests load a
 # pane without its app, and under strict vars a setter assigning a global
@@ -55,8 +54,8 @@ DT_TERMASK="${DT_TERMASK-1}"
 command -v dt_keep > /dev/null && dt_keep DT_TERMASK
 CP_TERMROWS=(24 30 36 40 50)
 CP_TERMCOLS=(80 100 120 132)
-fn cp_set_termrows(int? id = "", value = "") { DT_TERMROWS=$value; cp_save; }
-fn cp_set_termcols(int? id = "", value = "") { DT_TERMCOLS=$value; cp_save; }
+fn cp_set_termrows(int? id = "", value = "") { dt_set DT_TERMROWS "$value"; }
+fn cp_set_termcols(int? id = "", value = "") { dt_set DT_TERMCOLS "$value"; }
 
 fn terminal_rows(int w) {
 	local n=0
@@ -125,7 +124,7 @@ fn terminal_do(int w, k, int dir) {
 		dt_has term_cursorapply && term_cursorapply ;;
 	termtrans) cp_termtrans $(((${DT_TERMTRANS:-0} + 5) / 10 * 10 + dir * 10)) ;;
 	esac
-	cp_save
+	return 0
 }
 
 

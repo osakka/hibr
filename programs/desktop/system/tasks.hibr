@@ -312,7 +312,7 @@ fn tasks_retitle(int id) {
 fn tasks_filterset(f) {
 	local id
 
-	TK_FILTER=$f
+	dt_set TK_FILTER "$f"
 	for id in "${!TK[@]}"; do
 		case $id in *[!0-9]*) continue ;; esac
 		TK[$id]["scant"]=
@@ -320,7 +320,6 @@ fn tasks_filterset(f) {
 		TK[$id]["sel"]=0
 		tasks_retitle "$id"
 	done
-	command -v dt_save > /dev/null && dt_save
 	return 0
 }
 

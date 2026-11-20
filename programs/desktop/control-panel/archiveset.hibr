@@ -21,11 +21,12 @@ fn as_foldername(v) {
 	case $v in always) ret "New Folder" ;; *) ret "Smart Folder" ;; esac
 }
 
-fn cp_set_arcformat(int? id = "", value = "") { DT_ARCFORMAT=$value; cp_save; }
+fn cp_set_arcformat(int? id = "", value = "") { dt_set DT_ARCFORMAT "$value"; }
 fn cp_set_arcfolder(int? id = "", value = "") {
-	DT_ARCFOLDER=smart
-	[ "$value" = always ] && DT_ARCFOLDER=always
-	cp_save
+	local v=smart
+
+	[ "$value" = always ] && v=always
+	dt_set DT_ARCFOLDER "$v"
 }
 
 fn archiveset_rows(int w) {
@@ -53,7 +54,7 @@ fn archiveset_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	DT_ARCOPEN) cp_toggle "$k" ;;
 	esac
-	cp_save
+	return 0
 }
 
 

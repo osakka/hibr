@@ -107,7 +107,7 @@ fn st_show(int note) {
 fn st_allws(int on) {
 	local id
 
-	DT_STICKYALL=$on
+	dt_set DT_STICKYALL "$on"
 	for id in "${!SW[@]}"; do
 		[ -n "${DT[$id]["title"]}" ] || continue
 		dt_sticky "$id" "$on"
@@ -165,8 +165,7 @@ fn stickies_open(int id, arg = "") {
 	TB[$id]["cr"]=$((TB[$id]["n"] - 1))
 	TB[$id]["cc"]=${#TB[$id][$((TB[$id]["n"] - 1))]}
 	SW[$id]["saved"]=0
-	DT[$id]["bg"]=${ST_FACE[${ST[$note]["color"]:-yellow}]}
-	DT[$id]["fg"]=${ST_INK[${ST[$note]["color"]:-yellow}]}
+	st_wincolours "$id" "${ST[$note]["color"]-}"
 	[ "$DT_STICKYALL" = 1 ] && dt_sticky "$id" 1
 	st_retitle "$id"
 }
@@ -229,8 +228,6 @@ fn stickies_draw(int id, int h, int w, int row, int col) {
 	c=${ST[$note]["color"]:-yellow}
 	face=${ST_FACE[$c]:-${ST_FACE["yellow"]}}
 	ink=${ST_INK[$c]:-${ST_INK["yellow"]}}
-	DT[$id]["bg"]=$face
-	DT[$id]["fg"]=$ink
 	tb_draw "$id" 1 1 "$h" "$w" "$ink" "$face" "$face" "$ink"
 	st_where "$id"
 	SW[$id]["drew"]=${SW[$id]["gen"]:-0}
@@ -243,8 +240,8 @@ fn stickies_draw(int id, int h, int w, int row, int col) {
 # or the wheel can change what it shows, and only the focused one gets any
 # of those -- so an unfocused note is drawn once when it loses focus, to
 # take its cursor away, and then left alone. st_bump is called wherever its
-# text or its selection moves; a note's colour is part of the desktop's own
-# look signature, which forces a frame for everybody when it changes.
+# text or its selection moves; a note's colour going to the window
+# (dt_wincolours) makes the next frame whole for everybody.
 fn stickies_dirty(int id) {
 	[ "$DT_FOCUS" = "$id" ] && return 0
 	[ "${SW[$id]["wasfoc"]}" = 1 ] && return 0
@@ -319,11 +316,19 @@ fn st_color(int id, color) {
 
 	[ -n "$note" ] || return 0
 	ST[$note]["color"]=$color
-	DT[$id]["bg"]=${ST_FACE[$color]}
-	DT[$id]["fg"]=${ST_INK[$color]}
-	DT_STICKYCOLOR=$color
+	st_wincolours "$id" "$color"
 	st_save
-	command -v cp_save > /dev/null && cp_save
+	dt_set DT_STICKYCOLOR "$color"
+	return 0
+}
+
+# A note's colour as its window's, told to the desktop where it is chosen
+# and when the window opens -- never from the drawing; a colour no note has
+# is yellow, as the drawing has it.
+fn st_wincolours(int id, color = "") {
+	[ -n "$color" ] && [ -n "${ST_FACE[$color]-}" ] || color=yellow
+	dt_wincolours "$id" "${ST_FACE[$color]}" "${ST_INK[$color]}"
+	return 0
 }
 
 # Delete a note, after asking: its file and its entry, and its window.

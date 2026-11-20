@@ -11,7 +11,7 @@
 
 strict
 
-for dt_part in seam rtwire loop names glyphs state winfacts orders namefacts lang locale budget draw \
+for dt_part in seam rtwire loop names glyphs state winfacts orders namefacts openfacts lang locale budget draw \
 	jobs keymatch chrome servers picmode wallfacts prayertimes prayerfacts powerlist vaultfacts ime; do
 	. "$DT_HERE/wm/$dt_part.hibr"
 done

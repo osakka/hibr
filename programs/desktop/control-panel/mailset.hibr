@@ -421,15 +421,14 @@ fn ms_mark(how) {
 	esac
 }
 
-fn cp_set_mailmax(int? id = "", value = "") { DT_MAILMAX=$value; cp_save; }
+fn cp_set_mailmax(int? id = "", value = "") { dt_set DT_MAILMAX "$value"; }
 fn cp_set_mailbodies(int? id = "", value = "") {
 	[ "$value" = all ] && value=1000000
-	DT_MAILBODIES=$value
-	cp_save
+	dt_set DT_MAILBODIES "$value"
 }
-fn cp_set_mailevery(int? id = "", value = "") { DT_MAILEVERY=$value; cp_save; }
-fn cp_set_maildraft(int? id = "", value = "") { DT_MAILDRAFT=$value; cp_save; }
-fn cp_set_mailimages(int? id = "", value = "") { DT_MAILIMAGES=$value; cp_save; }
+fn cp_set_mailevery(int? id = "", value = "") { dt_set DT_MAILEVERY "$value"; }
+fn cp_set_maildraft(int? id = "", value = "") { dt_set DT_MAILDRAFT "$value"; }
+fn cp_set_mailimages(int? id = "", value = "") { dt_set DT_MAILIMAGES "$value"; }
 
 fn mailset_rows(int w) {
 	local n=0 r a v
@@ -786,8 +785,7 @@ fn mlad_do(int id, what) {
 		;;
 	ok)
 		if [ "${MLAD[$id]["sig"]}" = 1 ]; then
-			DT_MAILSIG=${MLAD[$id]["full"]}
-			cp_save
+			dt_set DT_MAILSIG "${MLAD[$id]["full"]}"
 			dt_del "$id"
 			return 0
 		fi

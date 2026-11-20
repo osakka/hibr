@@ -264,8 +264,7 @@ dt_pwwatch() {
 	fi
 	if [ "$DT_PWCRITDUE" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$DT_PWCRITDUE" ]; then
 		DT_PWCRITDUE=0
-		DT_PWDOING=${DT_PWCRITDO}
-		dt_pwlocal && dt_pwgo
+		dt_pwcrit
 	fi
 	return 0
 }

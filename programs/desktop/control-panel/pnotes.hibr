@@ -55,19 +55,6 @@ fn dt_pnoteev(e) {
 	return 0
 }
 
-
-# Take a desktop note off the screen, history left as it was.
-fn dt_pnoteunshow(int id) {
-	local k
-	local -a keep=()
-
-	unset DT_NOTEQ["$id"]
-	for k in "${DT_NOTEQ_ORDER[@]}"; do
-		[ "$k" = "$id" ] || keep+=("$k")
-	done
-	DT_NOTEQ_ORDER=("${keep[@]}")
-}
-
 # A program's note shown: its summary and body as the program wrote them,
 # never looked up in the desktop's catalogue.
 fn dt_pnoteshow(int n) {
@@ -86,10 +73,9 @@ fn dt_pnoteshow(int n) {
 		[ "${i[$k]["key"]}" = default ] && key=default
 	done
 	[ -n "$key" ] || [ "${i["actions"]:-0}" = 0 ] || key=${i[0]["key"]}
-	[ -n "${PN_NOTE["$n"]+x}" ] && dt_pnoteunshow "${PN_NOTE["$n"]}"
-	id=$DT_NOTE_NEXT
+	[ -n "${PN_NOTE["$n"]+x}" ] && dt_note_drop "${PN_NOTE["$n"]}"
 	DT_NOTEFROM=${i["app"]:-A Program}
-	dt_noteq "$prio" "$text" dt_pnoteact "$n" "$key"
+	id := dt_noteq "$prio" "$text" dt_pnoteact "$n" "$key"
 	PN_NOTE["$n"]=$id
 	dt_want 10
 }
@@ -97,7 +83,7 @@ fn dt_pnoteshow(int n) {
 # The program closed its own note.
 fn dt_pnotedrop(int n) {
 	[ -n "${PN_NOTE["$n"]+x}" ] || return 0
-	dt_pnoteunshow "${PN_NOTE["$n"]}"
+	dt_note_drop "${PN_NOTE["$n"]}"
 	unset PN_NOTE["$n"]
 	dt_want 10
 }
@@ -129,8 +115,7 @@ dt_pnotetick() {
 
 # The Control Panel row: on, the desktop asks for the name; off, it lets it go.
 fn dt_pnoteset(v) {
-	DT_PNOTES=$v
-	dt_has dt_save && dt_save
+	dt_set DT_PNOTES "$v"
 	[ -n "${DT_BUSFD-}" ] || return 0
 	if [ "$v" = 1 ]; then
 		dbus notes on 2> /dev/null

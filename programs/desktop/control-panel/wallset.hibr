@@ -23,10 +23,6 @@ strict
 app wallset "The Control Panel pane for the wallpaper of each display" 1.1.2
 command -v cp_pane > /dev/null && cp_pane wallset "Wallpaper" "▧"
 
-# Declared again because a pane is loaded without the window manager's
-# own files under some fixtures, and a strict file may not create a global.
-declare -gA DT_WALLDIMG DT_WALLDMODE DT_WALLDPIC
-DT_WALLIMGMODE="${DT_WALLIMGMODE-follow}"
 
 # How the wallpaper is drawn, the same five values and order as YouTube's
 # Picture row (Gitea #275): follow is Control Panel > Pictures.
@@ -85,23 +81,28 @@ fn cp_wdget(field) {
 
 # Set one of the three for the display chosen, and save. A display's first change
 # gives it a wallpaper of its own, starting from what it showed until then,
-# so changing its Mode does not also change the picture it had.
+# so changing its Mode does not also change the picture it had: the record
+# is the three it shows now, with the one changed, in one dt_walldisp.
 fn cp_wdset(field, value = "") {
+	local img mode pic
+
 	if [ -z "$CP_WDISP" ]; then
 		case $field in
-		img) dt_set DT_WALLIMG "$value"; DT_WALLBAD= ;;
+		img) dt_wallretry; dt_set DT_WALLIMG "$value" ;;
 		mode) dt_set DT_WALLMODE "$value" ;;
 		*) dt_set DT_WALLIMGMODE "$value" ;;
 		esac
 		return 0
 	fi
-	cp_wdown || dt_walldisp "$CP_WDISP" "$DT_WALLIMG" "$DT_WALLMODE" \
-		"$DT_WALLIMGMODE"
+	img := cp_wdget img
+	mode := cp_wdget mode
+	pic := cp_wdget pic
 	case $field in
-	img) DT_WALLDIMG["$CP_WDISP"]=$value ;;
-	mode) DT_WALLDMODE["$CP_WDISP"]=$value ;;
-	*) DT_WALLDPIC["$CP_WDISP"]=$value ;;
+	img) img=$value ;;
+	mode) mode=$value ;;
+	*) pic=$value ;;
 	esac
+	dt_walldisp "$CP_WDISP" "$img" "$mode" "$pic"
 	cp_save
 	return 0
 }
@@ -109,9 +110,7 @@ fn cp_wdset(field, value = "") {
 # Forget the chosen display's own wallpaper: it follows All Displays again.
 cp_wddel() {
 	cp_wdown || return 0
-	unset DT_WALLDIMG["$CP_WDISP"] DT_WALLDMODE["$CP_WDISP"] \
-		DT_WALLDPIC["$CP_WDISP"]
-	cp_save
+	dt_wallforget "$CP_WDISP"
 	dt_notep low "%s follows All Displays again" "$CP_WDISP"
 }
 

@@ -123,14 +123,12 @@ fn trayset_order(int w, g, ...names) {
 	for id in "${names[@]}"; do
 		out+="${out:+$'\t'}$id"
 	done
-	DT_TRAYORDER=$out
-	cp_save
+	dt_set DT_TRAYORDER "$out"
 	dt_has dt_traybar && dt_traybar
 }
 
 # The bar shows what was just chosen at once, and it is kept.
 trayset_apply() {
-	cp_save
 	dt_has dt_traybar && dt_traybar
 	return 0
 }
@@ -138,10 +136,10 @@ trayset_apply() {
 # What each row's choice sets: the panel calls these from the row's list,
 # for a click and for the arrows alike. Named set-, since trayset_click
 # would be the pane's own click callback.
-fn trayset_setsize(int w, v) { DT_TRAYSIZE=$v; trayset_apply; }
-fn trayset_setclick(int w, v) { DT_TRAYCLICK=$v; trayset_apply; }
-fn trayset_setmax(int w, v) { DT_TRAYMAX=$v; trayset_apply; }
-fn trayset_seticon(int w, v) { DT_TRAYICON=$v; trayset_apply; }
+fn trayset_setsize(int w, v) { dt_set DT_TRAYSIZE "$v"; trayset_apply; }
+fn trayset_setclick(int w, v) { dt_set DT_TRAYCLICK "$v"; trayset_apply; }
+fn trayset_setmax(int w, v) { dt_set DT_TRAYMAX "$v"; trayset_apply; }
+fn trayset_seticon(int w, v) { dt_set DT_TRAYICON "$v"; trayset_apply; }
 
 # A picture's size as the part of the bar's height it takes.
 fn trayset_iconname(v) { ret "$v%"; }
@@ -154,12 +152,13 @@ fn trayset_maxname(v) {
 
 # One program shown, hidden, or shown even while it says it is idle.
 fn trayset_setprog(int w, v, id) {
-	local hid=0 alw=0
+	local hid=0 alw=0 h a
 
 	[ "$v" = hidden ] && hid=1
 	[ "$v" = always ] && alw=1
-	DT_TRAYHIDE := trayset_list "${DT_TRAYHIDE-}" "$id" "$hid"
-	DT_TRAYALWAYS := trayset_list "${DT_TRAYALWAYS-}" "$id" "$alw"
+	h := trayset_list "${DT_TRAYHIDE-}" "$id" "$hid"
+	a := trayset_list "${DT_TRAYALWAYS-}" "$id" "$alw"
+	dt_set DT_TRAYHIDE "$h" DT_TRAYALWAYS "$a"
 	trayset_apply
 }
 

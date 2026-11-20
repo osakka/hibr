@@ -61,7 +61,7 @@ fn nh_at(int i) {
 fn notifications_draw(int id, int h, int w, int row, int col) {
 	local n i r vis top hid at t line p sel f rb
 
-	DT_NOTEUNSEEN=0
+	[ "$DT_NOTEUNSEEN" = 0 ] || dt_noteseen
 	n=${#DT_NOTEHIST_ORDER[@]}
 	vis=$((h - 1))
 	NHW[$id]["vis"]=$vis

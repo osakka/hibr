@@ -51,8 +51,9 @@ def bindir(*names):
 
 def session(body, env=None, rows=24, cols=80, pre="", extension=True):
     sess = os.path.join(D, "session.hibr")
-    ext = ". %s\n. %s\n" % (tree("programs/desktop/apps/archives.hibr"),
-                            tree("programs/desktop/control-panel/archiveset.hibr"))
+    ext = "DT_LOADING=%s\n. \"$DT_LOADING\"\nDT_LOADING=\n. %s\n" % (
+        tree("programs/desktop/apps/archives.hibr"),
+        tree("programs/desktop/control-panel/archiveset.hibr"))
     open(sess, "w").write(
         "%s. %s\n. %s\n. %s\n%s%s\ndt_open\n%s\ndt_run\ndt_close\n"
         % (load("console"), tree("programs/desktop/desktop.hibr"),
@@ -449,7 +450,7 @@ check("without the extension an archive is a plain file",
       sc.find("Show Contents") is None, sc)
 t.quit(None, 0.3)
 
-t = session('unset DT_APPS["archives"]\n' + files(), pre=STUB)
+t = session('dt_unload "%s"\n' % tree("programs/desktop/apps/archives.hibr") + files(), pre=STUB)
 sc = right(t, "demo.tar.gz")
 check("and taking it away takes every verb at once",
       sc.find("Extract") is None and sc.find("Compress") is None, sc)

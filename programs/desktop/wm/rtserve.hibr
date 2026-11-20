@@ -550,9 +550,10 @@ dt_rtclose() {
 # Whether name is an installed app, and if so what its own file may ask:
 # the told requests the file's text names, read once per file and kept.
 # Read, never run, as everything an app declares is (ADR 0050, 3).
-# The text of every part a file declares (`# part: KIND/NAME`), joined, for
-# dt_rtmay: found under the folder that holds the file's own kind folder.
-fn dt_rtparts(src) {
+# The files of every part a file declares (`# part: KIND/NAME`), one a
+# line: found under the folder that holds the file's own kind folder, and
+# only those that are there. The one place a part is resolved.
+fn dt_rtpartfiles(src) {
 	local l k root= p out=
 
 	for k in apps system control-panel control-strip menubar savers; do
@@ -563,8 +564,19 @@ fn dt_rtparts(src) {
 		[[ $l == "# part:"* ]] || continue
 		p=${l#"# part:"}
 		p=${p# }
-		[ -r "$root/$p" ] && out+=$'\n'$(< "$root/$p")
+		[ -r "$root/$p" ] && out+="$root/$p"$'\n'
 	done < "$src"
+	ret "${out%$'\n'}"
+}
+
+# The text of every part a file declares, joined, for dt_rtmay.
+fn dt_rtparts(src) {
+	local p fs out=
+
+	fs := dt_rtpartfiles "$src" || return 1
+	while IFS= read -r p; do
+		[ -n "$p" ] && out+=$'\n'$(< "$p")
+	done <<< "$fs"
 	ret "$out"
 }
 

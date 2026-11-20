@@ -66,6 +66,11 @@ DT_NOTEHMAX="${DT_NOTEHMAX-8}"
 # Notes that have arrived since the history was last looked at: the bar's
 # dot is filled while this is above zero, hollow once it has been read.
 DT_NOTEUNSEEN=0
+
+# The history has been looked at: nothing is unseen.
+fn dt_noteseen() {
+	DT_NOTEUNSEEN=0
+}
 # Every note has a priority. Feedback on what you just did -- "Workspace
 # 2", "Record 4 added", "Not a valid name" -- is low, since you were looking
 # at it; something you were not watching -- a program's own notification --
@@ -137,8 +142,32 @@ fn dt_noteok(what, from, prio) {
 	[ "$lv" -ge "$m" ]
 }
 
-# Set one of a sender's three: pop, list or count, to 1, 0 or - (its
-# priority decides), and save. A sender whose three are all - is forgotten.
+# One sender's three at once -- pop, list and count, each 1, 0 or - (its
+# priority decides) -- and one save: the one way a sender's rules change,
+# from the panel under the bell and from Control Panel > Notifications. A
+# sender whose three are all - is forgotten.
+fn dt_noteapp(from, pop, list, count) {
+	local v
+
+	for v in "$pop" "$list" "$count"; do
+		case $v in
+		1 | 0 | -) ;;
+		*)
+			dt_log "dt_noteapp: $v is not 1, 0 or -"
+			return 2
+			;;
+		esac
+	done
+	if [ "$pop $list $count" = "- - -" ]; then
+		unset DT_NOTEAPP["$from"]
+	else
+		DT_NOTEAPP["$from"]="$pop $list $count"
+	fi
+	dt_has dt_save && dt_save
+	return 0
+}
+
+# Set one of a sender's three: pop, list or count, to 1, 0 or -.
 fn dt_noteset(from, what, v) {
 	local cur=${DT_NOTEAPP["$from"]:-- - -} p l c
 
@@ -148,13 +177,7 @@ fn dt_noteset(from, what, v) {
 	list) l=$v ;;
 	*) c=$v ;;
 	esac
-	if [ "$p $l $c" = "- - -" ]; then
-		unset DT_NOTEAPP["$from"]
-	else
-		DT_NOTEAPP["$from"]="$p $l $c"
-	fi
-	dt_has dt_save && dt_save
-	return 0
+	dt_noteapp "$from" "${p:--}" "${l:--}" "${c:--}"
 }
 
 # A priority's place, 1 for low to 4 for urgent; anything else is normal.
@@ -169,7 +192,8 @@ fn dt_notelevel(p) {
 
 # Append a note's own fields to the queue, shared by dt_note and
 # dt_notify -- the only difference between them is whether there is
-# anything past the message to keep as an action.
+# anything past the message to keep as an action. Its answer is the note's
+# id, which a caller that will take the note back keeps.
 dt_noteq() {
 	local id=$DT_NOTE_NEXT n=0 a
 
@@ -197,6 +221,7 @@ dt_noteq() {
 	else
 		unset DT_NOTEQ["$id"]
 	fi
+	ret "$id"
 }
 
 # A note, stacked with whatever others are already showing, gone on its
@@ -366,8 +391,9 @@ dt_note_draw() {
 					$((hmin - 2)) $((hmax - 2))
 			fi
 			if [ "$k" = 0 ]; then
-				DT_NOTEQ[$id]["cut"]=
-				[ "$DT_FITCUT" -gt 0 ] && DT_NOTEQ[$id]["cut"]=1
+				i=
+				[ "$DT_FITCUT" -gt 0 ] && i=1
+				DT_NOTEQ[$id]["cut"]=$i
 			fi
 			w=$((DT_FITW + 4))
 			[ ${#f} -gt $((w - 6)) ] && f="${f:0:$((w - 6))}"
@@ -550,14 +576,20 @@ fn dt_note_click(int id, int? r = "") {
 	dt_want "$DT_DBLMS"
 }
 
-# Take a note off the screen. Its record in the history stays.
-fn dt_note_drop(int id) {
+# Take a note off the screen. Its record in the history stays. Asked from
+# an app's own process (DT_RTFROM), a note another app made stays.
+fn dt_note_drop(int note) {
 	local o
 	local -a keep
 
-	unset "DT_NOTEQ[$id]"
+	if [ -n "${DT_RTFROM-}" ] && [ -n "${DT_NOTEQ[$note]["owner"]+x}" ] &&
+	   [ "${DT_NOTEQ[$note]["owner"]}" != "$DT_CALLER" ]; then
+		dt_log "app runtime: ${DT_CALLER:-an app} dropped note $note, which is not its own"
+		return 1
+	fi
+	unset "DT_NOTEQ[$note]"
 	for o in "${DT_NOTEQ_ORDER[@]}"; do
-		[ "$o" != "$id" ] && keep+=("$o")
+		[ "$o" != "$note" ] && keep+=("$o")
 	done
 	DT_NOTEQ_ORDER=("${keep[@]}")
 }
@@ -590,19 +622,15 @@ command -v dt_ticker > /dev/null && dt_ticker dt_notetick
 # Run a note's own action, if it has one, and take it off the screen
 # either way.
 fn dt_note_act(int id) {
-	local n=${DT_NOTEQ[$id]["argvn"]:-0} i=0 o own
-	local -a args keep
+	local n=${DT_NOTEQ[$id]["argvn"]:-0} i=0 own
+	local -a args
 
 	while [ "$i" -lt "$n" ]; do
 		args+=("${DT_NOTEQ[$id]["arg$i"]}")
 		i=$((i + 1))
 	done
 	own=${DT_NOTEQ[$id]["owner"]-}
-	unset "DT_NOTEQ[$id]"
-	for o in "${DT_NOTEQ_ORDER[@]}"; do
-		[ "$o" != "$id" ] && keep+=("$o")
-	done
-	DT_NOTEQ_ORDER=("${keep[@]}")
+	dt_note_drop "$id"
 	[ "$n" -gt 0 ] && dt_appfn "$own" "${args[@]}"
 }
 
@@ -668,7 +696,7 @@ fn dt_notehist_clear(prio) {
 		fi
 	done
 	DT_NOTEHIST_ORDER=("${keep[@]}")
-	[ "${#keep[@]}" = 0 ] && DT_NOTEUNSEEN=0
+	[ "${#keep[@]}" = 0 ] && dt_noteseen
 	return 0
 }
 
@@ -698,7 +726,7 @@ dt_bellpop() {
 	h=$((h + 5))
 	c=$((${DT_BARI["bell"]["c"]:-0} + ${DT_BARI["bell"]["w"]:-1} - w))
 	NHP_TOP=0
-	DT_NOTEUNSEEN=0
+	dt_noteseen
 	[ "$DT_POP" = nhpop ] || dt_note_clear
 	dt_popat bell nhpop "$c" "$h" "$w"
 }
@@ -832,9 +860,7 @@ fn dt_notemenu(from, prio = "normal") {
 }
 
 fn dt_notereset(from) {
-	unset DT_NOTEAPP["$from"]
-	dt_has dt_save && dt_save
-	return 0
+	dt_noteapp "$from" - - -
 }
 
 # The menu on a note's row in the panel: what its sender's notes do.
@@ -858,4 +884,6 @@ fn nhbell_context(id = "") {
 
 # What of this file's state every app process that reads it is sent (ADR
 # 0050, wm/rtwire.hibr).
-dt_share DT_NOTEHIST DT_NOTEHIST_ORDER DT_NOTELEVELS
+dt_share DT_NOTEAPP DT_NOTEHIST DT_NOTEHIST_ORDER DT_NOTELEVELS DT_NOTEUNSEEN
+# The notes on screen, each to the app that made it (its owner).
+dt_share -o owner DT_NOTEQ

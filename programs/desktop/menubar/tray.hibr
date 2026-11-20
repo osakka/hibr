@@ -490,8 +490,7 @@ fn tray_context(id = "") {
 
 # On or off, from the pane: the names taken or let go at once.
 fn dt_trayset(int v) {
-	DT_TRAY=$v
-	dt_has dt_save && dt_save
+	dt_set DT_TRAY "$v"
 	if [ -n "${DT_BUSFD-}" ]; then
 		if [ "$v" = 1 ]; then
 			dbus tray on 2> /dev/null

@@ -34,6 +34,9 @@ strict
 command -v dt_app > /dev/null && dt_app fpick "Open" 20 76 "" "" fixed hidden
 
 declare -gA FP
+# Each record goes to the app it belongs to alone: a dialog's to the app
+# that asked for it, a picker's own to its window's app (ADR 0050).
+dt_share -o owner FP
 declare -gA DT_FPLAST
 DT_FPPEND=
 
@@ -103,6 +106,7 @@ fn fp_match(int id, nm) {
 fn fp_go(int id, d) {
 	local f n=0 nm
 
+	fp_own "$id"
 	[ -n "$d" ] || d=/
 	while [ "${#d}" -gt 1 ] && [ "${d%/}" != "$d" ]; do d=${d%/}; done
 	if [ ! -d "$d" ] || [ ! -r "$d" ]; then
@@ -139,6 +143,55 @@ fn fp_go(int id, d) {
 	[ "${FP[$id]["mode"]}" = open ] && fp_takesel "$id"
 	FP[$id]["pv"]=
 	FP[$id]["pc"]=
+}
+
+# A record not yet anybody's is its window's app's.
+fn fp_own(int id) {
+	[ -n "${FP[$id]["owner"]+x}" ] || FP[$id]["owner"]=${DT[$id]["app"]-}
+	return 0
+}
+
+# A window that draws a folder of its own (the wallpaper picker) sets the
+# two of its record fp_go reads here, and nothing else: types, and ti, the
+# one of them chosen. Its selection and scroll are its own. Every pair is
+# checked before any is set.
+fn fp_set(int id, ...pairs) {
+	local i k v
+
+	if [ "${#pairs[@]}" = 0 ] || (( ${#pairs[@]} % 2 )); then
+		dt_log "fp_set: a field with no value"
+		return 2
+	fi
+	for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+		k=${pairs[$i]}
+		v=${pairs[$((i + 1))]}
+		case $k in
+		types) ;;
+		ti)
+			if [[ ! $v =~ ^[0-9]+$ ]]; then
+				dt_log "fp_set: $k is not a number: $v"
+				return 1
+			fi
+			;;
+		*)
+			dt_log "fp_set: $k is not a field it sets"
+			return 1
+			;;
+		esac
+	done
+	fp_own "$id"
+	for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+		FP[$id]["${pairs[$i]}"]=${pairs[$((i + 1))]}
+	done
+	return 0
+}
+
+# Forget such a window's record when it closes; a dialog's is
+# fpick_close's to forget.
+fn fp_drop(int id) {
+	[ -n "${FP[$id]["mode"]+x}" ] && return 0
+	unset FP["$id"]
+	return 0
 }
 
 # The selected entry's full path.

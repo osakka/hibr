@@ -141,6 +141,7 @@ fn dt_holdgo(...args) {
 	local st m ok
 	local -a mods
 
+	[ -n "$DT_TESTIDLE" ] && printf '\e]7777;client\a'
 	hold attach -C "${args[@]}"
 	st=$?
 	while [ "$HOLD_WHY" = renew ]; do

@@ -39,13 +39,12 @@ fn cp_set_tkfilter(int? id = "", value = "") {
 		tasks_filterset "$f"
 		return 0
 	fi
-	TK_FILTER=$f
-	cp_save
+	dt_set TK_FILTER "$f"
 }
 
-fn cp_set_tasks(int? id = "", int? value = "") { TK_SCANMS=$value; cp_save; }
-fn cp_set_tksort(int? id = "", value = "") { TK_SORTBY=$value; cp_save; }
-fn cp_set_tkdir(int? id = "", value = "") { TK_SORTDIR=$value; cp_save; }
+fn cp_set_tasks(int? id = "", int? value = "") { dt_set TK_SCANMS "$value"; }
+fn cp_set_tksort(int? id = "", value = "") { dt_set TK_SORTBY "$value"; }
+fn cp_set_tkdir(int? id = "", value = "") { dt_set TK_SORTDIR "$value"; }
 
 fn taskmgr_rows(int w) {
 	local n=0
@@ -76,10 +75,8 @@ fn taskmgr_rows(int w) {
 
 fn taskmgr_do(int w, k, int dir) {
 	case $k in
-	tkbar)
-		if [ "$TK_BAR" = 1 ]; then TK_BAR=0; else TK_BAR=1; fi
-		;;
+	tkbar) cp_toggle TK_BAR ;;
 	esac
-	cp_save
+	return 0
 }
 

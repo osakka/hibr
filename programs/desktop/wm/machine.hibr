@@ -39,6 +39,21 @@ fn dt_pwdo(what) {
 	return 0
 }
 
+# The critical battery's action, once the minute after its warning has run
+# (menubar/power.hibr): what the person chose in Control Panel > Power > On
+# Critical Battery, DT_PWCRITDO, never what the caller names -- so nothing
+# installed can ask the computer to shut down. Only on the computer's own
+# desktop, as every power action is.
+fn dt_pwcrit() {
+	case ${DT_PWCRITDO-} in
+	suspend | hibernate | poweroff) ;;
+	*) return 0 ;;
+	esac
+	dt_pwlocal || return 0
+	DT_PWDOING=$DT_PWCRITDO
+	dt_pwgo
+}
+
 # Not interactive (ld_do): a password logind wanted would be asked by the
 # desktop's own polkit agent, which cannot draw while this waits for the
 # answer, so a refusal is said instead of hanging the desktop.

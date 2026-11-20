@@ -454,18 +454,11 @@ fn arc_title(d) {
 	ret "${ARC_F##*/}:/$ARC_M"
 }
 
-# An archive can be read and left, and that is all; one is shown at all when
-# something reads its kind.
+# An archive can be read and left, and that is all; which kinds can be
+# shown at all is declared (arc_declare).
 fn arc_can(op, p = "") {
-	local k
-
 	case $op in
 	open | leave) return 0 ;;
-	browse)
-		k := arc_kind "$p" || return 1
-		arc_tool "$k"
-		return
-		;;
 	esac
 	return 1
 }
@@ -702,15 +695,6 @@ fn arc_copyrun(st, stop, rp, op, dst, ...rest) {
 
 # --- extracting -------------------------------------------------------------
 
-# Whether a path is an archive that something here can extract.
-fn arc_canextract(p) {
-	local k
-
-	[ -f "$p" ] || return 1
-	k := arc_kind "$p" || return 1
-	arc_tool "$k"
-}
-
 # Extract an archive into a folder of this name, or for smart, into the
 # archive's own single folder when it has one, and say where it went.
 fn arc_xjob(f, into, part, name, smart) {
@@ -796,10 +780,6 @@ fn arc_tochosen(f, p, ty = "") {
 
 # --- compressing ------------------------------------------------------------
 
-fn arc_cancompress(p) {
-	[ -e "$p" ] || [ -L "$p" ]
-}
-
 # Write an archive of names in a folder under a hidden name, then give it its
 # own.
 fn arc_cjob(tool, dir, part, out, ...names) {
@@ -857,9 +837,28 @@ fn arc_compressed(int n, int st) {
 }
 
 command -v dt_location > /dev/null && dt_location archive arc archives
+
+# What this machine can do with archives, declared as data (ADR 0050): the
+# kinds something here reads are shown as folders and offered to extract --
+# a regular file, never a folder named like one -- and anything may be
+# compressed. The programs here decide the kinds, so the desktop runs this
+# again on every rescan (dt_onrescan), when one installed or removed shows.
+arc_declare() {
+	local t k ok=
+	local -a ts
+
+	read -ra ts <<< "$ARC_TYPES"
+	for t in "${ts[@]}"; do
+		k := arc_kind "x.$t" || continue
+		arc_tool "$k" && ok+=" $t"
+	done
+	ok=${ok# }
+	dt_opener archives "Show Contents" "$ok" browse archive
+	dt_openerverb "$ok" "Extract Here" archives arc_here f
+	dt_openerverb "$ok" "Extract To..." archives arc_to f
+	dt_openerverb "*" "Compress" archives arc_compress e
+}
 if command -v dt_opener > /dev/null; then
-	dt_opener archives "Show Contents" "$ARC_TYPES" browse archive
-	dt_openerverb "$ARC_TYPES" "Extract Here" archives arc_here arc_canextract
-	dt_openerverb "$ARC_TYPES" "Extract To..." archives arc_to arc_canextract
-	dt_openerverb "*" "Compress" archives arc_compress arc_cancompress
+	arc_declare
+	command -v dt_onrescan > /dev/null && dt_onrescan arc_declare
 fi

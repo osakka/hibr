@@ -26,10 +26,10 @@ fn sheetset_label(v) {
 
 fn cp_set_sstrust(int? id = "", value = "") {
 	case $value in
-	ask | full) SS_NEWTRUST=$value ;;
-	*) SS_NEWTRUST=contained ;;
+	ask | full) ;;
+	*) value=contained ;;
 	esac
-	cp_save
+	dt_set SS_NEWTRUST "$value"
 }
 
 fn sheetset_rows(int w) {

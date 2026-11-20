@@ -512,8 +512,7 @@ fn cam_resize() {
 
 # Keep this size, and show it.
 fn cam_usesize(size) {
-	CAM_SIZE=$size
-	dt_save
+	dt_set CAM_SIZE "$size"
 	cam_resize
 }
 

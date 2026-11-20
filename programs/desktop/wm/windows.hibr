@@ -1103,6 +1103,26 @@ fn dt_retitle(int id, title) {
 	DT[$id]["title"]="$title"
 }
 
+# A window's own colours, its face and its ink, for an app whose window is
+# a thing with colours of its own -- a sticky note -- rather than the
+# theme's: what the frame and a bare window's strip are drawn in. Each is
+# #rrggbb, or empty for the theme's. Asked where the app chooses them, never
+# from its _draw; a change makes the next frame whole, since the frame
+# around the window changes with them.
+fn dt_wincolours(int id, bg, fg) {
+	local c
+
+	dt_winok "$id" dt_wincolours || return 1
+	for c in "$bg" "$fg"; do
+		[ -z "$c" ] || [[ $c =~ ^#[0-9a-fA-F]{6}$ ]] ||
+			{ dt_log "dt_wincolours: $c is not a colour"; return 1; }
+	done
+	[ "${DT[$id]["bg"]-}" = "$bg" ] && [ "${DT[$id]["fg"]-}" = "$fg" ] && return 0
+	DT[$id]["bg"]=$bg
+	DT[$id]["fg"]=$fg
+	DT_FORCEONCE=1
+}
+
 dt_close_focused() { [ -n "$DT_FOCUS" ] && dt_closereq "$DT_FOCUS"; }
 
 # Quit the focused window's app: every window it has, not only the one in

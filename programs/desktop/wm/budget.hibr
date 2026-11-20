@@ -92,6 +92,14 @@ declare -g DT_SPENTWHY=""
 # reads them (wm/ctl.hibr); its reset zeroes them and turns the timing on.
 declare -gA DT_STAT
 DT_STATON=
+# One more of something counted for `desktop ctl stats`, by its key: an
+# installable counts only its re-reads of what it watches (r:NAME, "rereads"
+# in the answer), never the desktop's own frames, wakes or timings.
+fn dt_statadd(key) {
+	[[ $key =~ ^r:[a-z]+$ ]] || { dt_log "dt_statadd: $key is no re-read"; return 1; }
+	DT_STAT["$key"]=$((${DT_STAT["$key"]:-0} + 1))
+}
+
 # Which app each ticker belongs to, worked out once from the file that
 # registered it; "-" for one that is the desktop's own.
 declare -gA DT_TICKAPP

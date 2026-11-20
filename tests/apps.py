@@ -1517,14 +1517,14 @@ WPWHEEL = (
     '. %s/wallpaper.hibr\n'
     'declare -gA FP\n'
     'wp_refresh() { :; }\n'
-    'FP[1]["n"]=20; FP[1]["top"]=0; FP[1]["sel"]=0\n'
+    'FP[1]["n"]=20; WPK[1]["top"]=0; WPK[1]["sel"]=0\n'
     'WPK[1]["vis"]=5\n'
-    'wallpick_wheel 1 down; echo "d1=${FP[1]["top"]}"\n'
+    'wallpick_wheel 1 down; echo "d1=${WPK[1]["top"]}"\n'
     'wallpick_wheel 1 down; wallpick_wheel 1 down\n'
     'wallpick_wheel 1 down; wallpick_wheel 1 down\n'
-    'wallpick_wheel 1 down; echo "d6=${FP[1]["top"]}"\n'
+    'wallpick_wheel 1 down; echo "d6=${WPK[1]["top"]}"\n'
     'i=0; while [ "$i" -lt 9 ]; do wallpick_wheel 1 up; i=$((i + 1)); done\n'
-    'echo "u9=${FP[1]["top"]}"\n'
+    'echo "u9=${WPK[1]["top"]}"\n'
     % (tree("programs/desktop/widgets/scrollbar.hibr"), CP)
 )
 out = subprocess.run([sx.HIBR, "-c", WPWHEEL], capture_output=True, text=True,

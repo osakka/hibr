@@ -86,13 +86,12 @@ fn cp_noteapp(from) {
 }
 fn cp_set_noteapp(from, v) {
 	case $v in
-	auto) unset DT_NOTEAPP["$from"] ;;
-	all) DT_NOTEAPP["$from"]="1 1 1" ;;
-	quiet) DT_NOTEAPP["$from"]="0 1 1" ;;
-	popup) DT_NOTEAPP["$from"]="1 0 0" ;;
-	off) DT_NOTEAPP["$from"]="0 0 0" ;;
+	auto) dt_noteapp "$from" - - - ;;
+	all) dt_noteapp "$from" 1 1 1 ;;
+	quiet) dt_noteapp "$from" 0 1 1 ;;
+	popup) dt_noteapp "$from" 1 0 0 ;;
+	off) dt_noteapp "$from" 0 0 0 ;;
 	esac
-	cp_save
 }
 # One sender's row, the row naming the sender.
 fn cp_set_noteappof(int? id = "", value = "", from = "") {
@@ -236,6 +235,6 @@ fn notify_do(int? w = "", k = "", int? dir = "") {
 	pnotes) dt_has dt_pnoteset || return 0
 		if [ "${DT_PNOTES:-1}" = 1 ]; then dt_pnoteset 0; else dt_pnoteset 1; fi ;;
 	esac
-	cp_save
+	return 0
 }
 

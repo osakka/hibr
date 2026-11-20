@@ -119,18 +119,16 @@ dt_btagain() {
 # Read everything again: the adapter, then the devices -- paired ones,
 # which of them are connected, and any a scan has found -- and for a
 # connected one its battery, which `info` gives only while it is connected.
-# Counted for `desktop ctl stats` (Gitea #343); declared here as well as in
-# wm/session.hibr, so this file still loads on its own.
+# Counted for `desktop ctl stats` (Gitea #343).
 #
 # It is five runs of bluetoothctl and one more for each device connected,
 # 200 to 360 ms, so it is a job (ADR 0049, Gitea #412): the ticker that
 # called it on every change BlueZ reported held every display that long.
 # The bar shows what it had until the job's answer is back; a read asked
 # for while one is running is owed and starts when that one ends.
-declare -gA DT_STAT
 dt_btread() {
 	DT_BTREAD=$EPOCHREALTIME
-	DT_STAT["r:bt"]=$((${DT_STAT["r:bt"]:-0} + 1))
+	dt_statadd r:bt
 	if [ -n "$DT_BTRJOB" ]; then
 		DT_BTRAGAIN=1
 		return 0

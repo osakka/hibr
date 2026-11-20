@@ -146,53 +146,112 @@ fn dt_openfile(path) {
 # What can open a file, for Files' Open With menu: every opener whose types
 # take the file's extension, in the order DT_OPENWITH gives for that
 # extension -- "png:imgview,hvi txt:hvi" -- or else in the order
-# they were registered, a File Types handler for the extension first. The
+# they were declared, a File Types handler for the extension first. The
 # first is the default, what a double-click does; choosing another from
 # Open With opens it there once and remembers nothing. Control Panel >
 # File Types sets the list and the default for each type.
 #
-# A type is a space-separated list of extensions, "*" for any file, "x" for
-# one that may be run. How it opens: app, given the path (dt_launch); edit,
-# hvi in a terminal; run, the file itself in a terminal.
+# What opens a file is declared, as data (ADR 0050): an app says which
+# files it opens and the desktop -- or Files, on its own copy
+# (wm/openfacts.hibr) -- decides from that alone, never asking the app. A
+# type is a space-separated list of extensions, "*" for any file, "x" for
+# one that may be run; what an app declares is what it can open now, so
+# one whose programs decide it (Archives) declares again on every rescan
+# (dt_onrescan). How it opens: app, given the path (dt_launch); edit, hvi
+# in a terminal; run, the file itself in a terminal.
 #
-# An opener registered with `dir` after its app takes **folders** whose name
+# Declared means there: what a file declared goes when the file is
+# unloaded and comes back with it (dt_unload, dt_reinstate), and a
+# declaring hook run again on a rescan replaces everything its file had
+# declared -- in its place in the order, so a default does not move.
+#
+# An opener declared with `dir` after its app takes **folders** whose name
 # ends in one of its extensions -- a bundle (Gitea #318): a folder that is
 # really one thing, a game, a notebook, a photo library. Files shows such a
 # folder as one item, a double click hands its path to the app, Open With
 # lists the openers for it, and Show Contents still goes in, so a bundle is
 # never opaque: it is a folder, and every program that reads folders reads
-# it. An extension nobody registered, or one whose app is not loaded, is a
-# plain folder.
+# it. An extension nobody declared is a plain folder.
 #
 #     dt_opener boxerplay "Boxer" "boxer" app boxerplay dir
 #
 # An opener whose how is `browse` goes in rather than opening: its app is
 # a location's scheme (wm/locations.hibr), Files shows scheme://PATH as a
-# folder, and it is offered only while that location can show the file.
-# An extension of two words, `tar.gz`, is a type of its own.
+# folder, and its types are what that location can show. An extension of
+# two words, `tar.gz`, is a type of its own.
 #
 #     dt_opener archives "Show Contents" "zip tar.gz" browse archive
 declare -gA DT_OPENERS
 DT_OPENERORDER=()
 DT_OPENWITH="${DT_OPENWITH-}"
 # Every extension a bundle opener names, space-separated, so a folder scan
-# asks dt_isbundle only of a folder that could be one.
+# asks dt_isbundle only of a folder that could be one: worked out again
+# from the openers whenever one is declared or goes.
 DT_BUNDLEEXT=
-DT_OWLIST=()
-DT_OWCONF=
+
+# Which file declared something: the one loading, or the file of the app
+# whose code is running (its own process, or a hook called for it).
+fn dt_opensrc() {
+	[ -n "${DT_LOADING-}" ] && ret "$DT_LOADING"
+	ret "${DT_APPS["$DT_CALLER"]["src"]-$DT_CALLER}"
+}
+
+# Whether a declaration may name APP (ADR 0050): anything from the
+# desktop's own code; from an app's own process only its own -- itself, an
+# app its file or one of its bundle's parts registers, or for browse a
+# location it registered -- so one app never names another's. An opener's
+# own name is kept the same way (dt_opener), so none replaces another's.
+fn dt_openmay(what, how, app) {
+	local s m f
+
+	[ -n "${DT_RTFROM-}" ] || return 0
+	if [ "$how" = browse ]; then
+		[ -n "$app" ] && [ "${DT_LOCAPP["$app"]-}" = "$DT_CALLER" ] && return 0
+	elif [ -n "$app" ]; then
+		[ "$app" = "$DT_CALLER" ] && return 0
+		s=${DT_APPS["$app"]["src"]-}
+		m=${DT_APPS["$DT_CALLER"]["src"]-}
+		if [ -n "$s" ] && [ -n "$m" ]; then
+			[ "$s" = "$m" ] && return 0
+			if f := dt_rtpartfiles "$m"; then
+				[[ $'\n'$f$'\n' == *$'\n'"$s"$'\n'* ]] && return 0
+			fi
+		fi
+	fi
+	dt_log "refused: ${DT_CALLER:-an app} declared $what for ${app:-no app}, which is not its own"
+	return 1
+}
 
 fn dt_opener(name, title, types, how, app = "", kind = "") {
+	local src
+
+	dt_openmay "the opener $name" "$how" "$app" || return 1
+	src := dt_opensrc
+	if [ -n "${DT_RTFROM-}" ] && [ -n "${DT_OPENERS[$name]["title"]}" ] &&
+	   [ "${DT_OPENERS[$name]["src"]-}" != "$src" ]; then
+		dt_log "refused: ${DT_CALLER:-an app} declared the opener $name, which is another's"
+		return 1
+	fi
 	[ -n "${DT_OPENERS[$name]["title"]}" ] || DT_OPENERORDER+=("$name")
 	DT_OPENERS[$name]["title"]=$title
-	DT_OPENERS[$name]["types"]=" $types "
+	DT_OPENERS[$name]["types"]=${types:+ $types }
+	DT_OPENERS[$name]["was"]=
 	DT_OPENERS[$name]["how"]=$how
 	DT_OPENERS[$name]["app"]=$app
 	DT_OPENERS[$name]["dir"]=0
-	if [ "$kind" = dir ]; then
-		DT_OPENERS[$name]["dir"]=1
-		DT_BUNDLEEXT+=" $types "
-	fi
-	return 0
+	[ "$kind" = dir ] && DT_OPENERS[$name]["dir"]=1
+	DT_OPENERS[$name]["src"]=$src
+	dt_openbundles
+}
+
+# DT_BUNDLEEXT again, from the bundle openers declared now.
+dt_openbundles() {
+	local n out=
+
+	for n in "${DT_OPENERORDER[@]}"; do
+		[ "${DT_OPENERS[$n]["dir"]}" = 1 ] && out+=${DT_OPENERS[$n]["types"]}
+	done
+	DT_BUNDLEEXT=$out
 }
 
 # What else can be done to a file or a folder, besides Open and Open With
@@ -200,68 +259,88 @@ fn dt_opener(name, title, types, how, app = "", kind = "") {
 # has one of its extensions -- a list of them, or * for anything. A verb
 # opens that app with the path, Boxer's Get Info for one game; or, with a
 # function after the app, calls it with every path selected. A last
-# function, asked of each path, says whether the verb is offered at all,
-# so one that needs a program that is not there is simply absent. Either
-# way the verb goes when its app does.
+# letter is a test each path must pass for the verb to be offered: f a
+# regular file, e there at all, d a folder, x one that may be run. The
+# types are what the app can do now, so a verb that needs a program that is
+# not there is declared for nothing and simply absent. Declared again by
+# the same app with the same label, a verb is replaced in its place.
 #
 #     dt_openerverb boxer "Get Info..." boxerinfo
-#     dt_openerverb "*" "Compress" archives arc_compress arc_cancompress
+#     dt_openerverb "*" "Compress" archives arc_compress e
 declare -gA DT_OPENVERBS
 DT_OVN=0
-DT_OVLIST=()
 
-fn dt_openerverb(ext, label, app, call = "", when = "") {
-	DT_OPENVERBS[$DT_OVN]["ext"]=$ext
-	DT_OPENVERBS[$DT_OVN]["label"]=$label
-	DT_OPENVERBS[$DT_OVN]["app"]=$app
-	DT_OPENVERBS[$DT_OVN]["call"]=$call
-	DT_OPENVERBS[$DT_OVN]["when"]=$when
-	DT_OPENVERBS[$DT_OVN]["owner"]=${DT_LOADING:-$DT_CALLER}
-	DT_OVN=$((DT_OVN + 1))
-}
+fn dt_openerverb(ext, label, app, call = "", test = "") {
+	local i=0 src
 
-# Whether a path's extension is among types, a space-separated list with
-# a space at each end: * is anything, and a name ending .tar.gz is tar.gz
-# as well as gz.
-fn dt_extin(path, ext, types) {
-	case $types in *" * "*) return 0 ;; esac
-	[ -n "$ext" ] || return 1
-	case $types in *" $ext "*) return 0 ;; esac
-	case ${path##*/} in
-	*.tar."$ext") case $types in *" tar.$ext "*) return 0 ;; esac ;;
+	case $test in
+	"" | f | e | d | x) ;;
+	*)
+		dt_log "refused: dt_openerverb $label: '$test' is not a test (f, e, d or x)"
+		return 1
+		;;
 	esac
-	return 1
-}
-
-# The verbs a selection offers, by number into DT_OVLIST, in the order they
-# were registered: those that take every path in it and whose app is
-# loaded. A verb that opens an app opens it for one path.
-fn dt_openverbs(...paths) {
-	local ext i=0 ap call when ty p ok
-
-	DT_OVLIST=()
+	dt_openmay "the verb $label" app "$app" || return 1
+	src := dt_opensrc
 	while [ "$i" -lt "$DT_OVN" ]; do
-		ap=${DT_OPENVERBS[$i]["app"]}
-		call=${DT_OPENVERBS[$i]["call"]}
-		when=${DT_OPENVERBS[$i]["when"]}
-		ty=" ${DT_OPENVERBS[$i]["ext"]} "
-		ok=1
-		if [ -n "$call" ]; then
-			{ [ -n "${DT_APPS["$ap"]["title"]-}" ] && dt_has "$call"; } || ok=0
-		else
-			[ "${#paths[@]}" = 1 ] || ok=0
-			dt_has "${ap}_open" || dt_has "${ap}_draw" || ok=0
-		fi
-		for p in "${paths[@]}"; do
-			[ "$ok" = 1 ] || break
-			ext := dt_ext "$p"
-			dt_extin "$p" "$ext" "$ty" || ok=0
-			[ -z "$when" ] || dt_appfn "${DT_OPENVERBS[$i]["owner"]-}" "$when" "$p" || ok=0
-		done
-		[ "$ok" = 1 ] && DT_OVLIST+=("$i")
+		[ "${DT_OPENVERBS[$i]["app"]}" = "$app" ] &&
+			[ "${DT_OPENVERBS[$i]["label"]}" = "$label" ] && break
 		i=$((i + 1))
 	done
+	[ "$i" = "$DT_OVN" ] && DT_OVN=$((DT_OVN + 1))
+	DT_OPENVERBS[$i]["ext"]=$ext
+	DT_OPENVERBS[$i]["was"]=
+	DT_OPENVERBS[$i]["label"]=$label
+	DT_OPENVERBS[$i]["app"]=$app
+	DT_OPENVERBS[$i]["call"]=$call
+	DT_OPENVERBS[$i]["test"]=$test
+	DT_OPENVERBS[$i]["owner"]=${DT_LOADING:-$DT_CALLER}
+	DT_OPENVERBS[$i]["src"]=$src
 	return 0
+}
+
+# Take away what a file declared -- its openers and its verbs -- each kept
+# in its place in the order with nothing to open. With keep, what it said
+# is kept to be put back by dt_openerback (a file unloaded by a rescan
+# that may come back); without, it is gone until declared again (a rescan
+# running its declaring hook again).
+fn dt_openerdrop(src, int keep = 0) {
+	local n i=0
+
+	[ -n "$src" ] || return 0
+	for n in "${DT_OPENERORDER[@]}"; do
+		[ "${DT_OPENERS[$n]["src"]-}" = "$src" ] || continue
+		[ "$keep" = 1 ] && DT_OPENERS[$n]["was"]=${DT_OPENERS[$n]["types"]}
+		DT_OPENERS[$n]["types"]=
+	done
+	while [ "$i" -lt "$DT_OVN" ]; do
+		if [ "${DT_OPENVERBS[$i]["src"]-}" = "$src" ]; then
+			[ "$keep" = 1 ] && DT_OPENVERBS[$i]["was"]=${DT_OPENVERBS[$i]["ext"]}
+			DT_OPENVERBS[$i]["ext"]=
+		fi
+		i=$((i + 1))
+	done
+	dt_openbundles
+}
+
+# Put back what dt_openerdrop kept for a file.
+fn dt_openerback(src) {
+	local n i=0
+
+	[ -n "$src" ] || return 0
+	for n in "${DT_OPENERORDER[@]}"; do
+		[ "${DT_OPENERS[$n]["src"]-}" = "$src" ] && [ -n "${DT_OPENERS[$n]["was"]-}" ] || continue
+		DT_OPENERS[$n]["types"]=${DT_OPENERS[$n]["was"]}
+		DT_OPENERS[$n]["was"]=
+	done
+	while [ "$i" -lt "$DT_OVN" ]; do
+		if [ "${DT_OPENVERBS[$i]["src"]-}" = "$src" ] && [ -n "${DT_OPENVERBS[$i]["was"]-}" ]; then
+			DT_OPENVERBS[$i]["ext"]=${DT_OPENVERBS[$i]["was"]}
+			DT_OPENVERBS[$i]["was"]=
+		fi
+		i=$((i + 1))
+	done
+	dt_openbundles
 }
 
 # Run a verb, by its number, on a selection.
@@ -275,97 +354,8 @@ fn dt_openverb(int n, ...paths) {
 	fi
 }
 
-# Whether a path is a bundle: a folder an opener whose app is loaded claims
-# by its extension. Leaves that opener first in DT_OWLIST.
-fn dt_isbundle(path) {
-	[ -d "$path" ] || return 1
-	dt_openers "$path"
-	[ "${#DT_OWLIST[@]}" -gt 0 ]
-}
-
-dt_opener imgview "Image Viewer" "png jpg jpeg ans" app imgview
-dt_opener dbase "dBASE" "db" app dbase
 dt_opener hvi "Text Editor (hvi)" "*" edit
 dt_opener run "Run in Terminal" "x" run
-
-# Whether an opener can open this path, and is there to do it. `dir` is 1
-# when the path is a folder, worked out once by the caller -- or asserted
-# by one asking about a kind of folder with none on disk.
-fn dt_opencan(name, path, ext, int dir) {
-	local ty=${DT_OPENERS[$name]["types"]} ap=${DT_OPENERS[$name]["app"]}
-
-	[ -n "$ty" ] || return 1
-	if [ "${DT_OPENERS[$name]["dir"]}" = 1 ]; then
-		[ "$dir" = 1 ] || return 1
-	else
-		[ "$dir" = 1 ] && return 1
-	fi
-	if [ "${DT_OPENERS[$name]["how"]}" = browse ]; then
-		dt_has files_open && dt_locof "$ap://$path" &&
-			dt_loccan "$ap://$path" browse || return 1
-	elif [ -n "$ap" ]; then
-		dt_has "${ap}_open" || dt_has "${ap}_draw" || return 1
-	fi
-	case $ty in
-	*" * "*) return 0 ;;
-	*" x "*) [ -x "$path" ] && return 0 ;;
-	esac
-	dt_extin "$path" "$ext" "$ty" && return 0
-	return 1
-}
-
-# The openers for a path, in their order, into DT_OWLIST: the configured
-# list for its extension where there is one, then anything else that can
-# open it; "handler" stands for a File Types handler of the extension.
-fn dt_openers(path, kind = "") {
-	local ext n e dir=0
-	local -a conf all ow
-
-	DT_OWLIST=()
-	DT_OWCONF=
-	ext := dt_ext "$path"
-	# A caller asking what opens a kind of folder -- the File Types pane,
-	# which has an extension and no folder to show it (#318) -- says so,
-	# since x.boxer is no folder on disk and would be asked about as a file.
-	{ [ "$kind" = dir ] || [ -d "$path" ]; } && dir=1
-	read -ra ow <<< "$DT_OPENWITH"
-	for e in "${ow[@]}"; do
-		[ "${e%%:*}" = "$ext" ] || continue
-		IFS=, read -ra conf <<< "${e#*:}"
-	done
-	[ -n "$ext" ] && [ -n "${DT_HANDLERS[$ext]["n"]}" ] && [ "$dir" = 0 ] &&
-		all+=(handler)
-	# What names the extension comes before what takes any file.
-	for n in "${DT_OPENERORDER[@]}"; do
-		case ${DT_OPENERS[$n]["types"]} in *" * "* | *" x "*) continue ;; esac
-		dt_opencan "$n" "$path" "$ext" "$dir" && all+=("$n")
-	done
-	for n in "${DT_OPENERORDER[@]}"; do
-		case ${DT_OPENERS[$n]["types"]} in *" * "* | *" x "*) ;; *) continue ;; esac
-		dt_opencan "$n" "$path" "$ext" "$dir" && all+=("$n")
-	done
-	if [ "${#conf[@]}" -gt 0 ]; then
-		DT_OWCONF=1
-		for n in "${conf[@]}"; do
-			case " ${all[*]} " in *" $n "*) DT_OWLIST+=("$n") ;; esac
-		done
-		return 0
-	fi
-	DT_OWLIST=("${all[@]}")
-}
-
-# Where a path goes when it is opened from a Files window, or status 1 when
-# it opens as anything else: scheme://PATH, for a browse opener that comes
-# first for it. A window goes there itself where a new one would be opened.
-fn dt_openbrowse(path) {
-	local o
-
-	dt_openers "$path"
-	[ "${#DT_OWLIST[@]}" -gt 0 ] || return 1
-	o=${DT_OWLIST[0]}
-	[ "${DT_OPENERS[$o]["how"]}" = browse ] || return 1
-	ret "${DT_OPENERS[$o]["app"]}://$path"
-}
 
 # Open a path with one opener, this once.
 fn dt_openwith(name, path) {
@@ -420,4 +410,4 @@ fn dt_termhere(dir) {
 
 # What of this file's state every app process that reads it is sent (ADR
 # 0050, wm/rtwire.hibr).
-dt_share DT_BUNDLEEXT DT_HANDLERS DT_OPENERORDER DT_OPENERS DT_OPENVERBS
+dt_share DT_BUNDLEEXT DT_HANDLERS DT_OPENERORDER DT_OPENERS DT_OPENVERBS DT_OVN
