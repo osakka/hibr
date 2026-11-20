@@ -78,6 +78,16 @@ answered; anything that is not an address is refused.
 `uninstall` is `remove`, `upgrade` is `update`, `read` is `show` and
 `owner` is `owns`; `--json` is `-j`.
 
+After hibr itself is upgraded, the desktop runs `catalogue -j update` once,
+as a job, on its first start on the new version -- and only when you have
+installed something from the catalogue -- and tells you in one note what it
+updated, with Restart Desktop a click away. `-j update` answers one JSON
+line per thing done as it happens (`updated`, `replaced`, `shipped`,
+`kept`, `edited`, `yours`). An update of everything also looks for a copy
+in your own scope that hides a newer one hibr ships: one it placed and
+nobody has changed since, with no window open, is removed and said so; one
+you edited, or a file it did not place, is only named, never touched.
+
 `-j` on `list`, `installed` or `info` answers JSON instead of columns, for
 anything that is not a person — the Catalogue window below reads that,
 so the window and the command read one answer instead of one parsing the

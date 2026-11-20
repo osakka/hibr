@@ -95,6 +95,7 @@ SUITE_MODS = {
     # here is what makes a change to it reach this suite.
     "archive": ["archive", "inflate"],
     "appmgr": ["dav", "archive", "inflate"],
+    "upgrade": ["dav"],
     "traymod": ["dbus", "console"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
@@ -269,7 +270,7 @@ def path_suites(path, req, prov, where, desk=None, since=None):
     if path == "programs/contacts.hibr":
         return {"contactscmd", "run.sh"}, "the contacts command"
     if path == "programs/catalogue.hibr":
-        return {"appmgr", "run.sh"}, "the application manager"
+        return {"appmgr", "upgrade", "run.sh"}, "the application manager"
     if path.startswith(("docs/", "examples/", "programs/")):
         return {"run.sh"}, "documentation, an example or a program (530/540)"
     if path.startswith(("packaging/", "tools/", ".git")) or path in (

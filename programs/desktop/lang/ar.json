@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.17",
+ "version": "3.99.18",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1542,6 +1542,9 @@
   "The keyboard and Tray Icons are now in the Catalogue -- click to install them": "لوحة المفاتيح وأيقونات منطقة الإشعارات الآن في الكتالوج -- انقر لتثبيتها",
   "The keyboard on the menu bar is now in the Catalogue -- click to install it": "لوحة المفاتيح في شريط القوائم الآن في الكتالوج -- انقر لتثبيتها",
   "Tray Icons are now in the Catalogue -- click to install them": "أيقونات منطقة الإشعارات الآن في الكتالوج -- انقر لتثبيتها",
-  "Tray Icons on the Menu Bar": "أيقونات منطقة الإشعارات في شريط القوائم"
+  "Tray Icons on the Menu Bar": "أيقونات منطقة الإشعارات في شريط القوائم",
+  "%s, replaced by %s": "%s، استُبدل بـ %s",
+  "%s, a copy of your own, hides the %s hibr ships": "%s، نسختك الخاصة، تحجب الإصدار %s الذي يأتي مع hibr",
+  "Updated for hibr %s: %s. Restart Desktop to run them": "حُدِّث لـ hibr %s: %s. أعد تشغيل سطح المكتب لتشغيلها"
  }
 }

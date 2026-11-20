@@ -84,7 +84,9 @@
 %s, %s left
 %s, %s to full
 %s, a cell is %s by %s
+%s, a copy of your own, hides the %s hibr ships
 %s, and %s more could not go
+%s, replaced by %s
 %s? Enter: yes  Esc: no
 (empty)
 (from the address)
@@ -1261,6 +1263,7 @@ Unlock…
 Unregistered extension .%s -- open in hvi anyway?
 Unshade
 Update
+Updated for hibr %s: %s. Restart Desktop to run them
 Upload Edits on Save
 Uptime: %s
 Use

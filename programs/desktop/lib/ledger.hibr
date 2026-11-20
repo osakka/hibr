@@ -1,0 +1,19 @@
+#!/usr/bin/env hibr
+#
+# lib/ledger -- where the catalogue keeps its record of what it placed,
+# spelled once. The `catalogue` command reads it to know where it installs
+# and what it installed (programs/catalogue.hibr, which sources this from
+# desktop/lib beside it, as `contacts` does lib/pim.hibr), and the desktop
+# reads it to know whether there is anything to update after hibr is
+# upgraded (wm/restart.hibr). Two spellings of one path are two paths the
+# day one of them moves.
+
+strict
+
+LEDGER_LIBDONE=1
+
+# The person's own data scope, which the catalogue installs into unless it
+# is asked for the machine's (ADR 0045).
+CAT_USERDATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr
+# The file at a scope's root that records what the catalogue placed there.
+CAT_LEDGER=apps.json

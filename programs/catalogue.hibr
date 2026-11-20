@@ -50,12 +50,16 @@
 
 strict
 
+# Where the record of what is installed lives, which the desktop reads too
+# (lib/ledger.hibr): one spelling for both.
+. "${BASH_SOURCE%/*}/desktop/lib/ledger.hibr"
+
 CAT_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/apps.json
-CAT_DATA=${XDG_DATA_HOME:-$HOME/.local/share}/hibr
+CAT_DATA=$CAT_USERDATA
 CAT_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/hibr
 CAT_INDEX=$CAT_CACHE/index.json
 CAT_SIG=$CAT_CACHE/index.json.asc
-CAT_STATE=$CAT_DATA/apps.json
+CAT_STATE=$CAT_DATA/$CAT_LEDGER
 # Which scope an install writes into (ADR 0045). `user` is yours and is
 # the default; `system` is an administrator's, for every user of the
 # machine, and `--system` chooses it.
@@ -86,7 +90,7 @@ fn cat_scope(which) {
 A system install needs hibr 0.99.197 or newer."
 	CAT_SCOPE=system
 	CAT_DATA=$CAT_SYSROOT
-	CAT_STATE=$CAT_DATA/apps.json
+	CAT_STATE=$CAT_DATA/$CAT_LEDGER
 	return 0
 }
 
@@ -273,7 +277,13 @@ fn cat_die(text, int st = 1) {
 	exit "$st"
 }
 
+# What a person reads. Under -j standard output is the answer and nothing
+# else, so the same sentences go to standard error there.
 fn cat_say(text) {
+	if [ "$CAT_J" = 1 ]; then
+		echo "$text" >&2
+		return 0
+	fi
 	echo "$text"
 }
 
@@ -1121,13 +1131,22 @@ fn cat_shipped(kind, name) {
 # in its JSON. Empty when the file says nothing, which is honest --
 # the caller then knows only that a copy exists.
 fn cat_shipver(kind, name) {
-	local l v
+	local v
 
 	cat_shipped "$kind" "$name" || return 1
-	case $CAT_SHIPF in
+	v := cat_filever "$CAT_SHIPF" || return 1
+	ret "$v"
+}
+
+# Which version a file of the desktop's says it is: a script on its own
+# `app` line, a theme, a colour scheme or a language in its JSON.
+fn cat_filever(f) {
+	local l v
+
+	case $f in
 	*.json)
 		local -A j
-		json parse j < "$CAT_SHIPF" 2> /dev/null || return 1
+		json parse j < "$f" 2> /dev/null || return 1
 		v=${j["version"]}
 		;;
 	*)
@@ -1139,7 +1158,7 @@ fn cat_shipver(kind, name) {
 				break
 				;;
 			esac
-		done < "$CAT_SHIPF"
+		done < "$f"
 		;;
 	esac
 	[ -n "$v" ] || return 1
@@ -1161,7 +1180,7 @@ fn cat_sysver(id) {
 
 	[ -n "$CAT_SYSROOT" ] || return 1
 	[ "$CAT_SCOPE" = system ] && return 1
-	f=$CAT_SYSROOT/apps.json
+	f=$CAT_SYSROOT/$CAT_LEDGER
 	[ -r "$f" ] || return 1
 	json parse j < "$f" 2> /dev/null || return 1
 	v=${j["installed"]["$id"]["version"]}
@@ -3180,7 +3199,7 @@ fn cat_partof(id) {
 # answer.
 declare -gA CAT_REPLACED
 fn cat_replace(...names) {
-	local k r rid w why n=0 base wn
+	local k r rid w why n=0 base wn rt rv
 	local -a rs
 	local -A only=()
 
@@ -3202,7 +3221,10 @@ fn cat_replace(...names) {
 					continue 2
 				fi
 				cat_say "$r is replaced by $rid; installing it"
+				rt=${CAT_ENT["title"]}
+				rv=${CAT_ENT["version"]}
 				cat_install "$rid"
+				cat_rec updated "$rid" "$rt" "" "$rv"
 				cat_state
 				n=$((n + 1))
 			fi
@@ -3216,6 +3238,8 @@ fn cat_replace(...names) {
 			CAT_REPLACED["$r"]=1
 			CAT_REPLACED["${r##*/}"]=1
 			cat_say "$r: replaced by $rid"
+			cat_entry "$rid" > /dev/null 2>&1
+			cat_rec replaced "$r" "$base" "" "" "${CAT_ENT["title"]:-${rid##*/}}"
 			n=$((n + 1))
 		done
 		cat_entry "$k" > /dev/null 2>&1
@@ -3224,9 +3248,18 @@ fn cat_replace(...names) {
 }
 
 fn cat_update(...names) {
-	local name w n=0 kind where ext moved i np same owner why
+	local name w n=0 kind where ext moved i np same owner why old title ver
 	local -a want
+	local -A upd=()
 
+	# Nothing installed is nothing to update, and asking the network
+	# about it would be a fetch for every desktop started after an
+	# upgrade with nothing from the catalogue in it.
+	cat_state
+	if [ "${#names[@]}" = 0 ] && [ "${#CAT_ST["installed"][@]}" = 0 ]; then
+		cat_say "everything is up to date"
+		return 0
+	fi
 	cat_load 1
 	cat_state
 	n := cat_replace "${names[@]}"
@@ -3323,13 +3356,156 @@ fn cat_update(...names) {
 		# Asked in a child, since cat_needs ends with cat_die.
 		if [ "${#names[@]}" = 0 ] && ! why=$(cat_needs "$name" 2>&1); then
 			cat_say "$name: not updated: ${why#catalogue: }"
+			cat_rec kept "$name" "${CAT_ENT["title"]}" "${CAT_ST["installed"]["$name"]["version"]}" "${CAT_ENT["version"]}"
 			continue
 		fi
+		old=${CAT_ST["installed"]["$name"]["version"]}
+		title=${CAT_ENT["title"]}
+		ver=${CAT_ENT["version"]}
 		cat_install "$name"
+		cat_rec updated "$name" "$title" "$old" "$ver"
+		upd["$name"]=1
 		n=$((n + 1))
 	done
+	if [ "${#names[@]}" = 0 ]; then
+		w := cat_shadows "${!upd[@]}"
+		n=$((n + w))
+	fi
 	[ "$n" = 0 ] && cat_say "everything is up to date"
 	return 0
+}
+
+# One thing an update did, as a line of JSON on standard output, for -j:
+# the desktop reads these after hibr is upgraded and names each in one
+# note. A line a time, as it happens, so an update that ends early still
+# says what it had done by then. What `op` is: updated (from, to),
+# replaced (by the title of what replaced it), shipped (a copy of the
+# catalogue's that hid a newer one hibr ships, taken away so hibr's
+# runs), kept (not updated, and why is on standard error), edited (a
+# catalogue copy that hides a newer one hibr ships and was changed since
+# it was placed, so it stays) and yours (a file the catalogue never
+# placed that hides a newer one hibr ships, which stays).
+fn cat_rec(op, id, title = "", from = "", to = "", by = "") {
+	local j
+	local -A r=()
+
+	[ "$CAT_J" = 1 ] || return 0
+	r["op"]=$op
+	r["id"]=$id
+	r["title"]=${title:-${id##*/}}
+	r["from"]=$from
+	r["to"]=$to
+	r["by"]=$by
+	j := json emit r || return 0
+	printf '%s\n' "$j"
+	return 0
+}
+
+# Whether version a is older than version b, the way a person reads them.
+fn cat_older(a, b) {
+	local lo
+
+	[ "$a" = "$b" ] && return 1
+	lo=$(printf '%s\n%s\n' "$a" "$b" | command sort -V | command head -1) ||
+		return 1
+	[ "$lo" = "$a" ]
+}
+
+# Whether everything an installed entry placed is still byte for byte what
+# was placed. The record keeps the sha256 of the bundle, which is the file
+# itself for a one-file entry; a part is checked against the index, which
+# says the same thing only for the version installed; and a tarball's hash
+# is the tarball's, so nothing placed from one can be shown untouched.
+fn cat_asplaced(id) {
+	local f n got kind
+
+	n=${#CAT_ST["installed"]["$id"]["paths"][@]}
+	f=${CAT_ST["installed"]["$id"]["paths"]["0"]}
+	[ -n "$f" ] && [ -f "$CAT_DATA/$f" ] || return 1
+	got := cat_sha "$CAT_DATA/$f"
+	[ "$got" = "${CAT_ST["installed"]["$id"]["sha256"]}" ] || return 1
+	[ "$n" = 1 ] && return 0
+	cat_entry "$id" > /dev/null 2>&1 || return 1
+	[ "${CAT_ENT["version"]}" = "${CAT_ST["installed"]["$id"]["version"]}" ] ||
+		return 1
+	[ "$n" = $((1 + ${#CAT_IX["$CAT_SECT"]["${CAT_ENT["key"]}"]["parts"][@]})) ] ||
+		return 1
+	kind=${CAT_ST["installed"]["$id"]["kind"]}
+	cat_current "$kind"
+}
+
+# What in this scope hides a newer copy of itself that hibr ships, after an
+# update of everything (ADR 0045's order reads a scope before the shipped
+# copy, so the older one is what runs). A copy the catalogue placed, still
+# exactly as placed, not updated just now and with no window open, is taken
+# away, saying so -- the same as an entry an update replaces. A copy that
+# was changed since it was placed is the person's edit, and a file the
+# catalogue never placed is the person's own: both are named and left
+# alone. Answers how many were taken away.
+fn cat_shadows(...updated) {
+	local id kind name sv iv t wn k f rel b fv u n=0 under p
+	local -A skip=() claim=() dirs=()
+
+	for u in "${updated[@]}"; do
+		skip["$u"]=1
+	done
+	cat_state
+	for id in "${!CAT_ST["installed"][@]}"; do
+		for k in "${!CAT_ST["installed"]["$id"]["paths"][@]}"; do
+			p=${CAT_ST["installed"]["$id"]["paths"]["$k"]}
+			claim["$p"]=1
+			[ -d "$CAT_DATA/$p" ] && dirs["$p"]=1
+		done
+		[ -z "${skip["$id"]+x}" ] || continue
+		kind=${CAT_ST["installed"]["$id"]["kind"]}
+		case $kind in bundles | mods | lib | cli) continue ;; esac
+		name=${id##*/}
+		sv := cat_shipver "$kind" "$name" || continue
+		iv=${CAT_ST["installed"]["$id"]["version"]}
+		cat_older "$iv" "$sv" || continue
+		cat_insys "$id" && continue
+		t=$name
+		cat_entry "$id" > /dev/null 2>&1 && [ -n "${CAT_ENT["title"]}" ] &&
+			t=${CAT_ENT["title"]}
+		if ! cat_asplaced "$id"; then
+			cat_say "$id: your copy, $iv, hides the $sv hibr ships, and it is not as the catalogue placed it, so it stays -- \`catalogue remove $id\` lets hibr's run"
+			cat_rec edited "$id" "$t" "$iv" "$sv"
+			continue
+		fi
+		wn := cat_windows "$name"
+		if [ "${wn:-0}" -gt 0 ]; then
+			cat_say "$id: $iv hides the $sv hibr ships; close its window(s) ($CAT_WINS) and update again to take it away"
+			continue
+		fi
+		cat_remove -f "$id"
+		cat_say "$id: took away $iv, which hid the $sv hibr ships"
+		cat_rec shipped "$id" "$t" "$iv" "$sv"
+		n=$((n + 1))
+	done
+	for k in "${CAT_KINDS[@]}"; do
+		case $k in bundles | mods | lib | cli) continue ;; esac
+		[ -d "$CAT_DATA/$k" ] || continue
+		for f in "$CAT_DATA/$k"/**; do
+			[ -f "$f" ] || continue
+			rel=${f#"$CAT_DATA/"}
+			[ -n "${claim["$rel"]+x}" ] && continue
+			under=
+			for p in "${!dirs[@]}"; do
+				case $rel in "$p"/*) under=1; break ;; esac
+			done
+			[ -n "$under" ] && continue
+			b=${f##*/}
+			case $b in *"${CAT_KEXT["$k"]}") ;; *) continue ;; esac
+			b=${b%"${CAT_KEXT["$k"]}"}
+			sv := cat_shipver "$k" "$b" || continue
+			fv=
+			fv := cat_filever "$f"
+			[ -n "$fv" ] && ! cat_older "$fv" "$sv" && continue
+			cat_say "$rel: yours, not the catalogue's, and it hides the ${sv} hibr ships; it stays -- delete it to let hibr's run"
+			cat_rec yours "$k/$b" "$b" "$fv" "$sv"
+		done
+	done
+	ret "$n"
 }
 
 fn cat_setindex(url = "") {
@@ -3402,6 +3578,8 @@ cat_help() {
 	"  anything that is not a person: the desktop's Catalogue window" \
 	"  reads that rather than parsing these columns, so the window and the" \
 	"  command read one answer instead of one parsing the other's layout." \
+	"  -j on update answers a line of JSON for each thing it did, which is" \
+	"  what the desktop names in its note after hibr is upgraded." \
 	"" \
 	"  catalogue install NAME...   fetch, verify and place" \
 	"  catalogue install KIND/     every app of one kind, so a bare desktop" \
@@ -3425,7 +3603,11 @@ cat_help() {
 	"                         installed needs now; -y to skip the ask," \
 	"                         --dry-run to list them and stop. A module" \
 	"                         you asked for by name is never purged" \
-	"  catalogue update [NAME...]  everything with a newer version, or these" \
+	"  catalogue update [NAME...]  everything with a newer version, or these." \
+	"                              Of everything, it also takes away a copy" \
+	"                              it placed that hides a newer one hibr" \
+	"                              ships, unless you changed it; a file it" \
+	"                              never placed is named and left alone" \
 	"  catalogue index [URL]       the index this fetches from, or set it" \
 	"  catalogue refresh           fetch the index again now" \
 	"  catalogue help              this" \

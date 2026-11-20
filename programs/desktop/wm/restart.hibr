@@ -523,6 +523,7 @@ DT_UPMS=60000
 dt_updcheck() {
 	local t v
 
+	dt_catrenew
 	[ -e /proc/$$/exe ] && [ -n "$HIBR" ] || return 0
 	# Once it is known, it is not news, so the check can be cheap and
 	# often: one -ef test, and nothing else runs again.
@@ -573,6 +574,136 @@ dt_updcheck() {
 	fi
 	dt_notify "$t" dt_restart
 	dt_want 10
+}
+
+# What the catalogue installed for this person, brought up to date the
+# first time a desktop starts on a newer hibr than the last such update ran
+# against (the owner's decision, 2026-11-20): every installed entry with a
+# newer version for this hibr is updated without asking, a copy of the
+# catalogue's that now hides a newer one hibr ships is taken away, and one
+# note names each. Never at the person's cost -- offline, a failure or
+# nothing newer is a line in the log at most, and the desktop runs on.
+#
+# The stamp is the hibr the last update ran against, one for the person
+# rather than one a session, since what it updates is theirs; it is written
+# only when the catalogue answered, so an offline start asks again at the
+# next. With nothing in the ledger there is nothing to ask the network
+# about, and the stamp is written with no job at all -- which is every
+# session a suite starts.
+[ -n "${LEDGER_LIBDONE-}" ] || . "$DT_HERE/lib/ledger.hibr"
+DT_CATSTAMP="${DT_LOG%/*}/catalogue-hibr"
+DT_CATASKED=
+
+# Whether version a is newer than version b, field by field, with no fork.
+fn dt_vernewer(a, b) {
+	local -a x y
+	local i=0 n p q
+
+	IFS=. read -ra x <<< "$a"
+	IFS=. read -ra y <<< "$b"
+	n=${#x[@]}
+	[ "${#y[@]}" -gt "$n" ] && n=${#y[@]}
+	while [ "$i" -lt "$n" ]; do
+		p=${x[$i]:-0}
+		q=${y[$i]:-0}
+		i=$((i + 1))
+		[ "$p" = "$q" ] && continue
+		case $p$q in
+		*[!0-9]*) [[ $p > $q ]]; return ;;
+		esac
+		[ "$p" -gt "$q" ]
+		return
+	done
+	return 1
+}
+
+# Say which hibr the catalogue's update last ran against.
+dt_catstamp() {
+	mkdir -p "${DT_CATSTAMP%/*}" 2> /dev/null
+	printf '%s\n' "$HIBR_VERSION" > "$DT_CATSTAMP.$$" 2> /dev/null &&
+		mv -f "$DT_CATSTAMP.$$" "$DT_CATSTAMP" 2> /dev/null
+	return 0
+}
+
+# Start the update once, on the first pass of a desktop whose hibr is newer
+# than the stamp.
+dt_catrenew() {
+	local v=
+
+	[ -z "$DT_CATASKED" ] || return 0
+	DT_CATASKED=1
+	[ -n "${HIBR_VERSION-}" ] || return 0
+	[ -r "$DT_CATSTAMP" ] && read -r v < "$DT_CATSTAMP"
+	[ -n "$v" ] && ! dt_vernewer "$HIBR_VERSION" "$v" && return 0
+	if [ ! -s "$CAT_USERDATA/$CAT_LEDGER" ]; then
+		dt_catstamp
+		return 0
+	fi
+	if ! command -v catalogue > /dev/null; then
+		dt_log "after the upgrade to hibr $HIBR_VERSION: no catalogue command, so nothing installed was updated"
+		return 0
+	fi
+	dt_job upgrade:catalogue "$HIBR_VERSION" dt_catrenewed catalogue -j update > /dev/null ||
+		dt_log "after the upgrade to hibr $HIBR_VERSION: no folder for the catalogue's job"
+	return 0
+}
+
+# Whether that update is in hand -- running, or its answer being read --
+# while which a rescan leaves the saying to it, so the person is told once.
+dt_catrenewing() {
+	local n
+
+	for n in "${!DTJ[@]}"; do
+		[ "${DTJ[$n]["kind"]}" = upgrade:catalogue ] && return 0
+	done
+	return 1
+}
+
+# The update ended: one note naming what it did, and the stamp when the
+# catalogue answered.
+fn dt_catrenewed(int n, int st) {
+	local f l t list= mine= v=${DTJ[$n]["tag"]} why=
+	local -A r
+
+	f := dt_jobfile "$n"
+	if [ -r "$f" ]; then
+		while IFS= read -r l; do
+			r=()
+			json parse r <<< "$l" 2> /dev/null || continue
+			case ${r["op"]} in
+			updated | shipped)
+				list="$list${list:+, }${r["title"]} ${r["to"]}"
+				;;
+			replaced)
+				t := dt_tr "%s, replaced by %s" "${r["title"]}" "${r["by"]}"
+				list="$list${list:+, }$t"
+				;;
+			edited | yours)
+				t := dt_tr "%s, a copy of your own, hides the %s hibr ships" "${r["title"]}" "${r["to"]}"
+				mine="$mine${mine:+. }$t"
+				;;
+			kept)
+				dt_log "after the upgrade to hibr $v, ${r["id"]} was not updated: the catalogue's ${r["to"]} cannot run here"
+				;;
+			esac
+		done < "$f"
+	fi
+	if [ "$st" = 0 ]; then
+		dt_catstamp
+	else
+		f := dt_jobfile "$n" err
+		[ -r "$f" ] && while IFS= read -r l; do [ -n "$l" ] && why=$l; done < "$f"
+		dt_log "after the upgrade to hibr $v, the catalogue's update did not finish${why:+: $why}"
+	fi
+	dt_rescan > /dev/null
+	if [ -n "$list" ]; then
+		t := dt_tr "Updated for hibr %s: %s. Restart Desktop to run them" "$v" "$list"
+		[ -n "$mine" ] && t="$t. $mine"
+		dt_noteq normal "$t" dt_restart
+	elif [ -n "$mine" ]; then
+		dt_noteq normal "$mine"
+	fi
+	return 0
 }
 
 # What of this file's state every app process that reads it is sent (ADR
