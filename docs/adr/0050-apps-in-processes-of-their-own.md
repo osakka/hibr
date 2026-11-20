@@ -228,6 +228,25 @@ running desktop does not. So:
   a row removed or changed is a breaking change, and the gate fails on one
   against the last tag's table. A catalogue entry's `hibr:` floor is at
   least the newest row it uses, checked rather than written by hand.
+  An optional parameter added at the end is no break: the row's `args`
+  column records the release it arrived in (`3@0.99.555`), and a call
+  passing that many words needs that release, so a floor follows the words
+  a call passes, not only the functions it names (`dt_openers PATH KIND
+  all` raises File Types; `dt_openers PATH` does not). A deliberate break --
+  the meaning of a word changing -- is one named entry in `BREAKS`
+  (`tools/appcalls.py`), with the tag it is held against and why; at the
+  next tag it is stale and fails until removed, so an exception never
+  outlives the release that made it. The first: `dt_openerverb`'s fifth word,
+  a function the desktop called into, is a test letter since openers are
+  declared data. Its floor keeps a newer entry off an older desktop; the
+  other way about is not covered. An older catalogue copy on a newer desktop
+  runs as it is: Archives' verbs are refused and logged; Vault's settings
+  pane, whose jobs now say their status by exiting, reports a failed PIN
+  clear as done; dBASE, and an Image Viewer installed in a person's own
+  scope, lose their openers with nothing said. Nothing tells the person an
+  installed entry is older than the desktop needs -- the Catalogue offers
+  Update only when opened -- and that is the owner's to decide before a
+  release carries a change of meaning.
 - **One load order.** The shared files are laid out by concern (owner,
   2026-11-18: a few files, each named for what it does) and loaded by one
   loader file: `desktop.hibr` sources it first, the app runtime sources only
@@ -471,10 +490,26 @@ cannot see are held at none (`statusholes`): `$?` read after a told request,
 and a function ending in one whose own status a caller tests. An ask reachable
 from a frame path -- `_draw`, `_dirty`, `_idle`, a ticker -- is a round trip
 each time the path runs; the count is held (`FRAMEASKS`, 41) and only ever
-lowered. What is left there is conditional (a title changed, a note on an
-error, a bell) or waits on the openers becoming declared data (`dt_isbundle`,
-`dt_locof`, `dt_loccan`). Counting only code, not comments, as handing a
-function over brought the names sent to every process to 24 of 246.
+lowered: 39 since the openers became declared data and `dt_isbundle` left
+Files' scan. What is left there is conditional (a title changed, a note on an
+error, a bell) or is a location's own (`dt_locof`, `dt_loccan`, once a
+folder). Counting only code, not comments, as handing a function over
+brought the names sent to every process to 24 of 246.
+
+### Openers as declared data (2026-11-20)
+
+What opens a file, and what else can be done to it, is data an installable
+declares (`dt_opener NAME TITLE TYPES HOW [APP] [KIND]`, `dt_openerverb
+TYPES LABEL APP [CALL] [TEST]`, TEST a letter: `f` a file, `e` there, `d` a
+folder, `x` runnable), and every process answers from its own copy
+(`wm/openfacts.hibr`): Files never calls into Archives to ask, so a folder
+of 300 bundles is no 300 round trips. Registered means present: unloading a
+file sets its declarations aside and reinstating it puts them back, in
+their places. What a declaration says is only as fresh as the last rescan
+(`dt_onrescan`: Archives declares again the kinds its tools can read), so a
+zip tool installed by apt is offered after Refresh Desktop or a restart, not
+the moment it lands. From an app's process a declaration names only the
+app's own files (`dt_rtmine`) and never replaces another's opener.
 
 ### What a setting redraws (2026-11-20, measured, open)
 
@@ -488,7 +523,10 @@ affects, once, on the desktop's side: `dt_onset NAME EFFECT`, effects only
 the desktop's own (a whole frame, the menus, the bar, a console call, a
 cache cleared), never a function an installable names -- so a tooltip
 delay redraws its pane and a colour the screen. Until then every setting
-pays the whole frame.
+pays the whole frame -- and round two put dt_set on paths that are no
+click: Sheet's recalculation of a trusted sheet, whose fingerprint changing
+calls `ss_trustset`, and the terminal's transparency slider, a set per step.
+`dt_onset` lands before a release carries them.
 
 ### Asked requests (2026-11-19, protocol 6)
 
@@ -602,6 +640,13 @@ failing against the socket before them:
 - a request whose first word is a window (`interface.tsv`'s signature says
   so) names one of the app's own windows, or a dialog opened for one of
   them (a file picker), or is refused, and the window stays.
+- a request naming another installable's thing -- an opener, a verb, a
+  strip module's width, a note -- acts only on the caller's own: its file
+  or one of its parts (`dt_rtmine`, the one answer), or the note's owner;
+  the rest is refused and logged `refused: <request>: ...`, which fails a
+  suite, and the thing stays. `dt_rtmine` knows an app's files; when a
+  strip module, a pane or a bar item runs in a process of its own, it has
+  to learn theirs, or each is refused its own.
 
 Still owed, and the condition for any real session to listen: the app's
 identity is the desktop's to give when the zygote starts it, not what its

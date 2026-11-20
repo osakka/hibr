@@ -5364,7 +5364,7 @@ sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0]
 check("even after a command that failed",
       sc.find("┤ Terminal") is None and sc.find("exited") is None, sc)
 shutil.rmtree(OWD, True)
-sc = cprun(reach("filetypes", ".ans"), extra=("imgview",))
+sc = cprun(reach("filetypes", ".ans", extra=("imgview",)), extra=("imgview",))
 check("File Types lists each type with its default, and how many others",
       sc.find(".ans  Image Viewer (+1)") is not None, sc)
 sc = cprun(reach("filetypes", ".ans") + [b"\r", 0.4, b"\x1b[B", b"d", b"\r",

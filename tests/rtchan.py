@@ -84,6 +84,11 @@ fn demo_app(a) { printf '%%s\t%%s\n' "${DT_APPS[$a]["title"]-none}" "${DT_APPS[$
 fn demo_new() { local id st; id := dt_new "Asked Window" 6 24 3 4 loopdemo; st=$?; printf '%%s\t%%s\t%%s\n' "$st" "$id" "${DT[$id]["title"]-none}" > %s.new; }
 fn demo_set() { dt_set DT_TIPMS 1234; }
 fn demo_setany(n) { dt_set "$n" 7; }
+fn demo_open(n, a) { dt_opener "$n" "Probe" "zq$n" app "$a"; }
+fn demo_wide(m) { cs_modwidth "$m" 9; }
+fn demo_drop(n) { dt_note_drop "$n"; }
+fn demo_mine() { dt_notep low "mine, not theirs"; }
+fn demo_notes() { local k o=; for k in "${!DT_NOTEQ[@]}"; do o+="$k:${DT_NOTEQ[$k]["owner"]-} "; done; printf '%%s\n' "$o" > %s.notes; }
 fn demo_askflood() { local t0 i x; t0=${EPOCHREALTIME/./}; for i in {1..100}; do x := dt_ids; done; printf '%%s\n' "$(( (${EPOCHREALTIME/./} - t0) / 100 ))" > %s.askflood; }
 fn demo_slowask() { local id st; id := dt_new "Too Late" 6 24 3 4 loopdemo; st=$?; printf '%%s\t%%s\n' "$st" "$id" > %s.slow; }
 fn demo_attr() { printf '%%s\n' "${DT_KEYS@a} ${DT_BTNS@a}" > %s.attr; }
@@ -103,7 +108,7 @@ demo_tick() {
 dt_ticker demo_tick
 dt_rtrun
 echo "ended $?" > %s.end
-''' % (HERE, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, FIFO, SAID))
+''' % (HERE, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, SAID, FIFO, SAID))
 # One that speaks another protocol.
 open(BAD, "w").write(r'''DT_HERE=%s
 . "$DT_HERE/runtime.hibr"
@@ -263,7 +268,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(71)
+    report(76)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -492,6 +497,55 @@ while time.time() < deadline and "which its own file never names" not in log():
 now = result('echo "$DT_DRAWSKIP" > %s.pend' % SAID)
 check("and one its file never names is refused, logged, and left as it was",
       now == was and "set DT_DRAWSKIP, which its own file never names" in log(), (was, now))
+
+
+def logged(text, secs=10):
+    """Wait until desktop.log says text."""
+    deadline = time.time() + secs
+    while time.time() < deadline and text not in log():
+        t.collect(0.1)
+    return text in log()
+
+
+# What a request names that is another installable's -- an opener, a strip
+# module, a note -- is refused from an app's process (ADR 0050), and what
+# its own is still taken: each guard checked from a real app process, with
+# its control beside it, since a guard that refused everything would pass.
+do('dt_rttell "$LT" demo_open own loopdemo')
+own = ""
+deadline = time.time() + 10
+while time.time() < deadline and own != "Probe":
+    own = result('echo "${DT_OPENERS[own]["title"]-}" > %s.pend' % SAID)
+check("an app declares an opener for itself from its own process, and the desktop takes it",
+      own == "Probe", own)
+expect(r"refused: dt_opener: loopdemo declared the opener theirs for demo, which is not its own")
+do('dt_rttell "$LT" demo_open theirs demo')
+said = logged("declared the opener theirs for demo, which is not its own")
+theirs = result('echo "${DT_OPENERS[theirs]["title"]-none}" > %s.pend' % SAID)
+check("and one for another app is refused, logged, and never declared", said and theirs == "none",
+      (said, theirs))
+result('DT_LOADING=%s cs_module zmod Z 3; echo x > %s.pend' % (GOOD, SAID))
+expect(r"refused: cs_modwidth: loopdemo set the width of zmod, which is not its own")
+do('dt_rttell "$LT" demo_wide zmod')
+said = logged("set the width of zmod, which is not its own")
+w = result('echo "${CS_MODS[zmod]["w"]}" > %s.pend' % SAID)
+check("an app cannot set the width of another's strip module", said and w == "3", (said, w))
+nid = result('DT_CALLER=demo dt_noteq normal "theirs, not yours"; echo $((DT_NOTE_NEXT - 1)) > %s.pend' % SAID)
+if os.path.exists(SAID + ".notes"):
+    os.unlink(SAID + ".notes")
+do('dt_rttell "$LT" demo_mine')
+noted("mine, not theirs")
+do('dt_rttell "$LT" demo_notes')
+sent = " ".join(waitfile(".notes"))
+owners = [w.split(":", 1) for w in sent.split()]
+check("the note queue is sent to an app by owner: its own notes, never another app's",
+      any(o == "loopdemo" for k, o in owners) and not any(o == "demo" or k == nid for k, o in owners),
+      (nid, sent))
+expect(r"refused: dt_note_drop: loopdemo dropped note %s, which is not its own" % nid)
+do('dt_rttell "$LT" demo_drop %s' % nid)
+said = logged("dropped note %s, which is not its own" % nid)
+kept = result('echo "${DT_NOTEQ[%s]["text"]-gone}" > %s.pend' % (nid, SAID))
+check("and it cannot drop another app's note", said and kept == "theirs, not yours", (said, kept))
 # A hundred asks in a row: an app's request socket is input to the desktop,
 # so an ask never waits out a frame the desktop holds back (it cost 70 ms an
 # ask before, ADR 0050). Measured before the floods below, whose 300 notes
@@ -889,6 +943,12 @@ while time.time() < deadline and "read only in an app's own process" not in log(
 w = open(SAID + ".wrote").read().strip() if os.path.exists(SAID + ".wrote") else "?"
 check("an app's own process cannot write the desktop's state: refused, and named",
       "DT_FOCUS: the desktop's, read only in an app's own process" in log() and w.startswith("1 "), (w, log()[-200:]))
+# Each note an app made is sent to it when it goes, which the flood's go a
+# minute after it; the queue stays full here, its notes kept past the three
+# seconds, so idle means nothing changing -- a queued note rewritten while
+# idle would still fail it.
+do('DT_NOTEMS=3600000')
+time.sleep(0.5)
 seen = show()
 n1 = int(seen[4]) if len(seen) > 4 else -1
 time.sleep(3)
@@ -1024,7 +1084,7 @@ check("a desktop killed outright ends an app's loop within two seconds, never by
 t.close()
 for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blame", SAID + ".idle",
           SAID + ".other", SAID + ".alive", SAID + ".before", SAID + ".after", SAID + ".pend",
-          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", SAID + ".list", SAID + ".app", SAID + ".attr", SAID + ".wrote", SAID + ".new", SAID + ".slow", LOOP, FIFO, scratch("rtchan-quitter.hibr")):
+          SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", SAID + ".list", SAID + ".app", SAID + ".attr", SAID + ".notes", SAID + ".wrote", SAID + ".new", SAID + ".slow", LOOP, FIFO, scratch("rtchan-quitter.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(71)
+report(76)

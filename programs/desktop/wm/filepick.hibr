@@ -159,7 +159,7 @@ fn fp_set(int id, ...pairs) {
 	local i k v
 
 	if [ "${#pairs[@]}" = 0 ] || (( ${#pairs[@]} % 2 )); then
-		dt_log "fp_set: a field with no value"
+		dt_log "refused: fp_set: a field with no value"
 		return 2
 	fi
 	for ((i = 0; i < ${#pairs[@]}; i += 2)); do
@@ -169,12 +169,12 @@ fn fp_set(int id, ...pairs) {
 		types) ;;
 		ti)
 			if [[ ! $v =~ ^[0-9]+$ ]]; then
-				dt_log "fp_set: $k is not a number: $v"
+				dt_log "refused: fp_set: $k is not a number: $v"
 				return 1
 			fi
 			;;
 		*)
-			dt_log "fp_set: $k is not a field it sets"
+			dt_log "refused: fp_set: $k is not a field it sets"
 			return 1
 			;;
 		esac
@@ -515,7 +515,7 @@ fp_replace() {
 
 # Hand the path to whoever asked, and close.
 fn fp_done(int id, p) {
-	local cb=${FP[$id]["cb"]} for=${FP[$id]["for"]} lab
+	local cb=${FP[$id]["cb"]} for=${FP[$id]["for"]} own=${FP[$id]["owner"]-} lab
 	local -a labs
 
 	lab := fp_labels "$id"
@@ -524,7 +524,7 @@ fn fp_done(int id, p) {
 	DT_FPLAST["$cb"]=${p%/*}
 	FP[$id]["oncancel"]=
 	dt_del "$id"
-	dt_appfn "${FP[$id]["owner"]-}" "$cb" "$for" "$p" "$lab"
+	dt_appfn "$own" "$cb" "$for" "$p" "$lab"
 }
 
 fn fpick_key(int id, key) {
@@ -723,9 +723,9 @@ fn fpick_copy(int id) {
 }
 
 fn fpick_close(int id) {
-	local oc=${FP[$id]["oncancel"]} for=${FP[$id]["for"]}
+	local oc=${FP[$id]["oncancel"]} for=${FP[$id]["for"]} own=${FP[$id]["owner"]-}
 
 	unset FP["$id"]
-	[ -n "$oc" ] && dt_appfn "${FP[$id]["owner"]-}" "$oc" "$for"
+	[ -n "$oc" ] && dt_appfn "$own" "$oc" "$for"
 	return 0
 }

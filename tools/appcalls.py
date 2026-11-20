@@ -68,7 +68,8 @@ for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loc
         dt_pwgo dt_pkstart dt_pkstop dt_kbset dt_saverload dt_saverstart
         dt_colours dt_walldisp dt_shot dt_rescan dt_reinstate
         dt_unload dt_onunload dt_scanold dt_appvia dt_appunvia dt_modehook
-        dt_rslog dt_rscarry dt_rsclaim""".split():
+        dt_rslog dt_rscarry dt_rsclaim dt_onrescan dt_wallretry dt_wallforget
+        cs_modwidth dt_progput dt_proghide dt_progdrop dt_statadd dt_pwcrit""".split():
     OVERRIDE[_n] = "request"
 for _n in "dt_wintitle dt_ext dt_chromeoff".split():
     OVERRIDE[_n] = "local"
@@ -254,7 +255,7 @@ def flips(rows):
 # is a round trip each time the path runs. What is left
 # is conditional -- a title changed, a note on an error, a bell -- or waits on
 # the openers being declared data (dt_isbundle, dt_locof, dt_loccan).
-FRAMEASKS = 41
+FRAMEASKS = 39
 
 
 def kinds(rows):
@@ -352,6 +353,149 @@ def nextver():
     return ".".join(a)
 
 
+# A deliberate break of the app interface, kept only against the one tag it
+# is compared with: function -> (that tag, why). It goes at the next release,
+# and an entry that names another tag, or a row that did not change, fails
+# as stale -- an exception never outlives the break it admits (ADR 0050).
+BREAKS = {
+    "dt_openerverb": ("v0.99.554", "an opener's verb is declared data: its fifth word is a "
+                      "test letter (f, e, d, x), never a function the desktop calls into"),
+}
+
+
+def params(sig):
+    """A signature's parameters, in order, as written."""
+    if not sig or "(" not in sig:
+        return []
+    inner = sig[sig.index("(") + 1:sig.rindex(")")].strip()
+    return [x.strip() for x in inner.split(",")] if inner else []
+
+
+def additive(old, new):
+    """The parameters new adds after old's, when every one of them is optional
+    (a default, or the rest): an old call is still a call of the new one."""
+    a, b = params(old), params(new)
+    if len(b) <= len(a) or b[:len(a)] != a or any(x.startswith("...") for x in a):
+        return None
+    extra = b[len(a):]
+    return extra if all("=" in x or x.startswith("...") for x in extra) else None
+
+
+def argsat(field):
+    """A row's args field: [(words, release)], a call of that many argument
+    words or more needing that release."""
+    out = []
+    for e in (field or "-").split(";"):
+        if "@" in e:
+            n, v = e.split("@", 1)
+            out.append((int(n), v))
+    return out
+
+
+def callwords(path, call):
+    """How many argument words a call passes, read from the source after the
+    function's name to the end of its simple command; a redirection is not one."""
+    end = (call.get("span") or {}).get("end")
+    if end is None:
+        return 0
+    try:
+        text = open(path, "rb").read()[end:].decode("utf-8", "replace")
+    except OSError:
+        return 0
+    words, cur, q, depth, i, inw = [], "", "", 0, 0, False
+    while i < len(text):
+        ch = text[i]
+        if q:
+            if ch == "\\" and q == '"':
+                cur += text[i:i + 2]; i += 2; continue
+            if ch == q:
+                q = ""
+            cur += ch
+        elif ch == "\\":
+            if text[i + 1:i + 2] == "\n":
+                i += 2; continue
+            cur += text[i:i + 2]; inw = True; i += 2; continue
+        elif ch in "'\"":
+            q = ch; cur += ch; inw = True
+        elif ch in "({" and cur.endswith("$"):
+            depth += 1; cur += ch
+        elif ch in ")}" and depth:
+            depth -= 1; cur += ch
+        elif depth:
+            cur += ch
+        elif ch in " \t":
+            if inw:
+                words.append(cur); cur, inw = "", False
+        elif ch in "\n;|&)" or (ch == "#" and not inw):
+            break
+        else:
+            cur += ch; inw = True
+        i += 1
+    if inw:
+        words.append(cur)
+    n, skip = 0, False
+    for w in words:
+        if skip:
+            skip = False
+            continue
+        m = re.match(r"^[0-9]*(?:<>|>>|>&|<&|>|<)(.*)$", w)
+        if m:
+            skip = not m.group(1)
+            continue
+        n += 1
+    return n
+
+
+def callneeds(path, call, since, args):
+    """The release a call needs: its function's row, or a later parameter it
+    passes; "-" when the call is older than the contract."""
+    vk = lambda v: tuple(int(x) for x in re.findall(r"\d+", v))
+    name = call.get("name")
+    top = since.get(name, "-")
+    top = "-" if top in ("-", "") else top
+    later = argsat(args.get(name))
+    if later:
+        n = callwords(path, call)
+        for w, v in later:
+            if n >= w and (top == "-" or vk(v) > vk(top)):
+                top = v
+    return top
+
+
+def lasttag():
+    """The tag the contract is held to: APPCALLS_AGAINST, or the last one."""
+    import subprocess
+    return os.environ.get("APPCALLS_AGAINST") or subprocess.run(
+        ["git", "describe", "--tags", "--abbrev=0"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+
+
+def argsfield(name, sig, nv):
+    """A row's args field as --write writes it: what the table already
+    records, and each optional parameter added since the last tag, at the
+    release it first ships in."""
+    import subprocess
+    global REFTABLE
+    if REFTABLE is None:
+        ref = lasttag()
+        got = subprocess.run(["git", "show", "%s:programs/desktop/interface.tsv" % ref], cwd=ROOT,
+                             capture_output=True, text=True) if ref else None
+        REFTABLE = readtable(got.stdout) if got and not got.returncode else {}
+        REFTABLE["\0args"] = {r[1]: (r[9] if len(r) > 9 else "-") for r in tablerows()} \
+            if os.path.exists(OUT) else {}
+    have = dict(argsat(REFTABLE["\0args"].get(name)))
+    old = REFTABLE.get(name)
+    if old:
+        extra = additive(old[1], sig)
+        if extra is not None:
+            base = len(params(old[1]))
+            for k in range(len(extra)):
+                have.setdefault(base + 1 + k, nv)
+    return ";".join("%d@%s" % (w, have[w]) for w in sorted(have)) or "-"
+
+
+REFTABLE = None
+
+
 def readtable(text):
     """A calls table's rows by function: (class, signature, since)."""
     rows = {}
@@ -373,11 +517,26 @@ def contract(ref):
     if got.returncode:
         return None
     sig, fails = sigs(), []
+    args = {r[1]: (r[9] if len(r) > 9 else "-") for r in tablerows()}
+    changed = set()
     for n, (c, sg, since) in readtable(got.stdout).items():
         if n not in sig:
             fails.append("%s was in the app interface at %s and is gone" % (n, ref))
-        elif sg and sg != sig[n]:
-            fails.append("%s changed from %s at %s to %s" % (n, sg, ref, sig[n]))
+            continue
+        if not sg or sg == sig[n]:
+            continue
+        changed.add(n)
+        if n in BREAKS and BREAKS[n][0] == ref:
+            continue
+        extra = additive(sg, sig[n])
+        have = {w for w, v in argsat(args.get(n))}
+        if extra is not None and all(len(params(sg)) + 1 + k in have for k in range(len(extra))):
+            continue
+        fails.append("%s changed from %s at %s to %s" % (n, sg, ref, sig[n]))
+    for n, (at, why) in BREAKS.items():
+        if at != ref or n not in changed:
+            fails.append("BREAKS still admits %s against %s, which is not the change against %s: "
+                         "remove it" % (n, at, ref))
     return fails
 
 
@@ -389,6 +548,7 @@ def floors(rows):
         return []
     ents = json.load(open(idx)).get("entries", {})
     since = {r[1]: r[8] for r in rows}
+    args = {r[1]: (r[9] if len(r) > 9 else "-") for r in tablerows()}
     vk = lambda v: tuple(int(x) for x in re.findall(r"\d+", v))
     out = []
     for f in installables():
@@ -399,8 +559,8 @@ def floors(rows):
         if not floor:
             continue
         r = records(f, "calls")
-        used = {c.get("name") for c in r.get("calls", [])}
-        need = [(since[n], n) for n in used if since.get(n, "-") not in ("-", "")]
+        need = [(v, c.get("name")) for c in r.get("calls", [])
+                for v in [callneeds(f, c, since, args)] if v != "-"]
         if need:
             top = max(need, key=lambda x: vk(x[0]))
             if vk(top[0]) > vk(floor):
@@ -417,6 +577,7 @@ def derivedfloors():
     keys an entry: kind/name."""
     rows = tablerows()
     since = {r[1]: r[8] for r in rows if len(r) > 8}
+    args = {r[1]: (r[9] if len(r) > 9 else "-") for r in rows}
     vk = lambda v: tuple(int(x) for x in re.findall(r"\d+", v))
     root = os.path.join(APPS, "bundles")
     out = {}
@@ -433,8 +594,8 @@ def derivedfloors():
         top = None
         for g in files:
             for c in records(g, "calls").get("calls", []):
-                v = since.get(c.get("name"), "-")
-                if v not in ("-", "") and (top is None or vk(v) > vk(top)):
+                v = callneeds(g, c, since, args)
+                if v != "-" and (top is None or vk(v) > vk(top)):
                     top = v
         if top:
             out["%s/%s" % (kind, os.path.basename(rel))] = top
@@ -663,6 +824,7 @@ def main():
     nv = nextver()
     rows = [r + (far.get(r[1], "-"), sig.get(r[1], "-"),
                  old[r[1]][2] if r[1] in old else (nv if old else "-")) for r in rows]
+    rows = [r + (argsfield(r[1], r[7], nv),) for r in rows]
     kinds = collections.Counter(r[0] for r in rows)
     print("installables read: %d, unreadable: %d" % (len(installables()), len(bad)))
     print("platform functions called: %d -- %s" % (len(rows), ", ".join(
@@ -679,12 +841,13 @@ def main():
             print("  decide  %-26s %-24s %4d calls in %d files" % (r[1], r[2], r[3], r[4]))
     if "--write" in sys.argv:
         with open(OUT, "w") as o:
-            o.write("# class\tfunction\tdefined in\tcalls\tfiles\tanswer\treaches\tsignature\tsince"
+            o.write("# class\tfunction\tdefined in\tcalls\tfiles\tanswer\treaches\tsignature\tsince\targs"
                     " -- tools/appcalls.py --write; since is the release a row first shipped in, - before"
-                    " the contract; no field is ever empty, since a tab is IFS whitespace and a shell"
-                    " reading the table would lose one (ADR 0050)\n")
+                    " the contract; args is N@release for each optional parameter added since, a call of"
+                    " N words or more needing that release; no field is ever empty, since a tab is IFS"
+                    " whitespace and a shell reading the table would lose one (ADR 0050)\n")
             for r in rows:
-                o.write("%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\n" % r)
+                o.write("%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t%s\t%s\n" % r)
         print("wrote", os.path.relpath(OUT, ROOT))
     for f in bad:
         print("unreadable:", f)
@@ -742,9 +905,7 @@ def main():
         for f in bad:
             print("FAIL %s could not be read by the inspect module" % f)
         fails = len(undecided) + len(bad)
-        import subprocess
-        ref = os.environ.get("APPCALLS_AGAINST") or subprocess.run(
-            ["git", "describe", "--tags", "--abbrev=0"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        ref = lasttag()
         broken = contract(ref) if ref else None
         if broken is None:
             print("note: no calls table at %s yet, so no contract to hold it to" % (ref or "a tag"))

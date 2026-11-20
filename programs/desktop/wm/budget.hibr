@@ -96,7 +96,7 @@ DT_STATON=
 # installable counts only its re-reads of what it watches (r:NAME, "rereads"
 # in the answer), never the desktop's own frames, wakes or timings.
 fn dt_statadd(key) {
-	[[ $key =~ ^r:[a-z]+$ ]] || { dt_log "dt_statadd: $key is no re-read"; return 1; }
+	[[ $key =~ ^r:[a-z]+$ ]] || { dt_log "refused: dt_statadd: $key is no re-read"; return 1; }
 	DT_STAT["$key"]=$((${DT_STAT["$key"]:-0} + 1))
 }
 

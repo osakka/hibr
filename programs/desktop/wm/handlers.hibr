@@ -202,23 +202,14 @@ fn dt_opensrc() {
 # location it registered -- so one app never names another's. An opener's
 # own name is kept the same way (dt_opener), so none replaces another's.
 fn dt_openmay(what, how, app) {
-	local s m f
-
 	[ -n "${DT_RTFROM-}" ] || return 0
 	if [ "$how" = browse ]; then
 		[ -n "$app" ] && [ "${DT_LOCAPP["$app"]-}" = "$DT_CALLER" ] && return 0
 	elif [ -n "$app" ]; then
 		[ "$app" = "$DT_CALLER" ] && return 0
-		s=${DT_APPS["$app"]["src"]-}
-		m=${DT_APPS["$DT_CALLER"]["src"]-}
-		if [ -n "$s" ] && [ -n "$m" ]; then
-			[ "$s" = "$m" ] && return 0
-			if f := dt_rtpartfiles "$m"; then
-				[[ $'\n'$f$'\n' == *$'\n'"$s"$'\n'* ]] && return 0
-			fi
-		fi
+		dt_rtmine "${DT_APPS["$app"]["src"]-}" && return 0
 	fi
-	dt_log "refused: ${DT_CALLER:-an app} declared $what for ${app:-no app}, which is not its own"
+	dt_log "refused: dt_opener: ${DT_CALLER:-an app} declared $what for ${app:-no app}, which is not its own"
 	return 1
 }
 
@@ -229,7 +220,7 @@ fn dt_opener(name, title, types, how, app = "", kind = "") {
 	src := dt_opensrc
 	if [ -n "${DT_RTFROM-}" ] && [ -n "${DT_OPENERS[$name]["title"]}" ] &&
 	   [ "${DT_OPENERS[$name]["src"]-}" != "$src" ]; then
-		dt_log "refused: ${DT_CALLER:-an app} declared the opener $name, which is another's"
+		dt_log "refused: dt_opener: ${DT_CALLER:-an app} declared the opener $name, which is another's"
 		return 1
 	fi
 	[ -n "${DT_OPENERS[$name]["title"]}" ] || DT_OPENERORDER+=("$name")
@@ -276,7 +267,7 @@ fn dt_openerverb(ext, label, app, call = "", test = "") {
 	case $test in
 	"" | f | e | d | x) ;;
 	*)
-		dt_log "refused: dt_openerverb $label: '$test' is not a test (f, e, d or x)"
+		dt_log "refused: dt_openerverb: $label: '$test' is not a test (f, e, d or x)"
 		return 1
 		;;
 	esac
@@ -352,6 +343,7 @@ fn dt_openverb(int n, ...paths) {
 	else
 		dt_launch "${DT_OPENVERBS[$n]["app"]}" "${paths[0]}"
 	fi
+	return 0
 }
 
 dt_opener hvi "Text Editor (hvi)" "*" edit

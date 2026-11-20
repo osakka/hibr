@@ -88,7 +88,8 @@ fn cs_module(name, title, w = "") {
 # from its _draw, so only when the width it has (CS_MODS) is not the one it
 # wants.
 fn cs_modwidth(name, int w) {
-	[ -n "${CS_MODS["$name"]["title"]+x}" ] || { dt_log "cs_modwidth: $name is no strip module"; return 1; }
+	[ -n "${CS_MODS["$name"]["title"]+x}" ] || { dt_log "refused: cs_modwidth: $name is no strip module"; return 1; }
+	dt_rtmine "${CS_MODS["$name"]["src"]}" || { dt_log "refused: cs_modwidth: ${DT_CALLER:-an app} set the width of $name, which is not its own"; return 1; }
 	[ "$w" -ge 1 ] || return 1
 	[ "${CS_MODS["$name"]["w"]}" = "$w" ] && return 0
 	CS_MODS["$name"]["w"]=$w

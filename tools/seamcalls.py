@@ -108,7 +108,9 @@ KINDS = {
     # job's end, a note's action.
     "handed": ("ask", "the dialog stays, and " + NOWIN),
     # Registered hooks.
-    "hook:DT_OPENVERBS": ("ask", "the verb is not offered"),
+    "hook:dt_rescan": ("tell", "-"),
+    # A verb chosen from Files' menu: the declarer does it and says how it went.
+    "hook:DT_OPENVERBS": ("tell", "-"),
     "hook:DT_BARHOOKS": ("push", "what it last set"),
     "hook:DT_UNLOADFN": ("ask", "after DT_HOLDMS the code goes anyway"),
     "hook:DT_RELOADFN": ("tell", "-"), "hook:DT_ATSTART": ("tell", "-"), "hook:DT_BUS": ("tell", "-"),

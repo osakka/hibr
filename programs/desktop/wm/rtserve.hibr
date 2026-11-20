@@ -550,6 +550,20 @@ dt_rtclose() {
 # Whether name is an installed app, and if so what its own file may ask:
 # the told requests the file's text names, read once per file and kept.
 # Read, never run, as everything an app declares is (ADR 0050, 3).
+# Whether a file is the calling app's own -- its file or one of its parts --
+# when an app's process asks; the desktop's own calls always are. What a
+# request that names another installable's thing checks before acting.
+fn dt_rtmine(f) {
+	local m p
+
+	[ -n "${DT_RTFROM-}" ] || return 0
+	m=${DT_APPS["$DT_CALLER"]["src"]-}
+	[ -n "$f" ] && [ -n "$m" ] || return 1
+	[ "$f" = "$m" ] && return 0
+	p := dt_rtpartfiles "$m" || return 1
+	[[ $'\n'$p$'\n' == *$'\n'"$f"$'\n'* ]]
+}
+
 # The files of every part a file declares (`# part: KIND/NAME`), one a
 # line: found under the folder that holds the file's own kind folder, and
 # only those that are there. The one place a part is resolved.

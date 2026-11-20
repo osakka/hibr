@@ -1115,7 +1115,7 @@ fn dt_wincolours(int id, bg, fg) {
 	dt_winok "$id" dt_wincolours || return 1
 	for c in "$bg" "$fg"; do
 		[ -z "$c" ] || [[ $c =~ ^#[0-9a-fA-F]{6}$ ]] ||
-			{ dt_log "dt_wincolours: $c is not a colour"; return 1; }
+			{ dt_log "refused: dt_wincolours: $c is not a colour"; return 1; }
 	done
 	[ "${DT[$id]["bg"]-}" = "$bg" ] && [ "${DT[$id]["fg"]-}" = "$fg" ] && return 0
 	DT[$id]["bg"]=$bg

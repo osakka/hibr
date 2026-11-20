@@ -261,9 +261,8 @@ fn language_do(int? w = "", k = "", int? dir = "") {
 		return 0
 		;;
 	kbname)
-		dt_has dt_kbbar || return 0
-		if [ "${DT_KBNAME:-1}" = 1 ]; then DT_KBNAME=0; else DT_KBNAME=1; fi
-		dt_kbbar
+		dt_has dt_kbnameflip && dt_kbnameflip
+		return 0
 		;;
 	esac
 	cp_save

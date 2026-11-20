@@ -263,18 +263,18 @@ fn dt_progput(key, name, cmd, dir, term, hidden) {
 	local i n=0
 
 	if [ -z "${name// /}" ] || [ -z "${cmd// /}" ]; then
-		dt_log "dt_progput: an entry needs a name and a command"
+		dt_log "refused: dt_progput: an entry needs a name and a command"
 		return 1
 	fi
-	case $term in 0 | 1) ;; *) dt_log "dt_progput: term is 0 or 1"; return 1 ;; esac
-	case $hidden in '' | 1) ;; *) dt_log "dt_progput: hidden is empty or 1"; return 1 ;; esac
+	case $term in 0 | 1) ;; *) dt_log "refused: dt_progput: term is 0 or 1"; return 1 ;; esac
+	case $hidden in '' | 1) ;; *) dt_log "refused: dt_progput: hidden is empty or 1"; return 1 ;; esac
 	if [ -z "$key" ]; then
 		for i in "${!PMOWN[@]}"; do
 			case $i in own-*) [ "${i#own-}" -ge "$n" ] && n=$((${i#own-} + 1)) ;; esac
 		done
 		key=own-$n
 	elif [ -z "${PM["$key"]["name"]-}" ]; then
-		dt_log "dt_progput: $key is no entry on the menu"
+		dt_log "refused: dt_progput: $key is no entry on the menu"
 		return 1
 	fi
 	PMOWN["$key"]["name"]=$name
@@ -291,7 +291,7 @@ fn dt_progput(key, name, cmd, dir, term, hidden) {
 # forgets it.
 fn dt_proghide(key, on = "") {
 	[ -n "$key" ] && [ -n "${PM["$key"]["name"]-}" ] || return 0
-	case $on in '' | 1) ;; *) dt_log "dt_proghide: on is empty or 1"; return 1 ;; esac
+	case $on in '' | 1) ;; *) dt_log "refused: dt_proghide: on is empty or 1"; return 1 ;; esac
 	if [ "${PM["$key"]["from"]}" = own ] || [ -n "${PMOWN["$key"]["name"]-}" ]; then
 		PMOWN["$key"]["hidden"]=$on
 	elif [ -n "$on" ]; then

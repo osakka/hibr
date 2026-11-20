@@ -12,6 +12,7 @@ app imgview "A picture in a window" 1.2.1
 # modules: img term
 
 command -v dt_app > /dev/null && dt_app imgview "Image Viewer" 16 40 "" "◧"
+command -v dt_opener > /dev/null && dt_opener imgview "Image Viewer" "png jpg jpeg ans" app imgview
 
 # Per window, not per app: two viewers must be able to show two different
 # pictures. Everything an app remembers goes under the window id it was

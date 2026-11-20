@@ -7198,8 +7198,11 @@ open(spp, "w").write("%s. %s\ndt_open\n"
                      "spintk() { local i; for ((i = 0; i < 300000; i++)); do :; done; return 0; }\n"
                      "dt_ticker spintk\ndt_run\ndt_close\n" % (load(MOD), WM))
 spt = Term(spp, env={"DT_HOLDMS": "100", "DT_HOLDBY": "wall"}, rows=ROWS, cols=COLS, settle=0.6)
-spt.collect(1.5)
-spl = [l for l in open(spt.log, errors="replace") if "held: spintk" in l or "slow: spintk" in l]
+spl = []
+deadline = time.time() + 15
+while time.time() < deadline and not any("ms of it on the processor" in l for l in spl):
+    spt.collect(0.2)
+    spl = [l for l in open(spt.log, errors="replace") if "held: spintk" in l or "slow: spintk" in l]
 spt.quit(b"q", 1.0)
 spc = [int(m.group(1)) for l in spl for m in [re.search(r"; (\d+) ms of it on the processor", l)] if m]
 check("and a ticker that spins was on the processor for most of its stall",

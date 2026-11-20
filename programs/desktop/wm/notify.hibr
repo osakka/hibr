@@ -153,7 +153,7 @@ fn dt_noteapp(from, pop, list, count) {
 		case $v in
 		1 | 0 | -) ;;
 		*)
-			dt_log "dt_noteapp: $v is not 1, 0 or -"
+			dt_log "refused: dt_noteapp: $v is not 1, 0 or -"
 			return 2
 			;;
 		esac
@@ -584,7 +584,7 @@ fn dt_note_drop(int note) {
 
 	if [ -n "${DT_RTFROM-}" ] && [ -n "${DT_NOTEQ[$note]["owner"]+x}" ] &&
 	   [ "${DT_NOTEQ[$note]["owner"]}" != "$DT_CALLER" ]; then
-		dt_log "app runtime: ${DT_CALLER:-an app} dropped note $note, which is not its own"
+		dt_log "refused: dt_note_drop: ${DT_CALLER:-an app} dropped note $note, which is not its own"
 		return 1
 	fi
 	unset "DT_NOTEQ[$note]"

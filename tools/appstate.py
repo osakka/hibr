@@ -116,7 +116,7 @@ MODVARS = ("DAV_CODE",)
 # (gone); the input method's own state is the app's (local).
 BYNAME = {}
 for _n in """DT_OPENCMD DT_OPENSELF DT_OPENSHELL DT_CLIPKIND DT_CLIP DT_CLIPOP
-        DT_NOTEFROM DT_NOTEWIN DT_NOTEAPP""".split():
+        DT_NOTEFROM DT_NOTEWIN""".split():
     BYNAME[_n] = "arg"
 for _n in "DT_FORCEONCE DT_MENUIN DT_BARWAS DT_ISON".split():
     BYNAME[_n] = "gone"
@@ -192,9 +192,6 @@ for _n in "DT_DLGR DT_DLGC DT_DLGH DT_DLGW DT_OWLIST DT_OVLIST".split():
 for _n in "DT_HOSTMARK".split():
     CONVERT[_n] = "gone"
 CONVERT["DT_CONFJ"] = "kept"
-# The next note's number, bumped per note and read only by the pane that
-# writes the note queue: part of that request, not shared.
-BYNAME["DT_NOTE_NEXT"] = "request"
 KINDS = ("apps", "system", "control-panel", "control-strip", "menubar", "savers")
 
 

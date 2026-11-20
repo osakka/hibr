@@ -45,7 +45,7 @@ BYOWNER = {
     "local": """bd_put dt_dropcontext dt_omniask dt_sbto sv_call""",
     "desktop": """dt_tickers dt_job dt_jobmerge dt_jobvarsrun dt_runhandler dt_autohold
                   dt_isozygote dt_natver dt_pwlocal dt_supervise dt_updcheck dt_rtmsg dt_rtanswer dt_vw
-                  dt_vwget dt_vwmatch""",
+                  dt_vwget dt_vwmatch dt_vwjobrun""",
 }
 # One site at a time, where the function holds sites of two kinds:
 # file:line of the call -> class. dt_mouse dispatches a bar item's click
@@ -149,6 +149,7 @@ def classify(site, own):
 # desktop running a scrollbar's press, or a dropdown's namer, would be
 # calling an app's code in its own process. Reached anyway, by reason:
 REACHOK = {
+    "dt_vwjobrun": "runs the vault job's own body in the job's child",
     "bd_put": "the pen is a function of the code drawing the text",
     "dt_job": "runs a program",
     "dt_jobmerge": "runs a program",

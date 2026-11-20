@@ -25,6 +25,11 @@ fn cs_moduleswitch(name, var, fn = "") {
 	dt_rtsend declare cs_moduleswitch "$name" "$var" "$fn"
 }
 
+# Told to the desktop, wm/strip.hibr.
+fn cs_modwidth(name, int w) {
+	dt_rtsend tell cs_modwidth "$name" "$w"
+}
+
 # Declared to the desktop, wm/strip.hibr.
 cs_relist() {
 	dt_rtsend declare cs_relist "$@"
@@ -315,11 +320,6 @@ dt_ids() {
 	dt_rtsend ask dt_ids "$@" && ret -k
 }
 
-# Asked of the desktop, wm/handlers.hibr.
-fn dt_isbundle(path) {
-	dt_rtsend ask dt_isbundle "$path"
-}
-
 # Declared to the desktop, wm/menus.hibr.
 dt_item() {
 	dt_rtsend declare dt_item "$@"
@@ -421,6 +421,16 @@ fn dt_note(text, ...rest) {
 }
 
 # Told to the desktop, wm/notify.hibr.
+fn dt_note_drop(int note) {
+	dt_rtsend tell dt_note_drop "$note"
+}
+
+# Told to the desktop, wm/notify.hibr.
+fn dt_noteapp(from, pop, list, count) {
+	dt_rtsend tell dt_noteapp "$from" "$pop" "$list" "$count"
+}
+
+# Told to the desktop, wm/notify.hibr.
 fn dt_notehist_clear(prio) {
 	dt_rtsend tell dt_notehist_clear "$prio"
 }
@@ -440,9 +450,14 @@ fn dt_notep(prio, text, ...rest) {
 	dt_rtsend tell dt_notep "$prio" "$text" "${rest[@]}"
 }
 
-# Told to the desktop, wm/notify.hibr.
+# Asked of the desktop, wm/notify.hibr.
 dt_noteq() {
-	dt_rtsend tell dt_noteq "$@"
+	dt_rtsend ask dt_noteq "$@" && ret -k
+}
+
+# Told to the desktop, wm/notify.hibr.
+dt_noteseen() {
+	dt_rtsend tell dt_noteseen "$@"
 }
 
 # Told to the desktop, wm/notify.hibr.
@@ -456,13 +471,13 @@ fn dt_notifyp(prio, text, ...rest) {
 }
 
 # Told to the desktop, wm/apps.hibr.
-fn dt_onunload(stop, start = "") {
-	dt_rtsend tell dt_onunload "$stop" "$start"
+fn dt_onrescan(fn) {
+	dt_rtsend tell dt_onrescan "$fn"
 }
 
-# Asked of the desktop, wm/handlers.hibr.
-fn dt_openbrowse(path) {
-	dt_rtsend ask dt_openbrowse "$path" && ret -k
+# Told to the desktop, wm/apps.hibr.
+fn dt_onunload(stop, start = "") {
+	dt_rtsend tell dt_onunload "$stop" "$start"
 }
 
 # Told to the desktop, wm/handlers.hibr.
@@ -471,13 +486,8 @@ fn dt_opener(name, title, types, how, app = "", kind = "") {
 }
 
 # Told to the desktop, wm/handlers.hibr.
-fn dt_openers(path, kind = "") {
-	dt_rtsend tell dt_openers "$path" "$kind"
-}
-
-# Told to the desktop, wm/handlers.hibr.
-fn dt_openerverb(ext, label, app, call = "", when = "") {
-	dt_rtsend tell dt_openerverb "$ext" "$label" "$app" "$call" "$when"
+fn dt_openerverb(ext, label, app, call = "", test = "") {
+	dt_rtsend tell dt_openerverb "$ext" "$label" "$app" "$call" "$test"
 }
 
 # Told to the desktop, wm/handlers.hibr.
@@ -493,11 +503,6 @@ fn dt_openlink(u) {
 # Told to the desktop, wm/handlers.hibr.
 fn dt_openverb(int n, ...paths) {
 	dt_rtsend tell dt_openverb "$n" "${paths[@]}"
-}
-
-# Told to the desktop, wm/handlers.hibr.
-fn dt_openverbs(...paths) {
-	dt_rtsend tell dt_openverbs "${paths[@]}"
 }
 
 # Told to the desktop, wm/handlers.hibr.
@@ -546,8 +551,23 @@ dt_popclose() {
 }
 
 # Told to the desktop, wm/programs.hibr.
+fn dt_progdrop(key) {
+	dt_rtsend tell dt_progdrop "$key"
+}
+
+# Told to the desktop, wm/programs.hibr.
+fn dt_proghide(key, on = "") {
+	dt_rtsend tell dt_proghide "$key" "$on"
+}
+
+# Told to the desktop, wm/programs.hibr.
 dt_progload() {
 	dt_rtsend tell dt_progload "$@"
+}
+
+# Told to the desktop, wm/programs.hibr.
+fn dt_progput(key, name, cmd, dir, term, hidden) {
+	dt_rtsend tell dt_progput "$key" "$name" "$cmd" "$dir" "$term" "$hidden"
 }
 
 # Told to the desktop, wm/programs.hibr.
@@ -558,6 +578,11 @@ dt_progsave() {
 # Asked of the desktop, wm/input.hibr.
 dt_ptrlockcan() {
 	dt_rtsend ask dt_ptrlockcan "$@"
+}
+
+# Told to the desktop, wm/machine.hibr.
+dt_pwcrit() {
+	dt_rtsend tell dt_pwcrit "$@"
 }
 
 # Told to the desktop, wm/machine.hibr.
@@ -668,6 +693,11 @@ dt_shot() {
 # Told to the desktop, wm/session.hibr.
 dt_size() {
 	dt_rtsend tell dt_size "$@"
+}
+
+# Told to the desktop, wm/budget.hibr.
+fn dt_statadd(key) {
+	dt_rtsend tell dt_statadd "$key"
 }
 
 # Asked of the desktop, wm/workspaces.hibr.
@@ -785,9 +815,24 @@ fn dt_walldisp(name, img = "", mode = "", pic = "") {
 	dt_rtsend tell dt_walldisp "$name" "$img" "$mode" "$pic"
 }
 
+# Told to the desktop, wm/wallpaper.hibr.
+fn dt_wallforget(name) {
+	dt_rtsend tell dt_wallforget "$name"
+}
+
+# Told to the desktop, wm/wallpaper.hibr.
+dt_wallretry() {
+	dt_rtsend tell dt_wallretry "$@"
+}
+
 # Asked of the desktop, wm/windows.hibr.
 fn dt_wantclose(int id) {
 	dt_rtsend ask dt_wantclose "$id"
+}
+
+# Told to the desktop, wm/windows.hibr.
+fn dt_wincolours(int id, bg, fg) {
+	dt_rtsend tell dt_wincolours "$id" "$bg" "$fg"
 }
 
 # Told to the desktop, wm/workspaces.hibr.
@@ -800,6 +845,11 @@ fn dt_wsset(int n) {
 	dt_rtsend ask dt_wsset "$n"
 }
 
+# Told to the desktop, wm/filepick.hibr.
+fn fp_drop(int id) {
+	dt_rtsend tell fp_drop "$id"
+}
+
 # Asked of the desktop, wm/filepick.hibr.
 fn fp_go(int id, d) {
 	dt_rtsend ask fp_go "$id" "$d"
@@ -808,4 +858,9 @@ fn fp_go(int id, d) {
 # Asked of the desktop, wm/filepick.hibr.
 fn fp_path(int id, int i) {
 	dt_rtsend ask fp_path "$id" "$i" && ret -k
+}
+
+# Told to the desktop, wm/filepick.hibr.
+fn fp_set(int id, ...pairs) {
+	dt_rtsend tell fp_set "$id" "${pairs[@]}"
 }
