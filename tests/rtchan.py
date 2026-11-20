@@ -82,6 +82,8 @@ fn demo_win(id) { printf '%%s\t%%s\t%%s\n' "${DT[$id]["title"]-none}" "${DT[$id]
 fn demo_mark() { GL["wifi1"]=kept; }
 fn demo_app(a) { printf '%%s\t%%s\n' "${DT_APPS[$a]["title"]-none}" "${DT_APPS[$a]["src"]-}" > %s.app; }
 fn demo_new() { local id st; id := dt_new "Asked Window" 6 24 3 4 loopdemo; st=$?; printf '%%s\t%%s\t%%s\n' "$st" "$id" "${DT[$id]["title"]-none}" > %s.new; }
+fn demo_set() { dt_set DT_TIPMS 1234; }
+fn demo_setany(n) { dt_set "$n" 7; }
 fn demo_askflood() { local t0 i x; t0=${EPOCHREALTIME/./}; for i in {1..100}; do x := dt_ids; done; printf '%%s\n' "$(( (${EPOCHREALTIME/./} - t0) / 100 ))" > %s.askflood; }
 fn demo_slowask() { local id st; id := dt_new "Too Late" 6 24 3 4 loopdemo; st=$?; printf '%%s\t%%s\n' "$st" "$id" > %s.slow; }
 fn demo_attr() { printf '%%s\n' "${DT_KEYS@a} ${DT_BTNS@a}" > %s.attr; }
@@ -261,7 +263,7 @@ except OSError as e:
 check("a client that says hello and goes before the answer does not end the desktop",
       alive and "signal 13" not in log(), log()[-400:])
 if not alive:
-    report(69)
+    report(71)
 
 # Half a line, then nothing for three seconds: the desktop must not wait.
 half = client("demo")
@@ -471,6 +473,24 @@ def noted(text, secs=10):
 do('dt_rttell "$LT" demo_ping "hello world"')
 ok, got = noted("pinged: hello world")
 check("an app's own loop runs a function of its own the desktop tells it to, and tells back", ok, got)
+# A setting changed from an app's own process goes through dt_set, which the
+# desktop takes only for a kept setting the app's own files name (ADR 0050):
+# DT_TIPMS is named in the loop's file, DT_DRAWSKIP only in the request.
+do('dt_rttell "$LT" demo_set')
+tips = ""
+deadline = time.time() + 10
+while time.time() < deadline and tips != "1234":
+    tips = result('echo "$DT_TIPMS" > %s.pend' % SAID)
+check("an app sets a kept setting its own file names through dt_set, and the desktop takes it",
+      tips == "1234", tips)
+was = result('echo "$DT_DRAWSKIP" > %s.pend' % SAID)
+do('dt_rttell "$LT" demo_setany DT_DRAWSKIP')
+deadline = time.time() + 10
+while time.time() < deadline and "which its own file never names" not in log():
+    t.collect(0.1)
+now = result('echo "$DT_DRAWSKIP" > %s.pend' % SAID)
+check("and one its file never names is refused, logged, and left as it was",
+      now == was and "set DT_DRAWSKIP, which its own file never names" in log(), (was, now))
 # A hundred asks in a row: an app's request socket is input to the desktop,
 # so an ask never waits out a frame the desktop holds back (it cost 70 ms an
 # ask before, ADR 0050). Measured before the floods below, whose 300 notes
@@ -1006,4 +1026,4 @@ for f in (GOOD, BAD, p, MARK, SAID, SAID + ".bad", SAID + ".path", SAID + ".blam
           SAID + ".pid", SAID + ".pings", SAID + ".end", SAID + ".tok", SAID + ".tokenv", SAID + ".show", SAID + ".win", SAID + ".gl", SAID + ".list", SAID + ".app", SAID + ".attr", SAID + ".wrote", SAID + ".new", SAID + ".slow", LOOP, FIFO, scratch("rtchan-quitter.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(69)
+report(71)

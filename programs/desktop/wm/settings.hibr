@@ -664,6 +664,13 @@ fn dt_set(...pairs) {
 		v=${pairs[$((i + 1))]}
 		unset -n v
 	done
+	# A setting can change anything drawn -- a colour, the bar, a menu's
+	# rows -- so the next frame is whole, the menus are built again and the
+	# bar is drawn again: the redraw follows from the setting arriving, the
+	# desktop's own job, never a hint an installable writes (ADR 0050).
+	DT_FORCEONCE=1
+	DT_MENUIN=
+	DT_BARWAS=
 	dt_save
 }
 

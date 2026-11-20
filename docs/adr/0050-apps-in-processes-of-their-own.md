@@ -492,27 +492,21 @@ ms, the owner's), applying shared lines in order as they come and keeping
 tells for after; it answers its caller with the request's status, 125 when
 nothing came in time, 126 when the desktop refused, and drops a late answer
 by its number. The wait is the desktop's, so it is logged `asked:` and never
-charged to the app as a stall. Measured (2026-11-20), 300 asks in a row from one app, each
-posting a note: **70 ms an ask** at the default `DT_TERMMS` and 53 ms with it at
-20. Two costs stack. The desktop waits out a held frame with `console key
--q`, which ignores every watched descriptor, the app's socket among them --
-so the app's socket is to wake that wait as a key does (an input-class
-descriptor, with the cells channel's echo rule beside it). And each answer
-lets the app send its next ask, which then queues behind the frame the last
-one asked for: in-process, 300 notes are drawn once; asked one by one, they
-are 300 frames. So an ask costs up to a desktop frame by construction, which
-is why the asks reachable from a frame path are counted (`FRAMEASKS`) and only
-ever lowered, and why a request whose status nobody needs is told. **Fixed
-the same day (2026-11-20): 1.7 ms an ask, and 3 frames for a hundred asks
-where there had been one each.** The app's socket is watched as input
-(`console watch -i`, the cells work's), so a request ends the held frame's
-quiet wait; and the held pass serves it (`dt_rttick` beside `dt_drain`)
-without drawing, so the frame comes once when the hold ends, however many
-asks were answered meanwhile. `tests/rtchan.py` holds it at under 15 ms an
-ask, measured before anything has filled the screen -- 300 notes on screen
-cost every frame 133 ms, which an earlier reading took for the ask's cost --
-and reading the terminal while it waits, since a desktop whose frames nobody
-reads blocks writing them and then answers nothing. Finding it turned up a core bug in every
+charged to the app as a stall. Measured (2026-11-20): **1.7 ms an ask, a hundred in a row, and 3
+frames for the hundred.** It was 70 ms and a frame each until two things
+were fixed the same day. The desktop waits out a held frame with `console
+key -q`, which ignores watched descriptors, so the app's socket is watched as
+input (`console watch -i`) and a request ends that wait. And a pass that holds
+a frame back skips the tickers, so the held pass serves the app's socket
+itself (`dt_rttick` beside `dt_drain`) without drawing: the frame comes once
+when the hold ends, however many asks were answered in it. An ask is still a
+round trip through the desktop's loop, which is why the asks reachable from a
+frame path are counted (`FRAMEASKS`) and only ever lowered, and why a request
+whose status nobody needs is told. `tests/rtchan.py` holds it under 15 ms an
+ask, measured before anything has filled the screen (300 notes on screen cost
+every frame 133 ms, which an earlier reading took for the ask's cost), and its
+waits read the terminal meanwhile: a desktop whose frames nobody reads blocks
+writing them and then answers nothing. Finding it turned up a core bug in every
 release before: once `RET` had held a map, a later scalar result kept the
 map's array mark, so the window's id went out as `[]`
 (`tests/999-ret-scalar-after-map.t`).
