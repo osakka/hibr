@@ -241,7 +241,7 @@ lm_blitask() {
 # line, and is used only where it was kept for this very address. A mode
 # is read from what ls prints -- bound with :=, ls gives only the name.
 lm_blitprobe() {
-	local dir=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/blit url tok= l
+	local dir=${XDG_CONFIG_HOME:-$HOME/.config}/hibr/blit url tok= l HIBR_DAV_TIMEOUT=3
 	local -A saved
 	local -a o
 
@@ -260,7 +260,6 @@ lm_blitprobe() {
 	fi
 	o=()
 	[ -n "$tok" ] && o=(-H "Authorization: Bearer $tok")
-	export HIBR_DAV_TIMEOUT=3
 	DAV_CODE=
 	l := dav request "${o[@]}" GET "$url/v1/login" 2> /dev/null || :
 	printf '%s\n%s\n' "${DAV_CODE:-0}" "$l"

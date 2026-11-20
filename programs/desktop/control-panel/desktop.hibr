@@ -13,7 +13,7 @@ command -v cp_pane > /dev/null && cp_pane desktop "Desktop" "▣"
 
 DK_CYCLES=(workspace all)
 
-fn cp_set_cycle(int? id = "", value = "") { DT_CYCLE=$value; cp_save; }
+fn cp_set_cycle(int? id = "", value = "") { dt_set DT_CYCLE "$value"; }
 
 # The window switcher's pause (Gitea #391), as DT_SWMS keeps it and as the
 # row shows it.
@@ -31,7 +31,7 @@ fn dk_swname(v) {
 	ret "$v ms"
 }
 
-fn cp_set_swms(int? id = "", int value = 700) { DT_SWMS=$value; cp_save; }
+fn cp_set_swms(int? id = "", int value = 700) { dt_set DT_SWMS "$value"; }
 
 # Apps by their own names: one in the list, and the row's whole list --
 # the switcher passes them over -- joined, or none.
@@ -57,8 +57,7 @@ fn cp_set_skip(int? id = "", value = "") {
 	*" $value "*) for x in "${l[@]}"; do [ "$x" = "$value" ] || out="$out $x"; done ;;
 	*) out="$DT_SWSKIP $value" ;;
 	esac
-	DT_SWSKIP=${out# }
-	cp_save
+	dt_set DT_SWSKIP "${out# }"
 }
 
 fn desktop_rows(int w) {
@@ -169,10 +168,15 @@ fn desktop_do(int w, k, int dir) {
 
 	case $k in
 	DT_ICONS | DT_DISKS | DT_SWITCHER)
-		cp_toggle "$k"
+		v=1
+		[ "${!k}" = 1 ] && v=0
+		dt_set "$k" "$v"
 		command -v dt_deskscan > /dev/null && dt_deskscan
 		;;
-	wsn) dt_wsset $((DT_WSN + dir)) ;;
+	wsn)
+		dt_wsset $((DT_WSN + dir))
+		cp_save
+		;;
 	bandpct) cp_bandpct $((${DT_BANDPCT:-30} + dir * 10)) ;;
 	shotdir) dt_has shd_dialog && shd_dialog ;;
 	shotopen)
@@ -183,22 +187,21 @@ fn desktop_do(int w, k, int dir) {
 		v=$((DT_DRAWSKIP + dir))
 		[ "$v" -lt 0 ] && v=0
 		[ "$v" -gt 9 ] && v=9
-		DT_DRAWSKIP=$v
+		dt_set DT_DRAWSKIP "$v"
 		;;
 	termms)
 		v=$((DT_TERMMS + dir * 10))
 		[ "$v" -lt 0 ] && v=0
 		[ "$v" -gt 200 ] && v=200
-		DT_TERMMS=$v
+		dt_set DT_TERMMS "$v"
 		;;
 	livems)
 		v=$((${DT_LIVEMS:-0} + dir * 5))
 		[ "$v" -lt 0 ] && v=0
 		[ "$v" -gt 100 ] && v=100
-		DT_LIVEMS=$v
+		dt_set DT_LIVEMS "$v"
 		;;
 	esac
-	cp_save
 }
 
 # Rubber Band's choices, as the row shows them and as DT_BAND keeps them.
@@ -215,13 +218,12 @@ fn cp_bandname(v) {
 	ret "${CP_BANDL[0]}"
 }
 
-fn cp_set_band(int? id = "", value = "") { DT_BAND=$value; cp_save; }
+fn cp_set_band(int? id = "", value = "") { dt_set DT_BAND "$value"; }
 
 fn cp_bandpct(int v) {
 	[ "$v" -lt 0 ] && v=0
 	[ "$v" -gt 100 ] && v=100
-	DT_BANDPCT=$v
-	cp_save
+	dt_set DT_BANDPCT "$v"
 	return 0
 }
 
@@ -229,8 +231,8 @@ fn cp_bandpct(int v) {
 fn desktop_slide(int w, k, int value) {
 	case $k in
 	bandpct) cp_bandpct "$value" ;;
-	termms) DT_TERMMS=$value; cp_save ;;
-	livems) DT_LIVEMS=$value; cp_save ;;
+	termms) dt_set DT_TERMMS "$value" ;;
+	livems) dt_set DT_LIVEMS "$value" ;;
 	esac
 	return 0
 }
@@ -246,9 +248,10 @@ fn cp_iconbgname(v) {
 }
 
 fn cp_set_iconbg(int? id = "", value = "") {
-	DT_ICONBG=transparent
-	[ "$value" = solid ] && DT_ICONBG=solid
+	local v=transparent
+
+	[ "$value" = solid ] && v=solid
+	dt_set DT_ICONBG "$v"
 	DT_FORCEONCE=1
-	cp_save
 }
 

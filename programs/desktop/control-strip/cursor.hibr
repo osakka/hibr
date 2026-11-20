@@ -26,8 +26,7 @@ fn cursor_click(int row, int col) {
 }
 
 fn cursor_pick(style) {
-	DT_CURSOR=$style
-	dt_save
+	dt_set DT_CURSOR "$style"
 	# The windows already open as well as the next one (Gitea #261).
 	dt_has term_cursorapply && term_cursorapply
 	return 0

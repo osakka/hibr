@@ -280,8 +280,7 @@ fn dtp_pickfmt(int id, label) {
 	for f in "${DTP_FMTL[@]}"; do
 		t := dt_clocktext "$f" "$DTP_REF"
 		if [ "$t" = "$label" ]; then
-			DT_BARTIME=$f
-			cp_save
+			dt_set DT_BARTIME "$f"
 			return 0
 		fi
 	done
@@ -346,8 +345,7 @@ fn dtf_draw(int id, int h, int w, int row, int col) {
 # Keep the format if it shows something that fits, or say why not.
 fn dtf_save(int id) {
 	if dtp_fmtok "${DTF[$id]["buf"]}"; then
-		DT_BARTIME=${DTF[$id]["buf"]}
-		cp_save
+		dt_set DT_BARTIME "${DTF[$id]["buf"]}"
 		dt_del "$id"
 	else
 		dt_notep high "$DTP_WHY"
@@ -789,31 +787,31 @@ cp_hcalname() {
 
 # Choose the Hijri calendar by its title, as the dropdown hands it over.
 fn cp_set_hcal(int? id = "", value = "") {
-	local i=0
+	local i=0 v=$DT_HCAL
 
 	cp_hcallist
 	while [ "$i" -lt "${#CP_HCALNAMES[@]}" ]; do
-		[ "${CP_HCALNAMES[$i]}" = "$value" ] && DT_HCAL=${CP_HCALS[$i]}
+		[ "${CP_HCALNAMES[$i]}" = "$value" ] && v=${CP_HCALS[$i]}
 		i=$((i + 1))
 	done
-	cp_save
+	dt_set DT_HCAL "$v"
 }
 
 # How many days to move the Hijri date, for local sighting.
 fn cp_set_hadj(int? id = "", value = "") {
-	DT_HADJ=${value#+}
-	cp_save
+	dt_set DT_HADJ "${value#+}"
 }
 
 # The day a week starts, or auto from the region.
 fn cp_set_week(int? id = "", value = "") {
+	local v=auto
+
 	case $value in
-	Saturday) DT_WEEKSTART=sat ;;
-	Sunday) DT_WEEKSTART=sun ;;
-	Monday) DT_WEEKSTART=mon ;;
-	*) DT_WEEKSTART=auto ;;
+	Saturday) v=sat ;;
+	Sunday) v=sun ;;
+	Monday) v=mon ;;
 	esac
-	cp_save
+	dt_set DT_WEEKSTART "$v"
 }
 
 # The Hijri adjustment and the week's first day, as their dropdowns name them.

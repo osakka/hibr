@@ -24,8 +24,7 @@ NT_FORGET=
 
 fn cp_set_netkind(int? id = "", value = "") {
 	dt_has dt_nettick || return 0
-	DT_NETKIND=$value
-	cp_save
+	dt_set DT_NETKIND "$value"
 	dt_netagain
 }
 

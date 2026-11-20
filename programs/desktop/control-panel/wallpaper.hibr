@@ -60,8 +60,8 @@ fn wp_put(field, value = "") {
 		return 0
 	fi
 	case $field in
-	img) DT_WALLIMG=$value; DT_WALLBAD= ;;
-	*) DT_WALLMODE=$value ;;
+	img) dt_set DT_WALLIMG "$value"; DT_WALLBAD= ;;
+	*) dt_set DT_WALLMODE "$value" ;;
 	esac
 }
 
@@ -124,8 +124,7 @@ fn wp_goto(int id, dir) {
 	fi
 	fp_go "$id" "$d" || return 0
 	dt_dblclear
-	WPK_DIR=${FP[$id]["dir"]}
-	command -v dt_save > /dev/null && dt_save
+	dt_set WPK_DIR "${FP[$id]["dir"]}"
 	wp_refresh "$id"
 }
 

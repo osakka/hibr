@@ -650,6 +650,11 @@ dt_sep() {
 	dt_rtsend declare dt_sep "$@"
 }
 
+# Told to the desktop, wm/settings.hibr.
+fn dt_set(...pairs) {
+	dt_rtsend tell dt_set "${pairs[@]}"
+}
+
 # Told to the desktop, wm/windows.hibr.
 fn dt_setgeom(int id, int r, int c, int h, int w) {
 	dt_rtsend tell dt_setgeom "$id" "$r" "$c" "$h" "$w"

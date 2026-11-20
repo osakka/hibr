@@ -22,9 +22,9 @@ DT_PWLOW="${DT_PWLOW-10}"
 DT_PWCRIT="${DT_PWCRIT-5}"
 DT_PWCRITDO="${DT_PWCRITDO-nothing}"
 
-fn cp_set_pwlow(int? id = "", value = "") { DT_PWLOW=$value; cp_save; }
-fn cp_set_pwcrit(int? id = "", value = "") { DT_PWCRIT=$value; cp_save; }
-fn cp_set_pwcritdo(int? id = "", value = "") { DT_PWCRITDO=$value; cp_save; }
+fn cp_set_pwlow(int? id = "", value = "") { dt_set DT_PWLOW "$value"; }
+fn cp_set_pwcrit(int? id = "", value = "") { dt_set DT_PWCRIT "$value"; }
+fn cp_set_pwcritdo(int? id = "", value = "") { dt_set DT_PWCRITDO "$value"; }
 # A battery level in words.
 fn cp_pwpct(v) {
 	[ "$v" = off ] && { ret off; return 0; }
@@ -120,6 +120,8 @@ fn cp_pwmachine(int w, int n) {
 }
 
 fn power_do(int w, k, int dir) {
+	local v=1
+
 	case $k in
 	suspend | hibernate | reboot | poweroff)
 		dt_pwdo "$k"
@@ -128,8 +130,11 @@ fn power_do(int w, k, int dir) {
 	esac
 	dt_has dt_pwtick || return 0
 	case $k in
-	DT_PWBAR | DT_PWLEVEL) cp_toggle "$k"; dt_pwbar ;;
+	DT_PWBAR | DT_PWLEVEL)
+		[ "${!k}" = 1 ] && v=0
+		dt_set "$k" "$v"
+		dt_pwbar
+		;;
 	esac
-	cp_save
 }
 

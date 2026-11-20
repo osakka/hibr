@@ -24,11 +24,8 @@ ss_names() {
 	SS_NAMES+=("${SV_LIST[@]}")
 }
 
-fn cp_set_saver(int? id = "", value = "") { DT_SAVER=$value; cp_save; }
-fn cp_set_saveridle(int? id = "", int value = 0) {
-	DT_SAVERIDLE=$value
-	cp_save
-}
+fn cp_set_saver(int? id = "", value = "") { dt_set DT_SAVER "$value"; }
+fn cp_set_saveridle(int? id = "", int value = 0) { dt_set DT_SAVERIDLE "$value"; }
 
 # The minutes in words: none is never, for the saver; for the lock none is
 # never and nought is at once.
@@ -41,12 +38,11 @@ fn ss_lockname(v) {
 	ret "$v"
 }
 
-fn cp_set_lockwhere(int? id = "", value = "") { DT_LOCKWHERE=$value; cp_save; }
+fn cp_set_lockwhere(int? id = "", value = "") { dt_set DT_LOCKWHERE "$value"; }
 
 fn cp_set_saverlock(int? id = "", value = "") {
 	[ "$value" = never ] && value=
-	DT_LOCKAFTER=$value
-	cp_save
+	dt_set DT_LOCKAFTER "$value"
 }
 
 fn screensaver_rows(int w) {

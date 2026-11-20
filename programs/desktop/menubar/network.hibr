@@ -298,13 +298,12 @@ fn dt_netruledone(int n, int st) {
 	DT_NETJSSID=
 	if [ "$st" = 0 ]; then
 		if [ "${DTJ[$n]["tag"]}" = on ]; then
-			DT_NETRULE=1
+			dt_set DT_NETRULE 1
 			dt_notep low "Networks are managed without a password now"
 		else
-			DT_NETRULE=
+			dt_set DT_NETRULE ""
 			dt_notep low "Networks ask for a password again"
 		fi
-		command -v cp_save > /dev/null && cp_save
 	elif [ -n "${DTJ[$n]["cancelled"]}" ]; then
 		dt_notep low "Cancelled"
 	elif [ -n "${DTJ[$n]["asked"]}" ]; then

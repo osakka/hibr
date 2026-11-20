@@ -167,7 +167,7 @@ fn stickies_open(int id, arg = "") {
 	SW[$id]["saved"]=0
 	DT[$id]["bg"]=${ST_FACE[${ST[$note]["color"]:-yellow}]}
 	DT[$id]["fg"]=${ST_INK[${ST[$note]["color"]:-yellow}]}
-	[ "$DT_STICKYALL" = 1 ] && DT[$id]["sticky"]=1
+	[ "$DT_STICKYALL" = 1 ] && dt_sticky "$id" 1
 	st_retitle "$id"
 }
 

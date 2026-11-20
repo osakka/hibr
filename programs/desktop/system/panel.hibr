@@ -1063,11 +1063,14 @@ fn cp_dropkey(int w) {
 }
 
 # Flip an on/off setting, named by var -- shared by every pane's checkboxes.
+# Flip an on/off kept setting, through dt_set: the one way an installable
+# changes one (ADR 0050), so it is saved, and refused from an app's own
+# process for a name its file never names.
 fn cp_toggle(var) {
 	if [ "${!var}" = 1 ]; then
-		printf -v "$var" 0
+		dt_set "$var" 0
 	else
-		printf -v "$var" 1
+		dt_set "$var" 1
 	fi
 }
 

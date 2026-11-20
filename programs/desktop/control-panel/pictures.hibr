@@ -52,19 +52,21 @@ DT_COLOURS="${DT_COLOURS-auto}"
 command -v dt_keep > /dev/null && dt_keep DT_COLOURS
 
 fn cp_set_imgdetail(int? id = "", value = "") {
+	local v=auto
+
 	case $value in
-	full | half) DT_IMGDETAIL=$value ;;
-	*) DT_IMGDETAIL=auto ;;
+	full | half) v=$value ;;
 	esac
-	command -v console > /dev/null && console imgdetail "$DT_IMGDETAIL"
-	cp_save
+	dt_set DT_IMGDETAIL "$v"
+	command -v console > /dev/null && console imgdetail "$v"
 }
 
 fn cp_set_filmdetail(int? id = "", value = "") {
-	DT_FILMDETAIL=full
-	[ "$value" = half ] && DT_FILMDETAIL=half
-	command -v console > /dev/null && console filmdetail "$DT_FILMDETAIL"
-	cp_save
+	local v=full
+
+	[ "$value" = half ] && v=half
+	dt_set DT_FILMDETAIL "$v"
+	command -v console > /dev/null && console filmdetail "$v"
 }
 
 # What that setting is called in the list, with what it does rather than
@@ -93,24 +95,25 @@ fn cp_autoname(m) {
 # mods/console/cn.h for why the smaller one is not the default: a terminal
 # that takes f=24 and not f=100 draws nothing and cannot say so.
 fn cp_set_imgcomp(int? id = "", value = "") {
+	local v=zlib
+
 	case $value in
-	png | off) DT_IMGCOMP=$value ;;
-	*) DT_IMGCOMP=zlib ;;
+	png | off) v=$value ;;
 	esac
-	command -v console > /dev/null && console imgcomp "$DT_IMGCOMP"
-	cp_save
+	dt_set DT_IMGCOMP "$v"
+	command -v console > /dev/null && console imgcomp "$v"
 }
 
 # Whether a picture that changed only in part goes out as that part,
 # edited into the one on the terminal (Gitea #404): Automatic where every
 # display says it can, Off for a whole picture every time it changes.
 fn cp_set_imgedits(int? id = "", value = "") {
-	case $value in
-	off) DT_IMGEDITS=off ;;
-	*) DT_IMGEDITS=auto ;;
-	esac
+	local v=auto
+
+	[ "$value" = off ] && v=off
+	dt_set DT_IMGEDITS "$v"
 	if command -v console > /dev/null; then
-		if [ "$DT_IMGEDITS" = off ]; then
+		if [ "$v" = off ]; then
 			console imgedit off
 			DT_IMGEDIT=off
 			DT_FORCEONCE=1
@@ -122,7 +125,6 @@ fn cp_set_imgedits(int? id = "", value = "") {
 			DT_IMGEDIT=
 		fi
 	fi
-	cp_save
 }
 
 # Whether a window's picture goes to Blit by descriptor rather than through
@@ -130,12 +132,12 @@ fn cp_set_imgedits(int? id = "", value = "") {
 # and inside hold only where every display can take it; Off for the
 # terminal every time.
 fn cp_set_imgfd(int? id = "", value = "") {
-	case $value in
-	off) DT_IMGFD=off ;;
-	*) DT_IMGFD=auto ;;
-	esac
+	local v=auto
+
+	[ "$value" = off ] && v=off
+	dt_set DT_IMGFD "$v"
 	if command -v console > /dev/null; then
-		if [ "$DT_IMGFD" = off ]; then
+		if [ "$v" = off ]; then
 			console imgfd off
 			DT_IMGFDNOW=off
 			DT_FORCEONCE=1
@@ -147,16 +149,16 @@ fn cp_set_imgfd(int? id = "", value = "") {
 			DT_IMGFDNOW=
 		fi
 	fi
-	cp_save
 }
 
 fn cp_set_depth(int? id = "", value = "") {
+	local v=auto
+
 	case $value in
-	24 | 256 | 16) DT_COLOURS=$value ;;
-	*) DT_COLOURS=auto ;;
+	24 | 256 | 16) v=$value ;;
 	esac
+	dt_set DT_COLOURS "$v"
 	dt_has dt_colours && dt_colours
-	cp_save
 }
 
 # The name a colour depth has in the list.
@@ -189,11 +191,12 @@ fn cp_imgname(m) {
 }
 
 fn cp_set_imgmode(int? id = "", value = "") {
+	local v=auto
+
 	case $value in
-	half | mono | ascii | pixels) DT_IMGMODE=$value ;;
-	*) DT_IMGMODE=auto ;;
+	half | mono | ascii | pixels) v=$value ;;
 	esac
-	cp_save
+	dt_set DT_IMGMODE "$v"
 }
 
 fn pictures_rows(int w) {

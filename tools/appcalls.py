@@ -94,6 +94,8 @@ for _n in "dt_imepre dt_imekey dt_imeflush".split():
     OVERRIDE[_n] = "local"
 OVERRIDE["dt_atstart"] = "declare"
 OVERRIDE["dt_identify"] = "request"
+# The one way an installable changes a kept setting (ADR 0050).
+OVERRIDE["dt_set"] = "request"
 OVERRIDE["dt_sbscan"] = "request"
 # The prototype's own plumbing, and what only the platform's own windows
 # reach for: no installable calls these once the runtime exists.

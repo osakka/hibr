@@ -258,7 +258,8 @@ local	dt_fieldsel	widgets/text.hibr	1	1	asked	-	dt_fieldsel()	-
 local	dt_fieldcut	widgets/text.hibr	1	1	asked	-	dt_fieldcut(id)	-
 request	dt_notep	wm/notify.hibr	588	86	told	-	dt_notep(prio, text, ...rest)	-
 request	dt_del	wm/windows.hibr	220	46	told	-	dt_del(int id)	-
-request	dt_save	wm/settings.hibr	102	36	told	-	dt_save()	-
+request	dt_set	wm/settings.hibr	138	32	told	-	dt_set(...pairs)	0.99.554
+request	dt_save	wm/settings.hibr	88	30	told	-	dt_save()	-
 request	dt_launch	wm/apps.hibr	67	36	asked	-	dt_launch(n, arg = "")	-
 request	dt_retitle	wm/windows.hibr	64	25	waited	-	dt_retitle(int id, title)	-
 request	dt_new	wm/windows.hibr	64	41	asked	-	dt_new(title, int h, int w, int row, int col, ap = "", arg = "")	-
@@ -282,7 +283,7 @@ request	dt_pointer	wm/input.hibr	13	3	told	-	dt_pointer(int id, shape = "")	-
 request	dt_openerverb	wm/handlers.hibr	12	3	told	-	dt_openerverb(ext, label, app, call = "", when = "")	-
 request	dt_ids	wm/windows.hibr	12	8	asked	-	dt_ids()	-
 request	dt_buson	wm/bus.hibr	12	4	told	-	dt_buson(w, fn)	-
-request	dt_sticky	wm/workspaces.hibr	10	3	waited	-	dt_sticky(int id, on = "")	-
+request	dt_sticky	wm/workspaces.hibr	11	3	waited	-	dt_sticky(int id, on = "")	-
 request	dt_vwstate	wm/vault.hibr	10	5	asked	-	dt_vwstate()	-
 request	dt_openfile	wm/handlers.hibr	10	6	told	-	dt_openfile(path)	-
 request	dt_openers	wm/handlers.hibr	10	4	told	-	dt_openers(path, kind = "")	-

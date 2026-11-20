@@ -16,7 +16,7 @@ app filesview "The Control Panel pane for Files" 1.6
 command -v cp_pane > /dev/null && cp_pane filesview "Files" "◫" app
 
 fn cp_set_fileview(int? id = "", value = "") { FB_DEFAULTVIEW=$value; cp_save; }
-fn cp_set_termhere(int? id = "", value = "") { DT_TERMHERE=$value; cp_save; }
+fn cp_set_termhere(int? id = "", value = "") { dt_set DT_TERMHERE "$value"; }
 fn cp_set_cover(int? id = "", value = "") { FB_COVER=$value; cp_save; }
 
 # Files' own, repeated so the pane can set them with the app not loaded.

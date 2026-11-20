@@ -18,8 +18,7 @@ SN_KINDS=(Auto PulseAudio PipeWire ALSA None)
 
 fn cp_set_sndkind(int? id = "", value = "") {
 	dt_has dt_sndtick || return 0
-	DT_SNDKIND=$value
-	cp_save
+	dt_set DT_SNDKIND "$value"
 	dt_sndagain
 }
 fn cp_set_sndout(int? id = "", value = "") {
@@ -126,7 +125,8 @@ fn sound_do(int w, k, int dir) {
 		v=$((${DT_SNDSTEP:-5} + dir))
 		[ "$v" -lt 1 ] && v=1
 		[ "$v" -gt 20 ] && v=20
-		DT_SNDSTEP=$v
+		dt_set DT_SNDSTEP "$v"
+		return 0
 		;;
 	esac
 	cp_save
@@ -137,7 +137,7 @@ fn sound_slide(int w, k, int value) {
 	case $k in
 	vol) dt_sndvol "$value" ;;
 	ivol) dt_sndivol "$value" ;;
-	step) DT_SNDSTEP=$value; cp_save ;;
+	step) dt_set DT_SNDSTEP "$value" ;;
 	esac
 }
 

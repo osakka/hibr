@@ -22,9 +22,8 @@ command -v cp_pane > /dev/null && cp_pane barset "Menu Bar" "☰"
 fn cp_bartrans(int v) {
 	[ "$v" -lt 0 ] && v=0
 	[ "$v" -gt 100 ] && v=100
-	DT_BARTRANS=$(((v + 5) / 10 * 10))
+	dt_set DT_BARTRANS "$(((v + 5) / 10 * 10))"
 	DT_BARWAS=
-	cp_save
 	return 0
 }
 
@@ -45,9 +44,8 @@ fn cp_menumaxname(v) {
 }
 
 fn cp_set_menumax(int? id = "", int value = 40) {
-	DT_MENUMAX=$value
+	dt_set DT_MENUMAX "$value"
 	DT_MENUIN=
-	cp_save
 }
 
 # Menu Mark's choices, as the row shows them and as DT_MENUMARK keeps them.
@@ -80,16 +78,16 @@ fn cp_markname(v) {
 
 fn cp_set_menumark(int? id = "", value = "") {
 	case $value in
-	hui | mark) DT_MENUMARK=$value ;;
-	*) DT_MENUMARK=pen ;;
+	hui | mark) ;;
+	*) value=pen ;;
 	esac
+	dt_set DT_MENUMARK "$value"
 	DT_MENUIN=
 	DT_BARWAS=
-	cp_save
 }
 
 # The notification icon, shown as its glyph and its name; the name is kept.
-fn cp_set_bellicon(int? id = "", value = "") { DT_BELLICON=$value; cp_save; }
+fn cp_set_bellicon(int? id = "", value = "") { dt_set DT_BELLICON "$value"; }
 fn cp_bellname(v) {
 	local g
 
@@ -177,7 +175,8 @@ fn barset_do(int w, k, int dir) {
 		v=$((${DT_BARGAP:-2} + dir))
 		[ "$v" -lt 1 ] && v=1
 		[ "$v" -gt 4 ] && v=4
-		DT_BARGAP=$v
+		dt_set DT_BARGAP "$v"
+		return 0
 		;;
 	DT_BARSHADOW | DT_MENUBOLD) cp_toggle "$k" ;;
 	bari:*) dt_baritoggle "${k#bari:}" ;;
@@ -192,8 +191,7 @@ fn barset_slide(int w, k, int value) {
 	bargap)
 		[ "$value" -lt 1 ] && value=1
 		[ "$value" -gt 4 ] && value=4
-		DT_BARGAP=$value
-		cp_save
+		dt_set DT_BARGAP "$value"
 		;;
 	esac
 	return 0
@@ -203,7 +201,6 @@ fn barset_slide(int w, k, int value) {
 # The bar's items in the order the list was left in, as they read across.
 fn barset_order(int w, group, ...names) {
 	[ "$group" = bar ] || return 0
-	DT_BARORDER="${names[*]}"
+	dt_set DT_BARORDER "${names[*]}"
 	DT_BARWAS=
-	cp_save
 }

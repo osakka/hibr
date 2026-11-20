@@ -45,26 +45,25 @@ fn cp_bidiname(v) {
 
 # Choose who orders right-to-left text.
 fn cp_set_bidi(int? id = "", value = "") {
-	case $value in
-	on | off) DT_BIDI=$value ;;
-	*) DT_BIDI=auto ;;
-	esac
+	local v=auto
+
+	case $value in on | off) v=$value ;; esac
+	dt_set DT_BIDI "$v"
 	dt_langapply
-	cp_save
 }
 
 # Mirror the layout: auto (with the language), on or off.
 fn cp_set_mirror(int? id = "", value = "") {
-	DT_MIRROR=$value
+	dt_set DT_MIRROR "$value"
 	dt_langapply
-	cp_save
 }
 
 # Western or Arabic-Indic digits.
 fn cp_set_digits(int? id = "", value = "") {
-	DT_DIGITS=western
-	[ "$value" = arabic ] && DT_DIGITS=arabic
-	cp_save
+	local v=western
+
+	[ "$value" = arabic ] && v=arabic
+	dt_set DT_DIGITS "$v"
 }
 fn cp_digitsname(v) {
 	[ "$v" = arabic ] && { ret Arabic-Indic; return 0; }

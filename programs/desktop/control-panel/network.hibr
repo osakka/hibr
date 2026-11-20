@@ -15,7 +15,7 @@ command -v cp_pane > /dev/null && cp_pane network "Servers" "⇅"
 
 NW_TIMEOUTS=(5 10 15 30 60 120)
 
-fn cp_set_davtimeout(int? id = "", int? value = "") { DT_DAVTIMEOUT=$value; cp_save; }
+fn cp_set_davtimeout(int? id = "", int? value = "") { dt_set DT_DAVTIMEOUT "$value"; }
 
 fn network_rows(int w) {
 	local n=0 s nm

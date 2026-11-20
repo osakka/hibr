@@ -55,7 +55,7 @@ fn cp_padj(int i, v) {
 		out+="${out:+,}${ad[$k]:-0}"
 		k=$((k + 1))
 	done
-	DT_PADJ=$out
+	dt_set DT_PADJ "$out"
 }
 
 # Each row's values in words.
@@ -80,26 +80,28 @@ fn cp_prulename(v) {
 	esac
 }
 
-fn cp_set_pbefore(int? id = "", value = "") { DT_PBEFORE=$value; cp_save; }
+fn cp_set_pbefore(int? id = "", value = "") { dt_set DT_PBEFORE "$value"; }
 fn cp_set_pasr(int? id = "", value = "") {
-	DT_PASR=shafi
-	[ "$value" = hanafi ] && DT_PASR=hanafi
-	cp_save
+	local v=shafi
+
+	[ "$value" = hanafi ] && v=hanafi
+	dt_set DT_PASR "$v"
 }
 fn cp_set_prule(int? id = "", value = "") {
+	local v=middle
+
 	case $value in
-	seventh | angle) DT_PRULE=$value ;;
-	*) DT_PRULE=middle ;;
+	seventh | angle) v=$value ;;
 	esac
-	cp_save
+	dt_set DT_PRULE "$v"
 }
-fn cp_set_pmethod(int? id = "", value = "") { DT_PMETHOD=$value; cp_save; }
+fn cp_set_pmethod(int? id = "", value = "") { dt_set DT_PMETHOD "$value"; }
 # One prayer's minutes, the row saying which.
-fn cp_set_padj(int? id = "", value = "", int i = 0) { cp_padj "$i" "$value"; cp_save; }
+fn cp_set_padj(int? id = "", value = "", int i = 0) { cp_padj "$i" "$value"; }
 
 # The athan chosen in the file dialog: for every prayer, or for Fajr.
-fn cp_pathan(id = "", path = "", type = "") { [ -n "$path" ] && DT_PATHAN=$path && cp_save; }
-fn cp_pathanf(id = "", path = "", type = "") { [ -n "$path" ] && DT_PATHANF=$path && cp_save; }
+fn cp_pathan(id = "", path = "", type = "") { [ -n "$path" ] && dt_set DT_PATHAN "$path"; }
+fn cp_pathanf(id = "", path = "", type = "") { [ -n "$path" ] && dt_set DT_PATHANF "$path"; }
 
 fn prayerset_rows(int w) {
 	local n=0 v loc i
@@ -148,19 +150,27 @@ fn prayerset_rows(int w) {
 }
 
 fn prayerset_do(int? w = "", k = "", int? dir = "") {
+	local v=on
+
 	case $k in
-	bar) [ "$DT_PBAR" = on ] && DT_PBAR=off || DT_PBAR=on ;;
-	note) [ "$DT_PNOTE" = on ] && DT_PNOTE=off || DT_PNOTE=on ;;
+	bar)
+		[ "$DT_PBAR" = on ] && v=off
+		dt_set DT_PBAR "$v"
+		;;
+	note)
+		[ "$DT_PNOTE" = on ] && v=off
+		dt_set DT_PNOTE "$v"
+		;;
 	strip)
-		[ "$DT_PSTRIP" = on ] && DT_PSTRIP=off || DT_PSTRIP=on
+		[ "$DT_PSTRIP" = on ] && v=off
+		dt_set DT_PSTRIP "$v"
 		dt_has cs_relist && cs_relist
 		;;
 	loc) dt_has pyloc_show && pyloc_show; return 0 ;;
 	athan) dt_filepick open "Athan" "Sound:*.mp3 *.ogg *.wav *.m4a *.opus|All files:*" "$HOME" "" cp_pathan 0; return 0 ;;
 	athanf) dt_filepick open "Athan for Fajr" "Sound:*.mp3 *.ogg *.wav *.m4a *.opus|All files:*" "$HOME" "" cp_pathanf 0; return 0 ;;
-	athanoff) DT_PATHAN= ;;
-	athanfoff) DT_PATHANF= ;;
+	athanoff) dt_set DT_PATHAN "" ;;
+	athanfoff) dt_set DT_PATHANF "" ;;
 	esac
-	cp_save
 }
 

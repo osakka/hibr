@@ -22,9 +22,9 @@ command -v dt_keep > /dev/null && dt_keep CP_THEME CP_COLOURS
 # How an on/off choice is drawn: what the theme suggests, a box, a knob, a
 # block, a tick or Blit's capsule -- see DT_CHECKS in wm/settings.hibr.
 CP_CHECKS=(theme box knob block tick capsule)
-fn cp_set_checks(int? id = "", value = "") { DT_CHECKS=$value; cp_save; }
-fn cp_set_baricon(int? id = "", value = "") { DT_BARICON=$value; cp_save; }
-fn cp_set_deskicon(int? id = "", value = "") { DT_DESKICON=$value; DT_FORCEONCE=1; cp_save; }
+fn cp_set_checks(int? id = "", value = "") { dt_set DT_CHECKS "$value"; }
+fn cp_set_baricon(int? id = "", value = "") { dt_set DT_BARICON "$value"; }
+fn cp_set_deskicon(int? id = "", value = "") { dt_set DT_DESKICON "$value"; DT_FORCEONCE=1; }
 
 # A colour scheme is a JSON file (lib/colours.hibr says what is in one).
 # 55 is a soft shadow on a dark face; a light face needs much less of a
@@ -78,32 +78,35 @@ fn cp_colourlist() {
 cp_colourlist
 
 # Apply a colour scheme: the window manager reads these every frame, so it
-# shows on the next one, everywhere.
-fn cp_colours(t) {
+# shows on the next one, everywhere. A theme passes the rest of what it
+# sets as more name and value pairs, so the whole look is one change.
+fn cp_colours(t, ...more) {
 	[ -n "${CP_CO["$t"]["wall"]+x}" ] || return 1
-	CP_COLOURS=$t
-	DT_WALL=${CP_CO["$t"]["wall"]}
-	DT_DOT=${CP_CO["$t"]["dot"]}
-	DT_BAR=${CP_CO["$t"]["bar"]}
-	DT_ACTIVE=${CP_CO["$t"]["active"]}
-	DT_IDLE=${CP_CO["$t"]["idle"]}
-	DT_FACE=${CP_CO["$t"]["face"]}
-	DT_INK=${CP_CO["$t"]["ink"]}
-	DT_SHADOW_PCT=${CP_CO["$t"]["shadow"]}
-	DT_DIM=${CP_CO["$t"]["dim"]}
-	DT_SELINK=${CP_CO["$t"]["selink"]}
-	DT_GOOD=${CP_CO["$t"]["good"]}
-	DT_WARN=${CP_CO["$t"]["warn"]}
-	DT_BAD=${CP_CO["$t"]["bad"]}
-	DT_INFO=${CP_CO["$t"]["info"]}
-	DT_WELL=${CP_CO["$t"]["well"]}
-	DT_THEMECHECKS=${CP_CO["$t"]["checks"]}
-	DT_TITLE=${CP_CO["$t"]["titlebar"]}
-	DT_TITLEINK=${CP_CO["$t"]["titleink"]}
-	DT_HIGHLIGHT=${CP_CO["$t"]["highlight"]}
-	DT_SHADOWINK=${CP_CO["$t"]["shadowink"]:-#000000}
-	DT_HOT=${CP_CO["$t"]["hot"]}
-	command -v console > /dev/null && console darkdefault "$DT_INK" "$DT_FACE"
+	dt_set CP_COLOURS "$t" \
+		DT_WALL "${CP_CO["$t"]["wall"]}" \
+		DT_DOT "${CP_CO["$t"]["dot"]}" \
+		DT_BAR "${CP_CO["$t"]["bar"]}" \
+		DT_ACTIVE "${CP_CO["$t"]["active"]}" \
+		DT_IDLE "${CP_CO["$t"]["idle"]}" \
+		DT_FACE "${CP_CO["$t"]["face"]}" \
+		DT_INK "${CP_CO["$t"]["ink"]}" \
+		DT_SHADOW_PCT "${CP_CO["$t"]["shadow"]}" \
+		DT_DIM "${CP_CO["$t"]["dim"]}" \
+		DT_SELINK "${CP_CO["$t"]["selink"]}" \
+		DT_GOOD "${CP_CO["$t"]["good"]}" \
+		DT_WARN "${CP_CO["$t"]["warn"]}" \
+		DT_BAD "${CP_CO["$t"]["bad"]}" \
+		DT_INFO "${CP_CO["$t"]["info"]}" \
+		DT_WELL "${CP_CO["$t"]["well"]}" \
+		DT_THEMECHECKS "${CP_CO["$t"]["checks"]}" \
+		DT_TITLE "${CP_CO["$t"]["titlebar"]}" \
+		DT_TITLEINK "${CP_CO["$t"]["titleink"]}" \
+		DT_HIGHLIGHT "${CP_CO["$t"]["highlight"]}" \
+		DT_SHADOWINK "${CP_CO["$t"]["shadowink"]:-#000000}" \
+		DT_HOT "${CP_CO["$t"]["hot"]}" \
+		"${more[@]}"
+	command -v console > /dev/null && console darkdefault "${CP_CO["$t"]["ink"]}" "${CP_CO["$t"]["face"]}"
+	return 0
 }
 
 # A theme is the whole look, also a JSON file, one to a theme: the colour
@@ -160,20 +163,6 @@ fn cp_layoutok(v) {
 		[ "$x" = title ] && t=1
 	done
 	[ -n "$t" ]
-}
-
-# Take a theme's layout: what it does not name goes after it, switched off.
-fn cp_layoutset(v) {
-	local x
-
-	DT_BTNORDER=$v
-	DT_BTNON=
-	for x in "${DT_BTNS[@]}"; do
-		case " $v " in
-		*" $x "*) [ "$x" = title ] || DT_BTNON+="${DT_BTNON:+ }$x" ;;
-		*) DT_BTNORDER+=" $x" ;;
-		esac
-	done
 }
 
 # The list as a theme says it: the title and the buttons switched on.
@@ -278,40 +267,54 @@ fn cp_themes() {
 }
 cp_themes
 
-# Apply a theme: its colours, then every setting it carries.
+# Apply a theme: its colours and every setting it carries, as one change.
+# Its layout is the buttons in the order it names, the title among them;
+# a button it does not name goes after them, switched off.
 fn cp_theme(t) {
+	local x l ord on= g gl=
+
 	[ -n "${CP_TH["$t"]["colours"]+x}" ] || return 1
-	cp_colours "${CP_TH["$t"]["colours"]}" || return 1
-	CP_THEME=$t
-	DT_GLYPH=${CP_TH["$t"]["wallpaper"]}
-	DT_WALLIMG=${CP_TH["$t"]["image"]}
+	[ -n "${CP_CO["${CP_TH["$t"]["colours"]}"]["wall"]+x}" ] || return 1
+	l=${CP_TH["$t"]["layout"]}
+	ord=$l
+	for x in "${DT_BTNS[@]}"; do
+		case " $l " in
+		*" $x "*) [ "$x" = title ] || on+="${on:+ }$x" ;;
+		*) ord+=" $x" ;;
+		esac
+	done
+	g=${CP_TH["$t"]["glyphs"]}
+	[ "$DT_GLYPHSET" != "$g" ] && gl=1
+	cp_colours "${CP_TH["$t"]["colours"]}" \
+		CP_THEME "$t" \
+		DT_GLYPH "${CP_TH["$t"]["wallpaper"]}" \
+		DT_WALLIMG "${CP_TH["$t"]["image"]}" \
+		DT_WALLMODE "${CP_TH["$t"]["mode"]}" \
+		DT_FRAME "${CP_TH["$t"]["frame"]}" \
+		DT_TITLEBAR "${CP_TH["$t"]["titlebar"]}" \
+		DT_BTNSTYLE "${CP_TH["$t"]["buttons"]}" \
+		DT_TREESTYLE "${CP_TH["$t"]["tree"]}" \
+		DT_TREELINES "${CP_TH["$t"]["treelines"]}" \
+		DT_BTNORDER "$ord" \
+		DT_BTNON "$on" \
+		DT_TITLEALIGN "${CP_TH["$t"]["align"]}" \
+		DT_CHECKS "${CP_TH["$t"]["checks"]}" \
+		DT_DLGBTN "${CP_TH["$t"]["dialog"]}" \
+		DT_SHADOW "${CP_TH["$t"]["windowshadow"]}" \
+		DT_MSHADOW "${CP_TH["$t"]["menushadow"]}" \
+		DT_BARSHADOW "${CP_TH["$t"]["barshadow"]}" \
+		DT_BTNSHADOW "${CP_TH["$t"]["buttonshadow"]}" \
+		DT_SHADOWSHAPE "${CP_TH["$t"]["shadowshape"]}" \
+		DT_BAND "${CP_TH["$t"]["band"]}" \
+		DT_BANDPCT "${CP_TH["$t"]["bandpct"]}" \
+		DT_WINTRANS "${CP_TH["$t"]["wintrans"]}" \
+		DT_BARTRANS "${CP_TH["$t"]["bartrans"]}" \
+		DT_GLYPHSET "$g"
 	DT_WALLTRIED=
 	DT_WALLBAD=
-	DT_WALLMODE=${CP_TH["$t"]["mode"]}
-	DT_FRAME=${CP_TH["$t"]["frame"]}
-	DT_TITLEBAR=${CP_TH["$t"]["titlebar"]}
-	DT_BTNSTYLE=${CP_TH["$t"]["buttons"]}
-	DT_TREESTYLE=${CP_TH["$t"]["tree"]}
-	DT_TREELINES=${CP_TH["$t"]["treelines"]}
 	dt_treespec
-	cp_layoutset "${CP_TH["$t"]["layout"]}"
-	DT_TITLEALIGN=${CP_TH["$t"]["align"]}
-	DT_CHECKS=${CP_TH["$t"]["checks"]}
-	DT_DLGBTN=${CP_TH["$t"]["dialog"]}
-	DT_SHADOW=${CP_TH["$t"]["windowshadow"]}
-	DT_MSHADOW=${CP_TH["$t"]["menushadow"]}
-	DT_BARSHADOW=${CP_TH["$t"]["barshadow"]}
-	DT_BTNSHADOW=${CP_TH["$t"]["buttonshadow"]}
-	DT_SHADOWSHAPE=${CP_TH["$t"]["shadowshape"]}
-	DT_BAND=${CP_TH["$t"]["band"]}
-	DT_BANDPCT=${CP_TH["$t"]["bandpct"]}
-	DT_WINTRANS=${CP_TH["$t"]["wintrans"]}
-	DT_BARTRANS=${CP_TH["$t"]["bartrans"]}
 	DT_BARWAS=
-	if [ "$DT_GLYPHSET" != "${CP_TH["$t"]["glyphs"]}" ]; then
-		DT_GLYPHSET=${CP_TH["$t"]["glyphs"]}
-		dt_glyphs "$DT_GLYPHSET"
-	fi
+	[ -n "$gl" ] && dt_glyphs "$g"
 	return 0
 }
 
@@ -363,8 +366,7 @@ fn cp_themewrite(path) {
 		printf '}\n'
 	} > "$path" || { dt_notep high "Could not write %s" "${path##*/}"; return 1; }
 	cp_themes
-	CP_THEME=$n
-	cp_save
+	dt_set CP_THEME "$n"
 	dt_notep low "Saved the look as the theme %s" "$n"
 }
 
@@ -382,8 +384,8 @@ fn cp_themesaved(id = "", path = "", type = "") {
 	cp_themewrite "$path"
 }
 
-fn cp_set_theme(int id, value) { cp_theme "$value" && cp_save; }
-fn cp_set_colours(int id, value) { cp_colours "$value" && cp_save; }
+fn cp_set_theme(int id, value) { cp_theme "$value"; }
+fn cp_set_colours(int id, value) { cp_colours "$value"; }
 
 # Whether the look now is the theme t as it was applied: its colours and
 # every setting it carries.
@@ -452,8 +454,7 @@ fn cp_themerenamed(id = "", path = "", type = "") {
 	fi
 	command mv -- "$old" "$path" 2> /dev/null || { dt_notep high "Could not rename %s" "$CP_THEME"; return 1; }
 	cp_themes
-	CP_THEME=$n
-	cp_save
+	dt_set CP_THEME "$n"
 	dt_notep low "Renamed the theme to %s" "$n"
 }
 
@@ -470,8 +471,9 @@ cp_themedel() {
 	cp_themeown "$n" || return 0
 	command rm -f -- "${CP_THEMEDIRS[0]}/$n.json"
 	cp_themes
-	[ -n "${CP_TH["$n"]["colours"]+x}" ] || CP_THEME=
-	cp_save
+	if [ -z "${CP_TH["$n"]["colours"]+x}" ]; then
+		dt_set CP_THEME ""
+	fi
 	dt_notep low "Deleted the theme %s" "$n"
 }
 
@@ -479,10 +481,10 @@ cp_themedel() {
 # theme and the glyph set rather than under Windows, where they first
 # went. A theme carries them too (`tree`, `treelines`), the same as it
 # carries the window buttons.
-fn cp_set_treestyle(int? id = "", value = "") { DT_TREESTYLE=$value; cp_save; }
+fn cp_set_treestyle(int? id = "", value = "") { dt_set DT_TREESTYLE "$value"; }
 fn cp_set_treelines(int? id = "", value = "") {
-	case $value in 0) DT_TREELINES=0 ;; *) DT_TREELINES=1 ;; esac
-	cp_save
+	case $value in 0) ;; *) value=1 ;; esac
+	dt_set DT_TREELINES "$value"
 }
 CP_TREELINES=(1 0)
 fn cp_treelinename(v) {
@@ -571,10 +573,10 @@ fn cp_appmodename(v) {
 
 fn cp_set_appmode(int? id = "", value = "") {
 	case $value in
-	light | dark) DT_APPMODE=$value ;;
-	*) DT_APPMODE=follow ;;
+	light | dark) ;;
+	*) value=follow ;;
 	esac
-	cp_save
+	dt_set DT_APPMODE "$value"
 	dt_want 30
 }
 
@@ -604,7 +606,7 @@ fn appearance_do(int w, k, int dir) {
 }
 
 
-fn cp_set_dlgbtn(int? id = "", value = "") { DT_DLGBTN=$value; cp_save; }
+fn cp_set_dlgbtn(int? id = "", value = "") { dt_set DT_DLGBTN "$value"; }
 
 # Shadow Shape's choices, as the row shows them and as DT_SHADOWSHAPE keeps
 # them (Gitea #340).
@@ -616,14 +618,12 @@ fn cp_shadowname(v) {
 }
 
 fn cp_set_shadowshape(int? id = "", value = "") {
-	DT_SHADOWSHAPE=$value
+	dt_set DT_SHADOWSHAPE "$value"
 	DT_FORCEONCE=1
-	cp_save
 }
 
 # The glyph set takes effect at once: every name in GL, and the frames.
 fn cp_set_glyphset(int? id = "", value = "") {
-	DT_GLYPHSET=$value
+	dt_set DT_GLYPHSET "$value"
 	dt_glyphs "$value"
-	cp_save
 }

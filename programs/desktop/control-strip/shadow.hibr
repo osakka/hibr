@@ -22,10 +22,8 @@ fn shadow_draw(int row, int col) {
 }
 
 shadow_click() {
-	if [ "$DT_SHADOW" = 1 ]; then
-		DT_SHADOW=0
-	else
-		DT_SHADOW=1
-	fi
-	dt_save
+	local v=1
+
+	[ "$DT_SHADOW" = 1 ] && v=0
+	dt_set DT_SHADOW "$v"
 }

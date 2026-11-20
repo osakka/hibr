@@ -76,12 +76,10 @@ fn cp_vwpindone(int n, int st) {
 	return 0
 }
 fn cp_set_vwsyncevery(int? id = "", int value = 0) {
-	DT_VWSYNC=$value
-	cp_save
+	dt_set DT_VWSYNC "$value"
 }
 fn cp_set_vwclear(int? id = "", int value = 0) {
-	DT_VWCLEAR=$value
-	cp_save
+	dt_set DT_VWCLEAR "$value"
 }
 
 fn vaultset_rows(int w) {

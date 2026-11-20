@@ -10,8 +10,8 @@ strict
 SH_FMTS=(ansi html text)
 SH_STARTS=(screen window area)
 
-fn cp_set_shotfmt(int? id = "", value = "") { DT_SHOTFMT=$value; cp_save; }
-fn cp_set_shotlast(int? id = "", value = "") { DT_SHOTLAST=$value; cp_save; }
+fn cp_set_shotfmt(int? id = "", value = "") { dt_set DT_SHOTFMT "$value"; }
+fn cp_set_shotlast(int? id = "", value = "") { dt_set DT_SHOTLAST "$value"; }
 
 # The folder, typed: the desktop's one-line question (wm/ask.hibr).
 shd_dialog() {
@@ -31,7 +31,6 @@ fn shd_set(d, int id) {
 		dt_notep high "%s cannot be made" "$d"
 		return 1
 	fi
-	DT_SHOTDIR=$d
-	cp_save
+	dt_set DT_SHOTDIR "$d"
 	return 0
 }

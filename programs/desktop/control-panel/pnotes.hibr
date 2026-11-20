@@ -25,8 +25,10 @@ app pnotes "Programs' notifications as the desktop's own, switched in Notificati
 # The setting, Control Panel > Notifications > Program Notifications.
 DT_PNOTES="${DT_PNOTES-1}"
 command -v dt_keep > /dev/null && dt_keep DT_PNOTES
-# Each program note's number on the bus, to the desktop note showing it.
-declare -gA DT_PNOTE
+# Each program note's number on the bus, to the desktop note showing it:
+# this entry's own, named apart from the prayer times' DT_PNOTE setting,
+# which it shared a name with.
+declare -gA PN_NOTE
 
 # An event from the bus about notifications.
 fn dt_pnoteev(e) {
@@ -45,13 +47,14 @@ fn dt_pnoteev(e) {
 	note) dt_pnoteshow "$n" ;;
 	noteclose) dt_pnotedrop "$n" ;;
 	down)
-		for k in "${!DT_PNOTE[@]}"; do
-			unset DT_PNOTE["$k"]
+		for k in "${!PN_NOTE[@]}"; do
+			unset PN_NOTE["$k"]
 		done
 		;;
 	esac
 	return 0
 }
+
 
 # Take a desktop note off the screen, history left as it was.
 fn dt_pnoteunshow(int id) {
@@ -83,25 +86,25 @@ fn dt_pnoteshow(int n) {
 		[ "${i[$k]["key"]}" = default ] && key=default
 	done
 	[ -n "$key" ] || [ "${i["actions"]:-0}" = 0 ] || key=${i[0]["key"]}
-	[ -n "${DT_PNOTE["$n"]+x}" ] && dt_pnoteunshow "${DT_PNOTE["$n"]}"
+	[ -n "${PN_NOTE["$n"]+x}" ] && dt_pnoteunshow "${PN_NOTE["$n"]}"
 	id=$DT_NOTE_NEXT
 	DT_NOTEFROM=${i["app"]:-A Program}
 	dt_noteq "$prio" "$text" dt_pnoteact "$n" "$key"
-	DT_PNOTE["$n"]=$id
+	PN_NOTE["$n"]=$id
 	dt_want 10
 }
 
 # The program closed its own note.
 fn dt_pnotedrop(int n) {
-	[ -n "${DT_PNOTE["$n"]+x}" ] || return 0
-	dt_pnoteunshow "${DT_PNOTE["$n"]}"
-	unset DT_PNOTE["$n"]
+	[ -n "${PN_NOTE["$n"]+x}" ] || return 0
+	dt_pnoteunshow "${PN_NOTE["$n"]}"
+	unset PN_NOTE["$n"]
 	dt_want 10
 }
 
 # A note clicked: its action, or only dismissed when it has none.
 fn dt_pnoteact(int n, key = "") {
-	unset DT_PNOTE["$n"]
+	unset PN_NOTE["$n"]
 	if [ -n "$key" ]; then
 		dbus noteact "$n" "$key" 2> /dev/null
 	else
@@ -115,10 +118,10 @@ fn dt_pnoteact(int n, key = "") {
 dt_pnotetick() {
 	local n
 
-	[ "${#DT_PNOTE[@]}" -gt 0 ] || return 0
-	for n in "${!DT_PNOTE[@]}"; do
-		[ -n "${DT_NOTEQ[${DT_PNOTE["$n"]}]["text"]+x}" ] && continue
-		unset DT_PNOTE["$n"]
+	[ "${#PN_NOTE[@]}" -gt 0 ] || return 0
+	for n in "${!PN_NOTE[@]}"; do
+		[ -n "${DT_NOTEQ[${PN_NOTE["$n"]}]["text"]+x}" ] && continue
+		unset PN_NOTE["$n"]
 		dbus noteclose "$n" 1 2> /dev/null
 	done
 	return 0

@@ -29,7 +29,7 @@ CP_NOTETICKS=(1000 1500 2500 4000 6000 10000)
 CP_NOTEWIDTHS=(16 20 24 32 40 52 64 80 100)
 CP_NOTEHEIGHTS=(3 4 5 6 8 10 12 16)
 
-fn cp_set_notepos(int? id = "", value = "") { DT_NOTEPOS=$value; cp_save; }
+fn cp_set_notepos(int? id = "", value = "") { dt_set DT_NOTEPOS "$value"; }
 
 # A note's frame (Gitea #398), as the row shows it and as DT_NOTEFRAME
 # keeps it: Same as Windows by default.
@@ -59,13 +59,13 @@ fn cp_noterows(v) {
 }
 # Note Colour: every note's face and ink, the scheme's own (theme) or one
 # of a note's own colours.
-fn cp_set_notecolour(int? id = "", value = "") { DT_NOTECOLOUR=$value; cp_save; }
+fn cp_set_notecolour(int? id = "", value = "") { dt_set DT_NOTECOLOUR "$value"; }
 
-fn cp_set_noteframe(int? id = "", value = "") { DT_NOTEFRAME=$value; cp_save; }
-fn cp_set_notewhere(int? id = "", value = "") { DT_NOTEWHERE=$value; cp_save; }
-fn cp_set_notems(int? id = "", int? value = "") { DT_NOTEMS=$value; cp_save; }
-fn cp_set_notecount(int? id = "", value = "") { DT_NOTECOUNT=$value; cp_save; }
-fn cp_set_notelist(int? id = "", value = "") { DT_NOTELIST=$value; cp_save; }
+fn cp_set_noteframe(int? id = "", value = "") { dt_set DT_NOTEFRAME "$value"; }
+fn cp_set_notewhere(int? id = "", value = "") { dt_set DT_NOTEWHERE "$value"; }
+fn cp_set_notems(int? id = "", int? value = "") { dt_set DT_NOTEMS "$value"; }
+fn cp_set_notecount(int? id = "", value = "") { dt_set DT_NOTECOUNT "$value"; }
+fn cp_set_notelist(int? id = "", value = "") { dt_set DT_NOTELIST "$value"; }
 
 # What one sender's notes do, as the five choices a row offers: as their
 # priority says (the three rules above), everything, kept quiet -- listed
@@ -123,13 +123,26 @@ cp_notefrom() {
 # one past the other moves the other with it, so the two can never describe
 # a box that cannot be drawn.
 fn cp_set_notesize(which, int v) {
+	local o
+
 	case $which in
-	notewmin) DT_NOTEWMIN=$v; [ "$DT_NOTEWMAX" -lt "$v" ] && DT_NOTEWMAX=$v ;;
-	notewmax) DT_NOTEWMAX=$v; [ "$DT_NOTEWMIN" -gt "$v" ] && DT_NOTEWMIN=$v ;;
-	notehmin) DT_NOTEHMIN=$v; [ "$DT_NOTEHMAX" -lt "$v" ] && DT_NOTEHMAX=$v ;;
-	notehmax) DT_NOTEHMAX=$v; [ "$DT_NOTEHMIN" -gt "$v" ] && DT_NOTEHMIN=$v ;;
+	notewmin)
+		o=$DT_NOTEWMAX; [ "$o" -lt "$v" ] && o=$v
+		dt_set DT_NOTEWMIN "$v" DT_NOTEWMAX "$o"
+		;;
+	notewmax)
+		o=$DT_NOTEWMIN; [ "$o" -gt "$v" ] && o=$v
+		dt_set DT_NOTEWMAX "$v" DT_NOTEWMIN "$o"
+		;;
+	notehmin)
+		o=$DT_NOTEHMAX; [ "$o" -lt "$v" ] && o=$v
+		dt_set DT_NOTEHMIN "$v" DT_NOTEHMAX "$o"
+		;;
+	notehmax)
+		o=$DT_NOTEHMIN; [ "$o" -gt "$v" ] && o=$v
+		dt_set DT_NOTEHMAX "$v" DT_NOTEHMIN "$o"
+		;;
 	esac
-	cp_save
 }
 fn cp_set_notewmin(int? id = "", int? value = "") { cp_set_notesize notewmin "$value"; }
 fn cp_set_notewmax(int? id = "", int? value = "") { cp_set_notesize notewmax "$value"; }

@@ -72,12 +72,14 @@ displays_fullname() {
 # The dropdown's callback: where a window going full screen goes, for every
 # program; the compositor is told, since X's primary output follows it.
 fn displays_setfull(int? id = "", value = "") {
+	local v=$DT_FULLON
+
 	case $value in
-	"Window's Display") DT_FULLON=window ;;
-	"Display Under Mouse") DT_FULLON=pointer ;;
-	?*) DT_FULLON=$value ;;
+	"Window's Display") v=window ;;
+	"Display Under Mouse") v=pointer ;;
+	?*) v=$value ;;
 	esac
-	command -v dt_save > /dev/null && dt_save
+	dt_set DT_FULLON "$v"
 	dt_has dt_natlayout && dt_natlayout
 	return 0
 }
@@ -95,12 +97,13 @@ displays_newname() {
 
 # Its callback: which display programs open on; the compositor is told.
 fn displays_setnew(int? id = "", value = "") {
+	local v=working
+
 	case $value in
-	"Where the Program Asks") DT_NEWON=program ;;
-	"The Main Display") DT_NEWON=main ;;
-	*) DT_NEWON=working ;;
+	"Where the Program Asks") v=program ;;
+	"The Main Display") v=main ;;
 	esac
-	command -v dt_save > /dev/null && dt_save
+	dt_set DT_NEWON "$v"
 	dt_has dt_natlayout && { DT_NATLAYOUT=; dt_natlayout; }
 	return 0
 }
@@ -120,9 +123,11 @@ fn displays_context(nm) {
 # Standby displays join on their own when the desktop is running, or wait
 # to be attached from here -- the row's own checkbox.
 fn displays_sbauto(int? id = "") {
-	if [ "$DT_STANDBYAUTO" = 1 ]; then DT_STANDBYAUTO=0; else DT_STANDBYAUTO=1; fi
-	command -v dt_save > /dev/null && dt_save
-	[ "$DT_STANDBYAUTO" = 1 ] && dt_sbauto
+	local v=1
+
+	[ "$DT_STANDBYAUTO" = 1 ] && v=0
+	dt_set DT_STANDBYAUTO "$v"
+	[ "$v" = 1 ] && dt_sbauto
 	return 0
 }
 

@@ -15,10 +15,9 @@ command -v cp_pane > /dev/null && cp_pane cliphist "Clipboard" "⎘"
 CH_SIZES=(10 25 50 100 200)
 
 fn cp_set_clipmax(int? id = "", int? value = "") {
-	DT_CLIPMAX=$value
+	dt_set DT_CLIPMAX "$value"
 	dt_cliptrim
 	dt_clipsave
-	cp_save
 }
 
 fn cliphist_rows(int w) {

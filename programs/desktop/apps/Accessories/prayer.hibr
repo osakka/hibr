@@ -198,10 +198,8 @@ fn pyloc_do(int id, what) {
 			return 0
 		fi
 	fi
-	DT_PLAT=$a
-	DT_PLON=$b
 	DT_PKEY=
-	command -v dt_save > /dev/null && dt_save
+	dt_set DT_PLAT "$a" DT_PLON "$b"
 	dt_del "$id"
 	return 0
 }

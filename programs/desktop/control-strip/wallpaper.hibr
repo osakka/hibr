@@ -27,7 +27,5 @@ fn wallpaper_click(int? row = "", int? col = "") {
 }
 
 fn wallpaper_pick(glyph = "") {
-	DT_GLYPH=$glyph
-	DT_WALLIMG=
-	dt_save
+	dt_set DT_GLYPH "$glyph" DT_WALLIMG ""
 }

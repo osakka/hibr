@@ -19,8 +19,7 @@ BT_FORGET=
 
 fn cp_set_btkind(int? id = "", value = "") {
 	dt_has dt_bttick || return 0
-	DT_BTKIND=$value
-	cp_save
+	dt_set DT_BTKIND "$value"
 	dt_btagain
 }
 

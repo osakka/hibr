@@ -14,8 +14,7 @@ command -v cp_pane > /dev/null && cp_pane terminal "Terminal" "▸" app
 
 CP_CURSORS=(block underline bar)
 fn cp_set_cursor(int? id = "", value = "") {
-	DT_CURSOR=$value
-	cp_save
+	dt_set DT_CURSOR "$value"
 	dt_has term_cursorapply && term_cursorapply
 	return 0
 }

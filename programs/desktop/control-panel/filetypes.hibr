@@ -337,7 +337,7 @@ fn owt_dialog(ext) {
 		i=$((i + 1))
 	done
 	DT_OPENWITH_SAVE=$DT_OPENWITH
-	owt_without "$ext"
+	DT_OPENWITH := owt_without "$ext"
 	owt_ask "$ext"
 	DT_OPENWITH=$DT_OPENWITH_SAVE
 	for o in "${DT_OWLIST[@]}"; do
@@ -353,7 +353,7 @@ fn owt_dialog(ext) {
 }
 DT_OPENWITH_SAVE=
 
-# DT_OPENWITH without the given type's entry.
+# DT_OPENWITH without the given type's entry, answered.
 fn owt_without(ext) {
 	local e out=
 	local -a ow
@@ -362,7 +362,7 @@ fn owt_without(ext) {
 	for e in "${ow[@]}"; do
 		[ "${e%%:*}" = "$ext" ] || out="$out $e"
 	done
-	DT_OPENWITH=${out# }
+	ret "${out# }"
 }
 
 fn owt_draw(int id, int h, int w, int row, int col) {
@@ -408,7 +408,7 @@ fn owt_default(int id, int i) {
 
 # Keep the list: the default first, then each ticked one in order.
 fn owt_save(int id) {
-	local i=0 n=${OWT[$id]["n"]} ext=${OWT[$id]["ext"]} out
+	local i=0 n=${OWT[$id]["n"]} ext=${OWT[$id]["ext"]} out ow
 	local def=${OWT[$id]["def"]}
 
 	out=$def
@@ -419,15 +419,16 @@ fn owt_save(int id) {
 		fi
 		i=$((i + 1))
 	done
-	owt_without "$ext"
-	DT_OPENWITH="${DT_OPENWITH:+$DT_OPENWITH }$ext:$out"
-	cp_save
+	ow := owt_without "$ext"
+	dt_set DT_OPENWITH "${ow:+$ow }$ext:$out"
 	dt_del "$id"
 }
 
 fn owt_reset(int id) {
-	owt_without "${OWT[$id]["ext"]}"
-	cp_save
+	local ow
+
+	ow := owt_without "${OWT[$id]["ext"]}"
+	dt_set DT_OPENWITH "$ow"
 	dt_del "$id"
 }
 

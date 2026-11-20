@@ -33,11 +33,11 @@ MS_TIPV=(300 600 1000 1500 2500)
 MS_TIPL=("300 ms" "600 ms" "1 second" "1.5 seconds" "2.5 seconds")
 DT_TIPMS="${DT_TIPMS-600}"
 
-fn cp_set_dragkey(int? id = "", value = "") { DT_DRAGKEY=$value; cp_save; }
-fn cp_set_titlekey(int? id = "", value = "") { DT_TITLEKEY=$value; cp_save; }
-fn cp_set_movemode(int? id = "", value = "") { DT_MOVEMODE=$value; cp_save; }
-fn cp_set_dblaction(int? id = "", value = "") { DT_DBLACTION=$value; cp_save; }
-fn cp_set_hover(int? id = "", value = "") { DT_HOVER=$value; cp_save; }
+fn cp_set_dragkey(int? id = "", value = "") { dt_set DT_DRAGKEY "$value"; }
+fn cp_set_titlekey(int? id = "", value = "") { dt_set DT_TITLEKEY "$value"; }
+fn cp_set_movemode(int? id = "", value = "") { dt_set DT_MOVEMODE "$value"; }
+fn cp_set_dblaction(int? id = "", value = "") { dt_set DT_DBLACTION "$value"; }
+fn cp_set_hover(int? id = "", value = "") { dt_set DT_HOVER "$value"; }
 
 # A number of rows a wheel notch scrolls, in words.
 fn ms_wheelname(v) {
@@ -61,8 +61,8 @@ fn ms_tipname(v) {
 	ret "$v ms"
 }
 
-fn cp_set_tipms(int? id = "", int value = 600) { DT_TIPMS=$value; cp_save; }
-fn cp_set_wheel(int? id = "", int value = 3) { DT_SCROLLWHEEL=$value; cp_save; }
+fn cp_set_tipms(int? id = "", int value = 600) { dt_set DT_TIPMS "$value"; }
+fn cp_set_wheel(int? id = "", int value = 3) { dt_set DT_SCROLLWHEEL "$value"; }
 
 fn mouse_rows(int w) {
 	local n=0
@@ -114,9 +114,13 @@ fn mouse_rows(int w) {
 }
 
 fn mouse_do(int w, k, int dir) {
+	local v=1
+
 	case $k in
-	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER | DT_TIPS) cp_toggle "$k" ;;
+	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER | DT_TIPS)
+		[ "${!k}" = 1 ] && v=0
+		dt_set "$k" "$v"
+		;;
 	esac
-	cp_save
 }
 

@@ -15,20 +15,19 @@ strict
 app windows "The Control Panel pane for how a window looks and where it opens" 1.11.3
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
-fn cp_set_frame(int? id = "", value = "") { DT_FRAME=$value; cp_save; }
-fn cp_set_titlebar(int? id = "", value = "") { DT_TITLEBAR=$value; cp_save; }
-fn cp_set_align(int? id = "", value = "") { DT_TITLEALIGN=$value; cp_save; }
-fn cp_set_btnstyle(int? id = "", value = "") { DT_BTNSTYLE=$value; cp_save; }
-fn cp_set_place(int? id = "", value = "") { DT_PLACE=$value; cp_save; }
-fn cp_set_natfocus(int? id = "", value = "") { DT_NATFOCUS=$value; cp_save; }
-fn cp_set_zoomfill(int? id = "", value = "") { DT_ZOOMFILL=$value; cp_save; }
-fn cp_set_fullend(int? id = "", value = "") { DT_FULLEND=$value; cp_save; }
+fn cp_set_frame(int? id = "", value = "") { dt_set DT_FRAME "$value"; }
+fn cp_set_titlebar(int? id = "", value = "") { dt_set DT_TITLEBAR "$value"; }
+fn cp_set_align(int? id = "", value = "") { dt_set DT_TITLEALIGN "$value"; }
+fn cp_set_btnstyle(int? id = "", value = "") { dt_set DT_BTNSTYLE "$value"; }
+fn cp_set_place(int? id = "", value = "") { dt_set DT_PLACE "$value"; }
+fn cp_set_natfocus(int? id = "", value = "") { dt_set DT_NATFOCUS "$value"; }
+fn cp_set_zoomfill(int? id = "", value = "") { dt_set DT_ZOOMFILL "$value"; }
+fn cp_set_fullend(int? id = "", value = "") { dt_set DT_FULLEND "$value"; }
 # How much of a picture wallpaper shows through a window, in tens.
 fn cp_wintrans(int v) {
 	[ "$v" -lt 0 ] && v=0
 	[ "$v" -gt 100 ] && v=100
-	DT_WINTRANS=$(((v + 5) / 10 * 10))
-	cp_save
+	dt_set DT_WINTRANS "$(((v + 5) / 10 * 10))"
 	return 0
 }
 
@@ -151,13 +150,12 @@ fn windows_btntoggle(k) {
 		[ "$x" = "$k" ] || out+="${out:+ }$x"
 	done
 	dt_btnhidden "$k" && out+="${out:+ }$k"
-	DT_BTNON=$out
+	dt_set DT_BTNON "$out"
 }
 
 # The list's new order, from a drag or shift and an arrow.
 fn windows_order(int w, g, ...names) {
-	DT_BTNORDER="${names[*]}"
-	cp_save
+	dt_set DT_BTNORDER "${names[*]}"
 }
 
 fn windows_do(int w, k, int dir) {
@@ -168,16 +166,17 @@ fn windows_do(int w, k, int dir) {
 	DT_NATX11) cp_toggle DT_NATX11 ;;
 	DT_NATREMEMBER) cp_toggle DT_NATREMEMBER ;;
 	wbtn:title) return 0 ;;
-	wbtn:*) windows_btntoggle "${k#wbtn:}" ;;
+	wbtn:*) windows_btntoggle "${k#wbtn:}"
+		return 0 ;;
 	wintrans) cp_wintrans $(((${DT_WINTRANS:-0} + 5) / 10 * 10 + dir * 10))
 		return 0 ;;
 	tilemain)
 		v=$((DT_TILEMAIN + dir * 10))
 		[ "$v" -lt 30 ] && v=30
 		[ "$v" -gt 70 ] && v=70
-		DT_TILEMAIN=$v
+		dt_set DT_TILEMAIN "$v"
 		dt_tile
-		;;
+		return 0 ;;
 	esac
 	cp_save
 }
@@ -189,11 +188,11 @@ fn windows_slide(int w, k, int value) {
 	case $k in
 	wintrans) cp_wintrans "$value" ;;
 	tilemain)
-		DT_TILEMAIN=$((value * 10))
-		[ "$DT_TILEMAIN" -lt 30 ] && DT_TILEMAIN=30
-		[ "$DT_TILEMAIN" -gt 70 ] && DT_TILEMAIN=70
+		value=$((value * 10))
+		[ "$value" -lt 30 ] && value=30
+		[ "$value" -gt 70 ] && value=70
+		dt_set DT_TILEMAIN "$value"
 		dt_tile
-		cp_save
 		;;
 	esac
 	return 0

@@ -83,15 +83,15 @@ fn cp_wdget(field) {
 	esac
 }
 
-# Set one of the three for the display chosen. A display's first change
+# Set one of the three for the display chosen, and save. A display's first change
 # gives it a wallpaper of its own, starting from what it showed until then,
 # so changing its Mode does not also change the picture it had.
 fn cp_wdset(field, value = "") {
 	if [ -z "$CP_WDISP" ]; then
 		case $field in
-		img) DT_WALLIMG=$value; DT_WALLBAD= ;;
-		mode) DT_WALLMODE=$value ;;
-		*) DT_WALLIMGMODE=$value ;;
+		img) dt_set DT_WALLIMG "$value"; DT_WALLBAD= ;;
+		mode) dt_set DT_WALLMODE "$value" ;;
+		*) dt_set DT_WALLIMGMODE "$value" ;;
 		esac
 		return 0
 	fi
@@ -102,6 +102,7 @@ fn cp_wdset(field, value = "") {
 	mode) DT_WALLDMODE["$CP_WDISP"]=$value ;;
 	*) DT_WALLDPIC["$CP_WDISP"]=$value ;;
 	esac
+	cp_save
 	return 0
 }
 
@@ -134,9 +135,9 @@ fn cp_set_wdisp(int? id = "", value = "") {
 # same as picking one theme is choosing it over another -- so it clears
 # DT_WALLIMG rather than leaving it set underneath a glyph that would never
 # actually show while an image wins in dt_wall.
-fn cp_set_glyph(int? id = "", value = "") { DT_GLYPH=$value; DT_WALLIMG=; cp_save; }
-fn cp_set_wallpic(int? id = "", value = "") { cp_wdset pic "$value"; cp_save; }
-fn cp_set_wallmode(int? id = "", value = "") { cp_wdset mode "$value"; cp_save; }
+fn cp_set_glyph(int? id = "", value = "") { dt_set DT_GLYPH "$value" DT_WALLIMG ""; }
+fn cp_set_wallpic(int? id = "", value = "") { cp_wdset pic "$value"; }
+fn cp_set_wallmode(int? id = "", value = "") { cp_wdset mode "$value"; }
 
 fn wallset_rows(int w) {
 	local n=0 img pic
