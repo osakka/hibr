@@ -55,7 +55,7 @@
 
 strict
 
-app sheet "A spreadsheet whose formulas are hibr" 1.7.1
+app sheet "A spreadsheet whose formulas are hibr" 1.7.2
 # part: control-panel/sheetset.hibr
 # modules: csv db math
 

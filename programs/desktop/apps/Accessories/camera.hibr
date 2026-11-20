@@ -16,7 +16,7 @@
 
 strict
 
-app camera "The computer's camera in a window, and photos taken with it" 2.1.1
+app camera "The computer's camera in a window, and photos taken with it" 2.1.2
 # modules: media pty
 # part: control-panel/camset.hibr
 

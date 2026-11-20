@@ -20,7 +20,7 @@
 
 strict
 
-app pnotes "Programs' notifications as the desktop's own, switched in Notifications" 1.0.2
+app pnotes "Programs' notifications as the desktop's own, switched in Notifications" 1.0.3
 
 # The setting, Control Panel > Notifications > Program Notifications.
 DT_PNOTES="${DT_PNOTES-1}"

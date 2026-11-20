@@ -11,7 +11,7 @@
 
 strict
 
-app sound "The Control Panel pane for the machine's sound" 3.0.2
+app sound "The Control Panel pane for the machine's sound" 3.0.3
 command -v cp_pane > /dev/null && cp_pane sound "Sound" "♪" hardware
 
 SN_KINDS=(Auto PulseAudio PipeWire ALSA None)

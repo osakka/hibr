@@ -20,7 +20,7 @@
 strict
 
 
-app wallset "The Control Panel pane for the wallpaper of each display" 1.1.2
+app wallset "The Control Panel pane for the wallpaper of each display" 1.1.3
 command -v cp_pane > /dev/null && cp_pane wallset "Wallpaper" "▧"
 
 

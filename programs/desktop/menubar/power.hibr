@@ -19,7 +19,7 @@
 
 strict
 
-app power "The computer's power on the menu bar, and the battery it watches" 1.5
+app power "The computer's power on the menu bar, and the battery it watches" 1.5.1
 
 declare -gA DT_PW
 # Where the batteries are: the kernel's folder, a name a test can put a

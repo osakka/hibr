@@ -15,7 +15,7 @@
 
 strict
 
-app networks "The Control Panel pane for the machine's network and Wi-Fi" 3.0.2
+app networks "The Control Panel pane for the machine's network and Wi-Fi" 3.0.3
 command -v cp_pane > /dev/null && cp_pane networks "Network" "⇌" hardware
 
 NT_KINDS=(Auto NetworkManager None)

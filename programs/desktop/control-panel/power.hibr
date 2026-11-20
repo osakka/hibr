@@ -11,7 +11,7 @@
 
 strict
 
-app power "The Control Panel pane for the battery and the computer's power" 3.2.2
+app power "The Control Panel pane for the battery and the computer's power" 3.2.3
 command -v cp_pane > /dev/null && cp_pane power "Power" "↯" hardware
 
 PW_LOWS=(off 5 10 15 20 25)

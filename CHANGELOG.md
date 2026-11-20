@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.99.555
+
+**After hibr is upgraded, the catalogue updates what you installed from it,
+and tells you.** On its first start on a newer hibr the desktop runs the
+catalogue's update by itself -- only when something was installed from it --
+and one note names what was updated, with Restart Desktop a click away. A
+copy you changed by hand is kept and named, never overwritten; a copy of the
+catalogue's that hides a newer one hibr ships is taken away, saying so; a
+file you put there yourself is only named. Rehearsed on a real desktop's
+ledger first: there, it does nothing, everything being current.
+
+**A setting redraws what it affects, and only that.** Changing a setting no
+longer forces a whole frame: what each one does beyond being stored -- a
+redraw, the menus, the bar, the console's picture calls, the strip, the
+compositor's layout -- is declared once beside it (`dt_onset`) and done by
+the desktop. A Control Panel slider step is 8.9 ms, from 15.0. Files,
+Terminal, PDF Reader and About redraw when a setting their drawing reads
+changes. Panes no longer write the desktop's state directly at all: the
+survey of what they write is held at none.
+
+**What opens a file is declared data**, answered by each process from its
+own copy, so Files never calls into another app to ask; a choice of
+wallpaper tries a picture afresh by itself; notes, the wallpaper picker,
+windows' colours, the program menu and the vault's jobs each go through one
+request of the desktop's (ADR 0050, round two).
+
+**Fixed.** The macOS lock takes the right password (#110): the password
+reaches PAM as its token too. With two or more strip modules or bar items
+hidden, none could be put back. A same-value write in an app's own process
+is no longer refused, and a refused key or unset now fails its command.
+
 ## 0.99.554
 
 **A video's own picture drawn through its view** (#600, Blit 0.3.127). mpv's

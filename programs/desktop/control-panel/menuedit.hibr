@@ -13,7 +13,7 @@
 
 strict
 
-app menuedit "The Control Panel pane for what the Applications menu holds" 1.0.1
+app menuedit "The Control Panel pane for what the Applications menu holds" 1.0.2
 command -v cp_pane > /dev/null && cp_pane menuedit "Applications Menu" "☰"
 command -v dt_app > /dev/null &&
 	dt_app pmfield "Program" 14 70 "" "" fixed hidden

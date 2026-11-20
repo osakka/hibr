@@ -18,7 +18,7 @@
 
 strict
 
-app pdfr "A PDF reader: pages as pictures where the terminal can, text where it cannot" 1.2
+app pdfr "A PDF reader: pages as pictures where the terminal can, text where it cannot" 1.2.1
 # modules: pdf img
 
 command -v dt_app > /dev/null && dt_app pdfr "PDF Reader" 24 76 many "▤"

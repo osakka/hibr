@@ -8,7 +8,7 @@
 strict
 
 
-app workspaces "A Control Strip module for the workspace numbers" 1.0
+app workspaces "A Control Strip module for the workspace numbers" 1.0.1
 command -v cs_module > /dev/null && cs_module workspaces Workspaces $((DT_WSN * 2 - 1))
 
 fn workspaces_draw(int row, int col) {

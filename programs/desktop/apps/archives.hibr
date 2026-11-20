@@ -31,7 +31,7 @@
 
 strict
 
-app archives "Show archives as folders in Files, compress and extract them" 1.1.1
+app archives "Show archives as folders in Files, compress and extract them" 1.1.2
 # part: control-panel/archiveset.hibr
 
 command -v dt_app > /dev/null && dt_app archives "Archives" 6 30 "" "" fixed hidden

@@ -15,7 +15,7 @@
 
 strict
 
-app keyboard "The keyboard typing now, on the menu bar" 1.0.3
+app keyboard "The keyboard typing now, on the menu bar" 1.0.4
 
 # Whether the item says which keyboard beside its glyph (US, AR), or shows
 # the glyph alone: Control Panel > Language & Region > Typing, and the

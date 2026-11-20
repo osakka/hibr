@@ -15,7 +15,7 @@
 strict
 
 
-app shortcuts "The Control Panel pane for every shortcut in one list" 1.3.3
+app shortcuts "The Control Panel pane for every shortcut in one list" 1.3.4
 command -v cp_pane > /dev/null && cp_pane shortcuts "Shortcuts" "⌘"
 
 fn shortcuts_do(int w, k, int dir) {

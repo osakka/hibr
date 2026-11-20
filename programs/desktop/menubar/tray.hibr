@@ -16,7 +16,7 @@
 
 strict
 
-app tray "Programs' tray icons on the menu bar" 1.0.5
+app tray "Programs' tray icons on the menu bar" 1.0.6
 
 # The settings, Control Panel > Tray Icons (control-panel/trayset.hibr):
 # whether the desktop is the tray at all; a picture two cells wide where

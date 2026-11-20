@@ -32,7 +32,7 @@
 
 strict
 
-app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.2.1
+app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.2.2
 
 # The state: kind (bluez, none, or gone for a bluetoothd that went; empty
 # until the first frame looks), why (asked for and not answering), addr and
