@@ -21,7 +21,7 @@ Run it directly to look at something rather than assert on it:
     python3 tests/screen.py programs/desktop/session.hibr
     python3 tests/screen.py -c 'mod load build/mods/mon.so; mon'
 """
-import fcntl, json, os, pty, re, select, signal, struct, sys, termios, time
+import fcntl, json, os, pty, re, select, signal, struct, sys, termios, time, traceback
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HIBR = os.environ.get("HIBR") or os.path.join(ROOT, "build/hibr")
@@ -840,8 +840,10 @@ class Term:
                 if self.idled():
                     self.idle = True
                 elif not gone and CLIENT not in self.out:
-                    ERRS.append("a desktop that drew no first frame in %d s (in the session %s)"
-                                % (FIRSTFRAME, self.what))
+                    at = [f for f in traceback.extract_stack() if not f.filename.endswith("screen.py")]
+                    ERRS.append("a desktop that drew no first frame in %d s (in the session %s, started at %s:%s)"
+                                % (FIRSTFRAME, self.what, os.path.basename(at[-1].filename) if at else "?",
+                                   at[-1].lineno if at else "?"))
             else:
                 self.collect(0.05)
 

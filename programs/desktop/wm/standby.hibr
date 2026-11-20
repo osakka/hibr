@@ -182,6 +182,7 @@ fn dt_standby(base, dname = "") {
 	trap dt_sbgone EXIT
 	console open
 	console mouse off
+	[ -n "$DT_TESTIDLE" ] && printf '\e]7777;client\a'
 	while :; do
 		if [ -e "$DT_STANDBYDIR/$DT_SBNAME.join" ]; then
 			rm -f "$DT_STANDBYDIR/$DT_SBNAME.join"

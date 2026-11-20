@@ -5367,7 +5367,7 @@ shutil.rmtree(OWD, True)
 sc = cprun(reach("filetypes", ".ans", extra=("imgview",)), extra=("imgview",))
 check("File Types lists each type with its default, and how many others",
       sc.find(".ans  Image Viewer (+1)") is not None, sc)
-sc = cprun(reach("filetypes", ".ans") + [b"\r", 0.4, b"\x1b[B", b"d", b"\r",
+sc = cprun(reach("filetypes", ".ans", extra=("imgview",)) + [b"\r", 0.4, b"\x1b[B", b"d", b"\r",
                                          0.4], extra=("imgview",))
 check("its dialog makes another app the default, and the row says so",
       sc.find(".ans  Text Editor (hvi) (+1)") is not None, sc)
