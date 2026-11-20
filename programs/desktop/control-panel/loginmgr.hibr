@@ -20,7 +20,7 @@
 strict
 
 
-app loginmgr "The Control Panel pane for the login screen" 1.2.1
+app loginmgr "The Control Panel pane for the login screen" 1.2.2
 command -v cp_pane > /dev/null && cp_pane loginmgr "Login Manager" "⊡"
 [ -n "${PK_LIBDONE-}" ] || . "$DT_HERE/lib/pkrun.hibr"
 

@@ -10,7 +10,7 @@
 
 strict
 
-app bluetooth "The Control Panel pane for Bluetooth" 3.0.1
+app bluetooth "The Control Panel pane for Bluetooth" 3.0.2
 command -v cp_pane > /dev/null && cp_pane bluetooth "Bluetooth" "ᛒ" hardware
 
 BT_KINDS=(Auto BlueZ None)

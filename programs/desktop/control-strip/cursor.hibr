@@ -9,7 +9,7 @@
 strict
 
 
-app cursor "A Control Strip module for a new terminal's cursor style" 1.1.1
+app cursor "A Control Strip module for a new terminal's cursor style" 1.1.2
 command -v cs_module > /dev/null && cs_module cursor Cursor
 
 CURSOR_STYLES=(block underline bar)

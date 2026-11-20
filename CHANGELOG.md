@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.99.554
+
+**A video's own picture drawn through its view** (#600, Blit 0.3.127). mpv's
+scaled video subsurface and a cropped sub are placed exactly, at Blit
+0.3.127's pixel placement size, and clicks map through them; a display whose
+Blit is older is sent the sub as before. Each display of a held session is
+judged by its own Blit.
+
+**An app's request answered in under 2 ms, not 70.** An app process's socket
+is input to the desktop, so a request no longer waits out a frame the
+desktop is holding back, and the held pass answers it without drawing: a
+hundred requests in a row draw 3 frames, not a hundred.
+
+**Every pane, strip module and bar item sets the desktop's settings through
+one request, `dt_set`**, and a toggle through it too. Each change is
+checked, saved once and redrawn by the desktop -- the same whether the pane
+runs inside the desktop or, as ADR 0050 is building toward, in a process of
+its own, where a setting its own file never names is refused. 32 catalogue
+entries carry it (floor 0.99.554), their floors now derived from the app
+interface's contract rather than written by hand.
+
+**Cells in C.** An app process's drawing can reach its window as records of
+only the changed cells, applied by the console in C -- cheaper at the desktop
+than drawing in-process for every app measured -- and the shared per-cell
+write makes in-process drawing cheaper too. Not switched on yet.
+
+**`inspect calls` says whether a call's status is tested**, and the app
+interface classes each request by the parser: asked when its value is taken,
+waited when its status is tested or its effect read back, told otherwise.
+
+**Shell and tools.** `console watch -i` (a descriptor that is input, ending
+even a quiet wait); `console cells`; the Blit glyph table follows Blit
+0.3.127 (key caps, the big discs); console/stream.c declares memmem.
+
 ## 0.99.553
 
 **Windows stay inside a display that shrinks, and go back when it grows.**

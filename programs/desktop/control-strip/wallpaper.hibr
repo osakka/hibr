@@ -8,7 +8,7 @@
 strict
 
 
-app wallpaper "A Control Strip module cycling the desktop's own wallpaper glyph" 1.0.1
+app wallpaper "A Control Strip module cycling the desktop's own wallpaper glyph" 1.0.2
 command -v cs_module > /dev/null && cs_module wallpaper Wallpaper
 
 WALL_GLYPHS=("·" "░" "▒" "⋅" "+")
