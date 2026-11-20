@@ -1,0 +1,62 @@
+# wm/winfacts -- what an app may ask about a window from its record: what
+# it is called, and the rectangle its display gives it -- or a point's
+# display -- less the bar's row on the primary. Each reads only what the
+# desktop shares (a window's own record, DT_DISPLAYS, the primary's place),
+# so an app's process works it out on its copy.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# What a window is called.
+fn dt_title(int id) {
+	ret "${DT[$id]["title"]}"
+}
+
+# The rectangle a window's own display gives it, in DTW_R, DTW_C, DTW_H
+# and DTW_W (Gitea #286): the display holding the window's centre -- the
+# primary when none does, which a window between two displays of different
+# heights can manage -- less the bar's row when that display is the
+# primary, the only one with a bar. One display, held or not, is the
+# screen less the bar, which is what Zoom and the snaps always gave.
+DTW_R=0
+DTW_C=0
+DTW_H=0
+DTW_W=0
+fn dt_windisp(int id) {
+	local r=${DT[$id]["row"]} c=${DT[$id]["col"]}
+
+	dt_dispat $((r + ${DT[$id]["h"]} / 2)) $((c + ${DT[$id]["w"]} / 2))
+}
+
+# The same rectangle for the display holding a point, row cr and column cc
+# -- what a menu opening there is kept inside (Gitea #287).
+fn dt_dispat(int cr, int cc) {
+	local dsp dr dc drows dcols dgx hit= pr=${DT_PRIMARY_ROW:-0}
+	local pc=${DT_PRIMARY_COL:-0}
+
+	for dsp in "${DT_DISPLAYS[@]}"; do
+		IFS=' ' read -r dr dc drows dcols dgx <<< "$dsp"
+		[ "$cr" -ge "$dr" ] && [ "$cr" -lt $((dr + drows)) ] &&
+			[ "$cc" -ge "$dc" ] && [ "$cc" -lt $((dc + dcols)) ] &&
+			{ hit=1; break; }
+	done
+	if [ -z "$hit" ]; then
+		dr=$pr
+		dc=$pc
+		drows=${DT_PRIMARY_H:-$DT_ROWS}
+		dcols=${DT_PRIMARY_W:-$DT_COLS}
+	fi
+	if [ "$dr" = "$pr" ] && [ "$dc" = "$pc" ]; then
+		dr=$((dr + 1))
+		drows=$((drows - 1))
+	fi
+	DTW_R=$dr
+	DTW_C=$dc
+	DTW_H=$drows
+	DTW_W=$dcols
+	return 0
+}

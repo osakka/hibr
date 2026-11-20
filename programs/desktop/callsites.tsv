@@ -23,5 +23,5 @@ desktop	wm/rtserve.hibr	705	dt_rtanswer	x := "$name" "${args[@]}"
 window	wm/seam.hibr	36	dt_appfn	dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
 desktop	wm/vault.hibr	107	dt_vw	DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")
 desktop	wm/vault.hibr	109	dt_vw	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef" < /dev/null)
-desktop	wm/vault.hibr	349	dt_vwget	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" get "$field" "$id" 2> "$ef" < /dev/null) # fork: a password reaches the clipboard through a pipe, never a job's file; one vw reading one item, on a click
-desktop	wm/vault.hibr	366	dt_vwmatch	out=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" match "$host" 2> "$ef" < /dev/null)
+desktop	wm/vault.hibr	341	dt_vwget	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" get "$field" "$id" 2> "$ef" < /dev/null) # fork: a password reaches the clipboard through a pipe, never a job's file; one vw reading one item, on a click
+desktop	wm/vault.hibr	358	dt_vwmatch	out=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" match "$host" 2> "$ef" < /dev/null)

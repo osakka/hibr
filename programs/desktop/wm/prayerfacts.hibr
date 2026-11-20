@@ -1,0 +1,22 @@
+# wm/prayerfacts -- the next prayer as the bar says it, from the times
+# wm/prayertimes.hibr works out; the bar's segment, the notes and the athan
+# are wm/prayer.hibr.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# The next prayer for the bar, "Asr 14:48", when the bar is to show it.
+dt_pbar() {
+	local n i t nm
+
+	[ "$DT_PBAR" = on ] || return 1
+	n := dt_pnext || return 1
+	read -r i t <<< "$n"
+	nm := dt_pname "$i"
+	t := dt_ptime "$t"
+	ret "$nm $t"
+}

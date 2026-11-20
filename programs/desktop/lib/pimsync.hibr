@@ -413,15 +413,18 @@ fn ps_book(coll, int rec, kind = card) {
 # Send the queue: each upload or removal conditional on the ETag it was
 # read with. A refusal (a conflict) is said and dropped -- the next sync
 # brings the server's copy; a lost connection keeps the rest for the next
-# sync.
+# sync. The queue is taken by renaming it (Gitea #599): a line an app or
+# `contacts put` appends after that starts a new queue for the next sync,
+# where copying it and then removing it lost whatever came in between. A
+# take a sync died holding goes first, and is never renamed over.
 PS_QUEUE=()
 ps_push() {
-	local q="$PS_DIR/queue.work" op coll a b etag l k=0 e
+	local q="$PS_DIR/queue.work" t="$PS_DIR/queue.take" op coll a b etag l k=0 e
 	local -a ls
 
-	if [ -s "$PS_DIR/queue" ]; then
-		cat "$PS_DIR/queue" >> "$q" && command rm -f "$PS_DIR/queue"
-	fi
+	[ -e "$t" ] && cat "$t" >> "$q" && command rm -f "$t"
+	[ -s "$PS_DIR/queue" ] && [ ! -e "$t" ] && mv -f "$PS_DIR/queue" "$t" &&
+		cat "$t" >> "$q" && command rm -f "$t"
 	[ -s "$q" ] || return 0
 	mapfile -t ls < "$q"
 	while [ "$k" -lt "${#ls[@]}" ]; do

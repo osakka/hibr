@@ -641,8 +641,13 @@ def rawlines(k, secs, until=None):
 
 import json as pyjson
 kf, files = hello_from("/elsewhere/apps/files.hibr")
-check("a file is sent the registries it reads and the interface reads, and no other",
-      "DT_OPENVERBS" in files and "DT_APPS" in files and "DT_CH" not in files and "DT_NOTEHIST" not in files,
+# What a file reads, and what the shared functions it calls read to the end of
+# their chain (Files names an opener through dt_openertitle, which reads
+# DT_OPENERS), and nothing else: not the apps' table it never reaches, nor
+# the clipboard history or the notes.
+check("a file is sent the registries it reads and those the shared functions it calls read, and no other",
+      "DT_OPENVERBS" in files and "DT_OPENERS" in files and "DT_APPS" not in files
+      and "DT_CH" not in files and "DT_NOTEHIST" not in files,
       (files.get("?"), sorted(n for n in files if n.isupper())))
 ku, unknown = hello_from("/elsewhere/apps/nobody-read-this.hibr")
 check("a file the survey never read is sent every registry but a secret",

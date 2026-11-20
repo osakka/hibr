@@ -173,14 +173,6 @@ dt_vwstate() {
 	ret unlocked
 }
 
-# When the vault locks itself, as seconds since the epoch; 0 for never.
-dt_vwuntil() {
-	local e w
-
-	IFS=$'\t' read -r e w 2> /dev/null < "$DT_VWRUN/session" || ret 0
-	ret "${e:-0}"
-}
-
 declare -gA DT_VWA
 # The account as vw keeps it: server, email, timeout, pin, pinkeep.
 dt_vwacct() {
@@ -507,21 +499,6 @@ fn vwp_choose(int id, int i) {
 }
 
 fn vwp_close(int id) { unset VWP["$id"]; }
-
-# The host an address names, for a form's _signin: no scheme, no login,
-# no path and no port -- https://pat@dav.example.com:8443/remote.php/ is
-# dav.example.com, and so is dav.example.com on its own.
-fn dt_vwhost(addr) {
-	local h=${addr#*://}
-
-	h=${h%%/*}
-	h=${h##*@}
-	case $h in
-	\[*) h=${h%%]*}; h=${h#[} ;;
-	*) h=${h%%:*} ;;
-	esac
-	ret "${h,,}"
-}
 
 # The key mark a sign-in form draws beside its password field, at pane row
 # r and column c, while there is a vault to fill it from: a press on it is
@@ -978,6 +955,6 @@ fn vwd_close(int id) {
 
 # What of this file's state every app process that reads it is sent (ADR
 # 0050, wm/rtwire.hibr).
-dt_share DT_VWA DT_VWERR DT_VWJOB DT_VWSYNCED
+dt_share DT_VWA DT_VWERR DT_VWJOB DT_VWRUN DT_VWSYNCED
 # The session key and the items: never to a file the inventory has not read.
 dt_share -s VW_SESSION DT_VWITEMS

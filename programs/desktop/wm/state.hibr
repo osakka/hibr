@@ -290,4 +290,5 @@ fn dt_watchstop(fd = "", id = "") {
 
 # What of this file's state every app process that reads it is sent (ADR
 # 0050, wm/rtwire.hibr).
-dt_share DT_DISPNAMES DT_FOCUS DT_PRIMARY_COL DT_PRIMARY_H DT_PRIMARY_W
+dt_share DT_DISPLAYS DT_DISPNAMES DT_FOCUS
+dt_share DT_PRIMARY_COL DT_PRIMARY_H DT_PRIMARY_ROW DT_PRIMARY_W

@@ -305,81 +305,6 @@ fn dt_baritoggle(name) {
 	return 0
 }
 
-# The items as they read across the bar, into DT_BARREAD, for the list a
-# person orders them in: every one but the application menu, which keeps
-# its corner (Gitea #396), the hidden ones where they would be.
-declare -ga DT_BARREAD
-dt_barreading() {
-	local i nm
-
-	dt_barlist
-	DT_BARREAD=()
-	i=$((${#DT_BARLAY[@]} - 1))
-	while [ "$i" -ge 0 ]; do
-		nm=${DT_BARLAY[$i]}
-		i=$((i - 1))
-		[ "${DT_BARI["$nm"]["pin"]-}" = 1 ] && continue
-		DT_BARREAD+=("$nm")
-	done
-}
-
-# The items in the order dt_barilay places them -- nearest the notification
-# icon first -- into DT_BARSEQ. DT_BARORDER names items in the order they
-# read across the bar, and a name no item has is passed over, so with it
-# empty the bar is exactly as it was before there was a setting (Gitea
-# #341). Since #396 it may name the clock, the notification icon and the
-# workspace numbers too, and a pinned item it names leaves its pin for the
-# place the order gives it; DT_BARNAMED says which those are. One it does
-# not name -- an item installed after the order was chosen -- goes after
-# the last ordinary item it names, which is where it would have gone with
-# the clock and the icon still pinned.
-declare -ga DT_BARSEQ
-DT_BARNAMED=
-dt_barseq() {
-	local nm i p ins=-1 fp=-1
-	local -a want ok un rd
-
-	read -ra want <<< "${DT_BARORDER-}"
-	for nm in "${want[@]}"; do
-		case " ${DT_BARIN[*]} " in *" $nm "*) ;; *) continue ;; esac
-		p=${DT_BARI["$nm"]["pin"]-}
-		[ "$p" = 1 ] && continue
-		case " ${ok[*]-} " in *" $nm "*) continue ;; esac
-		if [ -z "$p" ]; then
-			ins=$((${#ok[@]} + 1))
-		elif [ "$fp" = -1 ] && [ "${p#-}" = "$p" ]; then
-			fp=${#ok[@]}
-		fi
-		ok+=("$nm")
-	done
-	[ "$ins" = -1 ] && ins=$fp
-	[ "$ins" = -1 ] && ins=${#ok[@]}
-	DT_BARNAMED=" ${ok[*]-} "
-	i=$((${#DT_BARIN[@]} - 1))
-	while [ "$i" -ge 0 ]; do
-		nm=${DT_BARIN[$i]}
-		i=$((i - 1))
-		[ -n "${DT_BARI["$nm"]["pin"]-}" ] && continue
-		case $DT_BARNAMED in *" $nm "*) ;; *) un+=("$nm") ;; esac
-	done
-	i=0
-	while [ "$i" -lt "$ins" ]; do
-		rd+=("${ok[$i]}")
-		i=$((i + 1))
-	done
-	rd+=("${un[@]}")
-	while [ "$i" -lt "${#ok[@]}" ]; do
-		rd+=("${ok[$i]}")
-		i=$((i + 1))
-	done
-	DT_BARSEQ=()
-	i=$((${#rd[@]} - 1))
-	while [ "$i" -ge 0 ]; do
-		DT_BARSEQ+=("${rd[$i]}")
-		i=$((i - 1))
-	done
-}
-
 # Open an item's menu beneath it, built by <who>_context: at the first row
 # under the bar and the item's own column. An item never works out a row of
 # its own -- the bar is on the primary, which in a stacked union is not at
@@ -670,37 +595,6 @@ fn dt_barhook(fn) {
 # when its file is taken away while the desktop runs.
 fn dt_baristop(name, fn) {
 	DT_BARI["$name"]["stop"]=$fn
-}
-
-# The bar's items in the order they are laid out from the outer end inwards:
-# the pinned ones by their place, every ordinary one in DT_BARSEQ's order,
-# then those pinned beyond them.
-declare -ga DT_BARLAY
-dt_barlist() {
-	local nm p i top=0
-
-	for nm in "${DT_BARIN[@]}"; do
-		p=${DT_BARI["$nm"]["pin"]-}
-		[ -n "$p" ] || continue
-		[ "${p#-}" -gt "$top" ] && top=${p#-}
-	done
-	DT_BARLAY=()
-	dt_barseq
-	for ((i = 1; i <= top; i++)); do
-		for nm in "${DT_BARIN[@]}"; do
-			[ "${DT_BARI["$nm"]["pin"]-}" = "$i" ] || continue
-			case $DT_BARNAMED in *" $nm "*) continue ;; esac
-			DT_BARLAY+=("$nm")
-		done
-	done
-	DT_BARLAY+=("${DT_BARSEQ[@]}")
-	for ((i = 1; i <= top; i++)); do
-		for nm in "${DT_BARIN[@]}"; do
-			[ "${DT_BARI["$nm"]["pin"]-}" = "-$i" ] || continue
-			case $DT_BARNAMED in *" $nm "*) continue ;; esac
-			DT_BARLAY+=("$nm")
-		done
-	done
 }
 
 # Lay every item out from the bar's outer end -- the right, or the left when
@@ -1060,4 +954,4 @@ dt_appname() {
 
 # What of this file's state every app process that reads it is sent (ADR
 # 0050, wm/rtwire.hibr).
-dt_share DT_BARI DT_BELLICONS DT_COLS DT_ROWS
+dt_share DT_BARI DT_BARIN DT_BELLICONS DT_COLS DT_ROWS

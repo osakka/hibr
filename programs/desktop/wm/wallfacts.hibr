@@ -1,0 +1,24 @@
+# wm/wallfacts -- what the wallpaper comes to on this terminal, from the
+# Pictures settings and what the terminal can draw (wm/picmode.hibr); the
+# wallpaper itself is wm/wallpaper.hibr.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# What the wallpaper comes to on this terminal: pixels, or the cell mode it
+# is drawn in -- for the Drawn Now row, as YouTube's player has.
+dt_walldrawn() {
+	local m
+
+	m := dt_wallimgmode
+	case $m in
+	pixels | sixel) ret pixels ;;
+	half | mono | ascii) ret "$m" ;;
+	esac
+	dt_imgpix && ret pixels
+	ret half
+}

@@ -433,6 +433,26 @@ What it holds, each a check there:
   across the restart's exec or made again; it is built with the zygote,
   and until then an app process ends with its desktop.
 
+### Who is sent what (2026-11-20)
+
+`mirrors.hibr`'s `DT_RTAUD` names, for each shared name, the installables
+sent it, and it is derived, never chosen. An installable is sent what it
+reads, what the shared functions it calls read -- to the end of their chain,
+since a wrapper that reads nothing still runs the reader it calls -- and what
+its bundle's parts read. A shared function runs only in a process that
+calls it, so what it reads goes there and nowhere else; only a name code
+every process loads reads at its top level goes to every process. A
+function handed over by name rather than called -- a ticker, a job's
+`then`, a callback -- is no call the parser sees: an installable naming one
+counts as calling it, and shared code naming one more often than it calls
+it hands it to any process, so what it reads goes to every process. The
+first rule, "read anywhere in shared code: everyone", sent 69 names to
+every app; this one sends 59, and the note history, the bar's clock and the
+vault's state reach only the apps that read them. Functions that only
+answer from shared state live in shared files (`winfacts`, `orders`,
+`namefacts`, `wallfacts`, `prayerfacts`, `vaultfacts`), so an app answers
+them from its own copy: the asked requests went from 16 to 8.
+
 ### Asked requests (2026-11-19, protocol 6)
 
 A request whose answer the app takes (`asked` in `interface.tsv`) is sent

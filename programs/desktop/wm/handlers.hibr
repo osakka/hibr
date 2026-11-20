@@ -367,15 +367,6 @@ fn dt_openbrowse(path) {
 	ret "${DT_OPENERS[$o]["app"]}://$path"
 }
 
-# An opener's name for a menu.
-fn dt_openertitle(name, ext = "") {
-	if [ "$name" = handler ]; then
-		ret "${DT_HANDLERS[$ext][0]##*/}"
-	else
-		ret "${DT_OPENERS[$name]["title"]:-$name}"
-	fi
-}
-
 # Open a path with one opener, this once.
 fn dt_openwith(name, path) {
 	local ext ap

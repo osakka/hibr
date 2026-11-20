@@ -115,26 +115,6 @@ fn cs_moduleswitch(name, var, fn = "") {
 	CS_MODS[$name]["sfn"]=$fn
 }
 
-# Every module loaded, in CS_ORDER's order, into CS_MOD_ORD: the ones it
-# names first, then the rest as their files came.
-declare -ga CS_MOD_ORD
-cs_ordered() {
-	local m
-	local -a want
-
-	CS_MOD_ORD=()
-	read -ra want <<< "${CS_ORDER-}"
-	for m in "${want[@]}"; do
-		case " ${CS_MOD_ALL[*]-} " in *" $m "*) ;; *) continue ;; esac
-		case " ${CS_MOD_ORD[*]-} " in *" $m "*) continue ;; esac
-		CS_MOD_ORD+=("$m")
-	done
-	for m in "${CS_MOD_ALL[@]}"; do
-		case " ${CS_MOD_ORD[*]-} " in *" $m "*) continue ;; esac
-		CS_MOD_ORD+=("$m")
-	done
-}
-
 # Load every module in the folders. Flat, not recursive, the same as
 # Control Panel's own panes -- a module is not an app.
 cs_modules() {

@@ -57,26 +57,6 @@ fn dt_btnspec(style, int? fixed, int stuck = 0) {
 	done
 }
 
-# The Title Bar Buttons list as it stands, into DT_BTNL: the saved order with
-# anything it does not know taken out and anything it lacks put back, so a
-# list saved before a button existed still offers it.
-declare -ga DT_BTNL
-fn dt_btnlist() {
-	local k
-	local -a a
-
-	DT_BTNL=()
-	read -ra a <<< "$DT_BTNORDER"
-	for k in "${a[@]}"; do
-		case " ${DT_BTNS[*]} " in
-		*" $k "*) case " ${DT_BTNL[*]} " in *" $k "*) ;; *) DT_BTNL+=("$k") ;; esac ;;
-		esac
-	done
-	for k in "${DT_BTNS[@]}"; do
-		case " ${DT_BTNL[*]} " in *" $k "*) ;; *) DT_BTNL+=("$k") ;; esac
-	done
-}
-
 # Whether the list has button k switched off.
 fn dt_btnhidden(k) {
 	case " title $DT_BTNON " in *" $k "*) return 1 ;; esac

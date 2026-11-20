@@ -26,11 +26,6 @@ fn cs_moduleswitch(name, var, fn = "") {
 }
 
 # Declared to the desktop, wm/strip.hibr.
-cs_ordered() {
-	dt_rtsend declare cs_ordered "$@"
-}
-
-# Declared to the desktop, wm/strip.hibr.
 cs_relist() {
 	dt_rtsend declare cs_relist "$@"
 }
@@ -43,11 +38,6 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 # Declared to the desktop, wm/keys.hibr.
 fn dt_appaction(app, act, name, key = "") {
 	dt_rtsend declare dt_appaction "$app" "$act" "$name" "$key"
-}
-
-# Asked of the desktop, wm/apps.hibr.
-dt_appnames() {
-	dt_rtsend ask dt_appnames "$@" && ret -k
 }
 
 # Told to the desktop, wm/apps.hibr.
@@ -151,11 +141,6 @@ fn dt_barput(int col, t) {
 }
 
 # Declared to the desktop, wm/bar.hibr.
-dt_barreading() {
-	dt_rtsend declare dt_barreading "$@"
-}
-
-# Declared to the desktop, wm/bar.hibr.
 fn dt_bellglyph(style) {
 	dt_rtsend declare dt_bellglyph "$style"
 }
@@ -168,11 +153,6 @@ fn dt_blank(nm) {
 # Told to the desktop, wm/frame.hibr.
 fn dt_btnhidden(k) {
 	dt_rtsend tell dt_btnhidden "$k"
-}
-
-# Told to the desktop, wm/frame.hibr.
-dt_btnlist() {
-	dt_rtsend tell dt_btnlist "$@"
 }
 
 # Told to the desktop, wm/bus.hibr.
@@ -480,11 +460,6 @@ fn dt_notehist_run(int hid) {
 	dt_rtsend tell dt_notehist_run "$hid"
 }
 
-# Asked of the desktop, wm/notify.hibr.
-fn dt_notehist_what(int hid) {
-	dt_rtsend ask dt_notehist_what "$hid" && ret -k
-}
-
 # Told to the desktop, wm/notify.hibr.
 fn dt_notep(prio, text, ...rest) {
 	dt_rtsend tell dt_notep "$prio" "$text" "${rest[@]}"
@@ -525,11 +500,6 @@ fn dt_openers(path, kind = "") {
 	dt_rtsend tell dt_openers "$path" "$kind"
 }
 
-# Asked of the desktop, wm/handlers.hibr.
-fn dt_openertitle(name, ext = "") {
-	dt_rtsend ask dt_openertitle "$name" "$ext" && ret -k
-}
-
 # Told to the desktop, wm/handlers.hibr.
 fn dt_openerverb(ext, label, app, call = "", when = "") {
 	dt_rtsend tell dt_openerverb "$ext" "$label" "$app" "$call" "$when"
@@ -568,11 +538,6 @@ fn dt_openwithcmd(cmd, path) {
 # Told to the desktop, wm/context.hibr.
 fn dt_panelpane(pane) {
 	dt_rtsend tell dt_panelpane "$pane"
-}
-
-# Asked of the desktop, wm/prayer.hibr.
-dt_pbar() {
-	dt_rtsend ask dt_pbar "$@" && ret -k
 }
 
 # Told to the desktop, wm/polkit.hibr.
@@ -765,11 +730,6 @@ fn dt_tile(int? n = "") {
 	dt_rtsend tell dt_tile "$n"
 }
 
-# Asked of the desktop, wm/windows.hibr.
-fn dt_title(int id) {
-	dt_rtsend ask dt_title "$id" && ret -k
-}
-
 # Told to the desktop, wm/files.hibr.
 dt_trash() {
 	dt_rtsend tell dt_trash "$@"
@@ -815,11 +775,6 @@ fn dt_vwget(field, id) {
 	dt_rtsend tell dt_vwget "$field" "$id"
 }
 
-# Asked of the desktop, wm/vault.hibr.
-fn dt_vwhost(addr) {
-	dt_rtsend ask dt_vwhost "$addr" && ret -k
-}
-
 # Told to the desktop, wm/vault.hibr.
 fn dt_vwjob(tag, then, f, ...vars) {
 	dt_rtsend tell dt_vwjob "$tag" "$then" "$f" "${vars[@]}"
@@ -850,29 +805,14 @@ fn dt_vwsyncnow(int hand = 0) {
 	dt_rtsend tell dt_vwsyncnow "$hand"
 }
 
-# Asked of the desktop, wm/vault.hibr.
-dt_vwuntil() {
-	dt_rtsend ask dt_vwuntil "$@" && ret -k
-}
-
 # Told to the desktop, wm/wallpaper.hibr.
 fn dt_walldisp(name, img = "", mode = "", pic = "") {
 	dt_rtsend tell dt_walldisp "$name" "$img" "$mode" "$pic"
 }
 
-# Asked of the desktop, wm/wallpaper.hibr.
-dt_walldrawn() {
-	dt_rtsend ask dt_walldrawn "$@" && ret -k
-}
-
 # Told to the desktop, wm/windows.hibr.
 fn dt_wantclose(int id) {
 	dt_rtsend tell dt_wantclose "$id"
-}
-
-# Told to the desktop, wm/windows.hibr.
-fn dt_windisp(int id) {
-	dt_rtsend tell dt_windisp "$id"
 }
 
 # Told to the desktop, wm/workspaces.hibr.

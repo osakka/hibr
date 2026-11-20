@@ -1,0 +1,34 @@
+# wm/vaultfacts -- what an app may know of the vault without asking: when
+# it locks itself, read from the file the vault keeps in DT_VWRUN, and the
+# host a sign-in form's address names. Nothing here reads the session key,
+# which is the vault's alone (wm/vault.hibr).
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# When the vault locks itself, as seconds since the epoch; 0 for never.
+dt_vwuntil() {
+	local e w
+
+	IFS=$'\t' read -r e w 2> /dev/null < "$DT_VWRUN/session" || ret 0
+	ret "${e:-0}"
+}
+
+# The host an address names, for a form's _signin: no scheme, no login,
+# no path and no port -- https://pat@dav.example.com:8443/remote.php/ is
+# dav.example.com, and so is dav.example.com on its own.
+fn dt_vwhost(addr) {
+	local h=${addr#*://}
+
+	h=${h%%/*}
+	h=${h##*@}
+	case $h in
+	\[*) h=${h%%]*}; h=${h#[} ;;
+	*) h=${h%%:*} ;;
+	esac
+	ret "${h,,}"
+}

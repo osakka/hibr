@@ -17,20 +17,6 @@ dt_keep DT_IMGMODE
 
 dt_keep DT_WALLIMGMODE
 
-# What the wallpaper comes to on this terminal: pixels, or the cell mode it
-# is drawn in -- for the Drawn Now row, as YouTube's player has.
-dt_walldrawn() {
-	local m
-
-	m := dt_wallimgmode
-	case $m in
-	pixels | sixel) ret pixels ;;
-	half | mono | ascii) ret "$m" ;;
-	esac
-	dt_imgpix && ret pixels
-	ret half
-}
-
 # How many pixels the wallpaper is sent with. A picture under the text is
 # the one every attaching client is handed in full, and at 232x71 with an
 # 8x16 cell that is 1856x1136x3 raw -- 8.04 MB of base64, free on a local

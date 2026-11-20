@@ -130,6 +130,11 @@ for _n in "DT_IMEPRE DT_IMEBY DT_IMEC DT_IMEP DT_IMEAT DT_IMEWIN DT_IMEH DT_IMEM
 # readings: each process keeps its own.
 for _n in "DT_APPNAMEV DT_WHY DT_IMGARG DT_WLINES DT_WFD DT_WPTY DT_BUSFD DT_PW DT_PKEY".split():
     BYNAME[_n] = "local"
+# The answer of a function the app interface holds (wm/winfacts.hibr,
+# wm/orders.hibr), worked out in each process on its copy of what the
+# desktop shares: the process's own.
+for _n in "DTW_R DTW_C DTW_H DTW_W CS_MOD_ORD DT_BTNL DT_BARREAD".split():
+    BYNAME[_n] = "local"
 
 
 # What the desktop shares with app processes is said once, in the file
@@ -182,8 +187,7 @@ for _n in """DT_PX DT_PY MB_CX MB_CY MB_CTXID MB_CTXWHO DT_DND DT_KEYBASE DT_KEY
         DT_KEYPHASE DT_PHASEWIN DT_NATFOCUSES DT_NATCH DT_NATCW CS_CLICKC DT_BARWCOL
         DT_POPH""".split():
     CONVERT[_n] = "call"
-for _n in """DT_DLGR DT_DLGC DT_DLGH DT_DLGW DT_OWLIST DT_OVLIST CS_MOD_ORD DT_BTNL
-        DT_BARREAD DTW_R DTW_C DTW_H DTW_W""".split():
+for _n in "DT_DLGR DT_DLGC DT_DLGH DT_DLGW DT_OWLIST DT_OVLIST".split():
     CONVERT[_n] = "answer"
 for _n in "DT_HOSTMARK".split():
     CONVERT[_n] = "gone"
@@ -274,20 +278,131 @@ def owners():
 
 
 OWNERS = None
+REACH = None
+
+
+def inspect(req, files):
+    """`inspect REQ` of each file, as the parser sees it: one JSON document
+    a file, in order."""
+    import json, subprocess
+    hibr = os.environ.get("HIBR", os.path.join(ROOT, "build", "hibr"))
+    env = dict(os.environ, HIBR_MODPATH=os.path.join(ROOT, "build", "mods"))
+    out = subprocess.run([hibr, "-c", 'need inspect || exit 1; for f; do inspect %s "$f" -j; printf "\\n"; done' % req,
+                          "x"] + files, capture_output=True, text=True, env=env)
+    docs = [l for l in out.stdout.split("\n") if l.strip()]
+    if out.returncode or len(docs) != len(files):
+        sys.exit("FAIL inspect %s answered %d of %d files" % (req, len(docs), len(files)))
+    return [json.loads(d) for d in docs]
+
+
+def reach():
+    """What code every process may load reads, by who reaches it: for each
+    shared name a function of the app interface or a library reads, the
+    installables that call that function, directly or through other such
+    functions -- since that function runs only in a process that calls it,
+    what it reads goes there and nowhere else. A name read at such a file's
+    top level runs in every process, so it goes to every process ("*")."""
+    import collections as co
+    common = shared() + glob.glob(os.path.join(DESK, "lib", "*.hibr"))
+    fnreads, star = co.defaultdict(set), set()
+    for d in inspect("vars", common):
+        for v in d.get("vars", []):
+            if v.get("access") != "read" or v.get("declared") in ("local", "param"):
+                continue
+            if v.get("owner"):
+                fnreads[v["owner"]].add(v["name"])
+            else:
+                star.add(v["name"])
+    callers = co.defaultdict(set)
+    static = co.Counter()
+    for d in inspect("calls", common):
+        for c in d.get("calls", []):
+            if c.get("owner") and c.get("name"):
+                callers[c["name"]].add(("fn", c["owner"]))
+            if c.get("name"):
+                static[c["name"]] += 1
+    inst = installables()
+    for f, d in zip(inst, inspect("calls", inst)):
+        for c in d.get("calls", []):
+            if c.get("name"):
+                callers[c["name"]].add(("file", kindrel(f)))
+    # A function's reads are its own and those of every common function it
+    # calls, to the end of the chain: a wrapper that reads nothing itself
+    # still runs the reader it calls, in the same process.
+    calls = co.defaultdict(set)
+    for name, cs in callers.items():
+        for k, who in cs:
+            if k == "fn":
+                calls[who].add(name)
+    deep = {}
+
+    def deepreads(fn, seen):
+        if fn in deep:
+            return deep[fn]
+        out = set(fnreads.get(fn, ()))
+        for g in calls.get(fn, ()):
+            if g not in seen:
+                out |= deepreads(g, seen | {g})
+        if len(seen) == 1:
+            deep[fn] = out
+        return out
+
+    defined = set(fnreads) | set(calls)
+    fnreads = {fn: deepreads(fn, {fn}) for fn in defined}
+    fnreads = {fn: r for fn, r in fnreads.items() if r}
+    # A name handed over rather than called -- a ticker, a job's `then`, a
+    # callback -- is no call the parser can see. An installable that names
+    # such a function reaches it; shared code that names one more often
+    # than it calls it (a definition line is one mention) hands it to
+    # whoever runs it, which may be any process, so what it reads goes to
+    # every process.
+    words = co.Counter()
+    for f in common:
+        words.update(re.findall(r"\b(%s)\b" % "|".join(map(re.escape, fnreads)),
+                                open(f, errors="replace").read()))
+    for fn in fnreads:
+        if words[fn] > static[fn] + 1:
+            star |= fnreads[fn]
+    pat = re.compile(r"\b(%s)\b" % "|".join(map(re.escape, fnreads)))
+    for f in inst:
+        for fn in set(pat.findall(open(f, errors="replace").read())):
+            callers[fn].add(("file", kindrel(f)))
+    files = {}
+
+    def reached(fn, seen):
+        if fn in files:
+            return files[fn]
+        out = set()
+        for k, who in callers.get(fn, ()):
+            if k == "file":
+                out.add(who)
+            elif who not in seen:
+                out |= reached(who, seen | {who})
+        if not seen - {fn}:
+            files[fn] = out
+        return out
+
+    byname = co.defaultdict(set)
+    for fn, names in fnreads.items():
+        r = reached(fn, {fn})
+        for n in names:
+            byname[n] |= r
+    return star, byname
 
 
 def aud(n, reads):
-    """Who is sent registry n: "*" when the app interface or a library any
-    app may source reads it; else the files that read it and the files whose
-    parts do."""
-    global OWNERS
-    libs = glob.glob(os.path.join(DESK, "lib", "*.hibr"))
-    for f in shared() + libs:
-        if re.search(r"\$\{?[!#]?%s\b|\b%s\[[^\]]*\]" % (n, n), open(f, errors="replace").read()):
-            return "*"
+    """Who is sent registry n: "*" when code every process loads reads it at
+    its top level; else the files that read it, the files that reach a
+    shared function reading it (reach), and the files whose parts do."""
+    global OWNERS, REACH
+    if REACH is None:
+        REACH = reach()
+    star, byname = REACH
+    if n in star:
+        return "*"
     if OWNERS is None:
         OWNERS = owners()
-    who = set(kindrel(f) for f in reads[n])
+    who = set(kindrel(f) for f in reads[n]) | byname.get(n, set())
     for r in list(who):
         who |= OWNERS.get(r, set())
     return " ".join(sorted(who))

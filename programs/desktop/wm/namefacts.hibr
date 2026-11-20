@@ -1,0 +1,53 @@
+# wm/namefacts -- what things the desktop keeps are called, for a list or
+# a button: an opener, a note's action, every app. Each reads only what the
+# desktop shares (DT_OPENERS, DT_HANDLERS, DT_NOTEHIST, DT_APPS), so an
+# app's process works it out on its copy.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so it acts on nothing the
+# desktop alone owns. It only defines functions and sets state.
+# interface: shared
+
+strict
+
+# An opener's name for a menu.
+fn dt_openertitle(name, ext = "") {
+	if [ "$name" = handler ]; then
+		ret "${DT_HANDLERS[$ext][0]##*/}"
+	else
+		ret "${DT_OPENERS[$name]["title"]:-$name}"
+	fi
+}
+
+# What a note's action is called, for a window offering it as a button --
+# the first word, which is the command, rather than the whole line.
+fn dt_notehist_what(int hid) {
+	[ "${DT_NOTEHIST[$hid]["argvn"]:-0}" -gt 0 ] || return 1
+	ret "${DT_NOTEHIST[$hid]["arg0"]}"
+}
+
+# Every registered app, sorted by title without regard to case, as names --
+# for anything that wants every app in one flat list rather than the hibr
+# menu's own folder-grouped one below (Shortcuts' Apps rows do). The list
+# is DT_APPNAMEV, one name an element: a program found on the machine is
+# named after its .desktop file, and Steam names those after the game, so
+# "Age of Empires II.desktop" is one name with spaces in it (Gitea #533).
+# The space-joined form it also answers is for a pane older than 0.99.507.
+declare -ga DT_APPNAMEV=()
+dt_appnames() {
+	local n l out=
+	local -a all
+
+	DT_APPNAMEV=()
+	for n in "${!DT_APPS[@]}"; do
+		[ "${DT_APPS[$n]["hidden"]}" = 1 ] && continue
+		l := str lower "${DT_APPS[$n]["title"]}"
+		all+=("$l	$n")
+	done
+	arr sort all
+	for l in "${all[@]}"; do
+		DT_APPNAMEV+=("${l#*	}")
+		out="$out ${l#*	}"
+	done
+	ret "${out# }"
+}

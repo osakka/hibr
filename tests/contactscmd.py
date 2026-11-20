@@ -8,7 +8,7 @@ server read from the server's own folder. Every run has its own config,
 data and temporary folders.
 Run it directly:  python3 tests/contactscmd.py [path-to-hibr]
 """
-import json, os, socket, subprocess, sys, tempfile, time
+import json, os, shutil, socket, subprocess, sys, tempfile, threading, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen as sx
@@ -297,6 +297,55 @@ try:
     check("once the server is back, sync sends what was queued",
           st == 0 and any("lw1hole" in card(n) for n in cards()), (st, err, cards()))
 
+    # Gitea #599: a change queued while a sync takes the queue reaches the
+    # server. A second process appends a line every 10 ms while a sync runs,
+    # and the sync's `cat` of the queue is a stand-in that holds on for a
+    # moment after copying it, so lines are certain to arrive between the
+    # copy and whatever the sync does next -- where the old take removed the
+    # queue and every line in that moment with it.
+    QD = os.path.join(D, "q599")
+    FAKE = os.path.join(D, "fakebin599")
+    os.makedirs(QD)
+    os.makedirs(FAKE)
+    held = os.path.join(D, "held599")
+    open(os.path.join(FAKE, "cat"), "w").write(
+        "#!/bin/sh\n%s \"$@\" || exit\ncase $* in *queue*) : > %s.in; sleep %s; : > %s.out ;; esac\n"
+        % (shutil.which("cat"), held, 0.8 * SLOW, held))
+    os.chmod(os.path.join(FAKE, "cat"), 0o755)
+    QUEUE = os.path.join(STORE, "queue")
+    stop, sent, inwin = threading.Event(), [], []
+
+    def writer():
+        i = 0
+        while not stop.is_set():
+            u = "q599-%d" % i
+            f = os.path.join(QD, u + ".vcf")
+            open(f, "w", newline="").write("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:%s\r\nFN:Queued %d\r\n"
+                                           "END:VCARD\r\n" % (u, i))
+            with open(QUEUE, "a") as q:
+                q.write("put\t/addressbooks/u/people/\t%s.vcf\t%s\t-\n" % (u, f))
+            sent.append(u)
+            if os.path.exists(held + ".in") and not os.path.exists(held + ".out"):
+                inwin.append(u)
+            i += 1
+            time.sleep(0.01)
+
+    w = threading.Thread(target=writer)
+    w.start()
+    time.sleep(0.1)
+    slow = dict(ENV, PATH=FAKE + os.pathsep + ENV.get("PATH", ""))
+    p = subprocess.run([sx.HIBR, CMD, "sync"], env=slow, capture_output=True, text=True, timeout=120 * SLOW)
+    time.sleep(0.1)
+    stop.set()
+    w.join()
+    check("lines were appended to the queue while a sync held what it took of it",
+          p.returncode == 0 and len(inwin) > 0 and os.path.exists(held + ".out"),
+          (p.returncode, p.stderr, len(inwin), len(sent)))
+    st, out, err = run("sync")
+    got = [n[:-4] for n in cards() if n.startswith("q599-")]
+    check("and every line appended while it ran reached the server, by the next sync",
+          st == 0 and sorted(got) == sorted(sent), (st, err, len(sent), len(got), sorted(set(sent) - set(got))[:5]))
+
     # A server that keeps only calendars is no address book.
     run(script="need dav; dav server set cals http://127.0.0.1:%d -u u -p p" % PORT2)
     choose("cals")
@@ -323,4 +372,4 @@ finally:
     srv.wait()
     srv2.wait()
 
-report(48)
+report(50)

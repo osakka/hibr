@@ -25,6 +25,12 @@ The app interface's own files, beside `state`, `glyphs`, `lang`, `locale`,
 | `names.hibr` | `dt_has`, `dt_needs`, `dt_wintitle`, `dt_ext` |
 | `keymatch.hibr` | the shortcut a key is: `dt_keynorm`, `dt_keyin`, `dt_keyis`, an app's own actions, the label a key is shown by |
 | `chrome.hibr` | how a frame looks and whether the desktop is light or dark |
+| `winfacts.hibr` | what an app may ask of a window's record: `dt_title`, and the rectangle a display gives a window or a point, less the bar on the primary (`dt_windisp`, `dt_dispat`, into `DTW_R`/`C`/`H`/`W`), worked out on each process's own copy of `DT_DISPLAYS` and the primary's place |
+| `namefacts.hibr` | what things are called, for a list or a button: an opener (`dt_openertitle`), a note's action (`dt_notehist_what`), every app (`dt_appnames`) |
+| `wallfacts.hibr` | what the wallpaper comes to on this terminal, `dt_walldrawn` |
+| `prayerfacts.hibr` | the next prayer as the bar says it, `dt_pbar`, from `prayertimes.hibr`'s times |
+| `vaultfacts.hibr` | when the vault locks itself (`dt_vwuntil`, from the file in the shared `DT_VWRUN`) and the host a sign-in address names (`dt_vwhost`); nothing that reads the session key |
+| `orders.hibr` | the lists a person arranges, as they stand: the bar's items (`dt_barlist`, and `dt_barreading` for the Menu Bar pane), the Control Strip's modules (`cs_ordered`) and the title bar's buttons (`dt_btnlist`), each answered in a list of the process's own |
 | `servers.hibr` | the WebDAV servers a person has set up, and whether a path is on one |
 | `picmode.hibr` | how a picture is drawn here: pixels, half blocks or characters |
 | `prayertimes.hibr` | prayer times worked out by the salat module; `prayer.hibr` keeps the bar's segment and the notes |

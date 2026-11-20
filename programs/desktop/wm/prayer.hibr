@@ -32,18 +32,6 @@ DT_PCHECK=0
 # The player the athan is playing on, if it is.
 DT_PPLAY=
 
-# The next prayer for the bar, "Asr 14:48", when the bar is to show it.
-dt_pbar() {
-	local n i t nm
-
-	[ "$DT_PBAR" = on ] || return 1
-	n := dt_pnext || return 1
-	read -r i t <<< "$n"
-	nm := dt_pname "$i"
-	t := dt_ptime "$t"
-	ret "$nm $t"
-}
-
 # Once a frame: a note at each prayer (and minutes before, if asked), the
 # athan with it, and the frame needed next. Each moment fires once: those
 # between the last look and now, never those before the desktop started.

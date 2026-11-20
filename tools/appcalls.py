@@ -54,20 +54,21 @@ for _n in """dt_log dt_cut dt_rep dt_isdbl dt_dblclear dt_shortname dt_procfull
     OVERRIDE[_n] = "local"
 # The vault is the desktop's: one lock state, one child running `vw`, so
 # unlocking in Vault unlocks the Browser's fill too. Its state is pushed
-# to read (dt_vwstate, dt_vwuntil); everything else is asked of it.
-for _n in """dt_vwstate dt_vwcopy dt_vwlock dt_vwacct dt_vwuntil dt_vwjob dt_vw dt_vwget
-        dt_vwpick dt_vwhost dt_vwmatch dt_vwsyncnow dt_vwfill dt_blank""".split():
+# to read (dt_vwuntil, dt_vwhost: wm/vaultfacts.hibr); everything else is
+# asked of it.
+for _n in """dt_vwstate dt_vwcopy dt_vwlock dt_vwacct dt_vwjob dt_vw dt_vwget
+        dt_vwpick dt_vwmatch dt_vwsyncnow dt_vwfill dt_blank""".split():
     OVERRIDE[_n] = "request"
 # What changes the desktop itself: asked of it, never done in the app.
 for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loccan
         dt_location dt_context_open dt_panelpane dt_vwdialog dt_chromeoff
-        dt_btnhidden dt_btnlist dt_capped dt_imepre dt_imekey dt_imeflush
+        dt_btnhidden dt_capped dt_imepre dt_imekey dt_imeflush
         dt_pointer dt_pointerlock dt_ptrlockcan dt_sbauto dt_sbcall dt_tile
         dt_place dt_openlink dt_progload dt_progsave dt_deskscan dt_dnd dt_pwdo
         dt_pwgo dt_pkstart dt_pkstop dt_kbset dt_saverload dt_saverstart
-        dt_colours dt_walldisp dt_walldrawn dt_shot dt_rescan dt_reinstate
+        dt_colours dt_walldisp dt_shot dt_rescan dt_reinstate
         dt_unload dt_onunload dt_scanold dt_appvia dt_appunvia dt_modehook
-        dt_pbar dt_rslog dt_rscarry dt_rsclaim""".split():
+        dt_rslog dt_rscarry dt_rsclaim""".split():
     OVERRIDE[_n] = "request"
 for _n in "dt_wintitle dt_ext dt_chromeoff".split():
     OVERRIDE[_n] = "local"
@@ -82,9 +83,9 @@ for _n in "dt_keyphases dt_keyswap".split():
     OVERRIDE[_n] = "request"
 OVERRIDE["dt_appaction"] = "declare"
 # The vault's sign-in mark is the desktop's key path; whether a display is
-# blank and the apps' names are the desktop's facts, pushed; the bus is one
+# blank is the desktop's fact, pushed; the bus is one
 # connection, the desktop's, so an app subscribes to it by asking.
-for _n in "dt_signmark dt_isblank dt_buson dt_busoff dt_appnames".split():
+for _n in "dt_signmark dt_isblank dt_buson dt_busoff".split():
     OVERRIDE[_n] = "request"
 OVERRIDE["dt_keepstate"] = "declare"
 # The input method runs in every app process, its data shared from the

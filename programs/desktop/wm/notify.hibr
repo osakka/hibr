@@ -624,13 +624,6 @@ fn dt_notehist_act(int hid, int id) {
 	return 0
 }
 
-# What a note's action is called, for a window offering it as a button --
-# the first word, which is the command, rather than the whole line.
-fn dt_notehist_what(int hid) {
-	[ "${DT_NOTEHIST[$hid]["argvn"]:-0}" -gt 0 ] || return 1
-	ret "${DT_NOTEHIST[$hid]["arg0"]}"
-}
-
 # Run the action a history record kept. Nothing is dismissed: a record is a
 # record, where a live note's click takes the note away with it.
 fn dt_notehist_run(int hid) {
