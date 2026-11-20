@@ -612,6 +612,15 @@ def main():
             if not any(row[0] == n and row[4] == CONVERT[n] for row in rows):
                 print("FAIL %s is in CONVERT and no installable reads it: take it out" % n)
                 fail = 1
+    # Held at none (ADR 0050): an installable in the tree writing the
+    # desktop's state is refused in its own process, so it fails here first.
+    # A catalogue copy lags until it is published again, so only the tree.
+    for n, r, w, wh, k in rows:
+        if w and k in ("request", "shared"):
+            mine = sorted(set(kindrel(f) for f in writes[n] if f.startswith(ROOT + os.sep)))
+            if mine:
+                print("FAIL %s is the desktop's and written by %s: make it a request (dt_set, or the desktop's function)" % (n, " ".join(mine)))
+                fail = 1
     back = backs(files, reads)
     print("  read back after a change through the desktop: %d (an installable, a name, the call)" % len(back))
     # Shared code writes a shared name in whichever process calls it, and in
