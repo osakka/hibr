@@ -1,6 +1,6 @@
 # file	line	function	seam	callback	kind	use	how	met -- tools/seamcalls.py --write (ADR 0050)
-savers/saver.hibr	105	sv_begin	sv_call	_start	saver_start	none	-	push
-savers/saver.hibr	131	sv_frame	sv_call	_frame	saver_frame	none	-	push
+savers/saver.hibr	131	sv_begin	sv_call	_start	saver_start	none	-	push
+savers/saver.hibr	157	sv_frame	sv_call	_frame	saver_frame	none	-	push
 system/panel.hibr	290	panel_filter	dt_prefixfn	_rows	pane_rows	value	:=	push
 system/panel.hibr	340	cp_rowsbuild	dt_prefixfn	_rows	pane_rows	value	:=	push
 system/panel.hibr	542	panel_draw	dt_prefixfn	_draw	pane_draw	status	tail	push
@@ -83,15 +83,15 @@ wm/input.hibr	265	dt_mouse	dt_appfn	"${DT[$id]["app"]}_titlemenu"	_titlemenu	non
 wm/input.hibr	397	dt_mouse	dt_wincall	"$mo"	_mouse	none	-	tell
 wm/input.hibr	561	dt_mouse	dt_appfn	"${DT_BARI["$bi"]["wheel"]}"	bar:wheel	none	-	tell
 wm/input.hibr	585	dt_mouse	dt_wincall	"$ap"	_wheel	none	-	tell
-wm/input.hibr	721	dt_ptrunlock	dt_wincall	"$mo"	_mouse	none	-	tell
-wm/input.hibr	749	dt_ptrrel	dt_wincall	"$mo"	_mouse	none	-	tell
-wm/input.hibr	997	dt_hover	dt_appfn	$ap	_hover	none	-	tell
-wm/input.hibr	1002	dt_hover	dt_appfn	${DT[$id]["hover"]}	_hover	none	-	tell
-wm/input.hibr	1072	dt_mbtnev	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
-wm/input.hibr	1135	dt_event	dt_wincall	"${DT[$DT_KEYSWIN]["key"]}"	_key	none	-	ask
-wm/input.hibr	1327	dt_event	dt_appfn	"${DT_POP}_popkey"	bar:popkey	status	tested	ask
-wm/input.hibr	1373	dt_event	dt_appfn	${DT[$DT_FOCUS]["savefile"]}	_savefile	none	-	tell
-wm/input.hibr	1436	dt_event	dt_wincall	"${DT[$DT_FOCUS]["key"]}"	_key	status	tested	ask
+wm/input.hibr	705	dt_hoverleave	dt_appfn	$ap	_hover	none	-	tell
+wm/input.hibr	794	dt_ptrunlock	dt_wincall	"$mo"	_mouse	none	-	tell
+wm/input.hibr	822	dt_ptrrel	dt_wincall	"$mo"	_mouse	none	-	tell
+wm/input.hibr	1072	dt_hover	dt_appfn	${DT[$id]["hover"]}	_hover	none	-	tell
+wm/input.hibr	1142	dt_mbtnev	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
+wm/input.hibr	1205	dt_event	dt_wincall	"${DT[$DT_KEYSWIN]["key"]}"	_key	none	-	ask
+wm/input.hibr	1410	dt_event	dt_appfn	"${DT_POP}_popkey"	bar:popkey	status	tested	ask
+wm/input.hibr	1456	dt_event	dt_appfn	${DT[$DT_FOCUS]["savefile"]}	_savefile	none	-	tell
+wm/input.hibr	1519	dt_event	dt_wincall	"${DT[$DT_FOCUS]["key"]}"	_key	status	tested	ask
 wm/keyphase.hibr	65	dt_keyletgo	dt_wincall	"$fn"	_key	none	-	ask
 wm/keyphase.hibr	74	dt_keyletgo	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
 wm/keyphase.hibr	150	dt_focuscheck	dt_wincall	"${DT[$old]["focus"]}"	_focus	none	-	tell
@@ -111,7 +111,7 @@ wm/restart.hibr	192	dt_rswrite	dt_appfn	"${ap}_stash"	_stash	none	-	ask
 wm/restart.hibr	293	dt_restore	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
 wm/restart.hibr	301	dt_restore	dt_appfn	"${ap}_resume"	_resume	none	-	tell
 wm/restart.hibr	303	dt_restore	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
-wm/saver.hibr	168	dt_saverawake	dt_appfn	"${ap}_awake"	_awake	status	tested	push
+wm/saver.hibr	173	dt_saverawake	dt_appfn	"${ap}_awake"	_awake	status	tested	push
 wm/session.hibr	499	dt_answer	dt_appfn	"${ap}_idle"	_idle	none	-	tell
 wm/session.hibr	501	dt_answer	dt_appfn	"${ap}_dirty"	_dirty	status	tail	push
 wm/session.hibr	890	dt_idlecall	dt_appfn	${DT[$id]["idle"]}	_idle	none	-	tell
