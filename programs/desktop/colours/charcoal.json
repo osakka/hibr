@@ -1,7 +1,7 @@
 {
   "title": "Charcoal",
   "about": "Soft white on charcoal, with a bright white accent and a charcoal title bar of its own.",
-  "version": "1.0",
+  "version": "1.0.1",
   "wall": "#1c1c1e",
   "dot": "#26262a",
   "bar": "#232326",
@@ -9,6 +9,8 @@
   "idle": "#3a3a3d",
   "face": "#1e1e21",
   "ink": "#d1d1d6",
+  "lcd": "#0b0b0c",
+  "lcdink": "#5ac8fa",
   "shadow": 45,
   "dim": "#8e8e93",
   "selink": "#1c1c1e",

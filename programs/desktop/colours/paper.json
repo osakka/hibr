@@ -1,7 +1,7 @@
 {
   "title": "Paper",
   "about": "Dark slate on warm off-white, accented a printer's blue. The one light scheme.",
-  "version": "1.0",
+  "version": "1.0.1",
   "wall": "#e8e4da",
   "dot": "#d3cec1",
   "bar": "#c3bdae",
@@ -16,5 +16,7 @@
   "bad": "#c53030",
   "info": "#2c7a7b",
   "well": "#e2ddd0",
+  "lcd": "#0b0c0a",
+  "lcdink": "#c6f26a",
   "shadow": 90
 }

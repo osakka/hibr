@@ -7,10 +7,15 @@
 # refuses, by the same rule.
 #
 # A colour scheme is a JSON file, one to a scheme, named for it: seven
-# colours -- wall, dot, bar, active, idle, face, ink -- seven optional roles
-# -- dim, selink, good, warn, bad, info, well, each defaulting to the value
-# the dark schemes share (CP_CODEF) -- and shadow, console darken's own
-# pct, how much of a colour survives once it is darkened. JSON and not a
+# colours -- wall, dot, bar, active, idle, face, ink -- nine optional roles
+# -- dim, selink, good, warn, bad, info, well, and an LCD's panel and its
+# lit colour, lcd and lcdink (Gitea #603), each defaulting to CP_CODEF --
+# more that are empty when left out, which means worked out from the rest
+# (CP_COOPT: the title bar, a bevel's highlight, a shadow's colour, the hot
+# fill, a slider's and a fader's track, filled part and knob, and an icon
+# button's face, light edge and dark edge, Gitea #604) -- and shadow,
+# console darken's own pct, how much of a colour survives once it is
+# darkened. JSON and not a
 # script, because it is only data and is the thing people pass around: a
 # file someone else wrote can set colours and nothing else
 # (docs/adr/0028). Where the files are looked for is each caller's own:
@@ -23,12 +28,27 @@ CO_LIBDONE=1
 
 declare -gA CP_CO
 CP_COKEYS=(wall dot bar active idle face ink)
-CP_COROLES=(dim selink good warn bad info well)
+CP_COROLES=(dim selink good warn bad info well lcd lcdink)
 declare -gA CP_CODEF
 CP_CODEF["dim"]="#718096"; CP_CODEF["selink"]="#1a202c"
 CP_CODEF["good"]="#68d391"; CP_CODEF["warn"]="#f6ad55"
 CP_CODEF["bad"]="#f56565"; CP_CODEF["info"]="#4fd1c5"
 CP_CODEF["well"]="#2d3748"
+CP_CODEF["lcd"]="#05080c"; CP_CODEF["lcdink"]="#7fd4ff"
+CP_COOPT=(titlebar titleink highlight shadowink hot track trackfill knob
+	buttonface buttonlight buttondark)
+# The setting each key of a scheme is, for a role the settings file has
+# never held (cp_rolefill); cp_colours, which applies a scheme, names each
+# itself, since a pane may set only what it names (ADR 0050).
+declare -gA CP_COVAR=([wall]=DT_WALL [dot]=DT_DOT [bar]=DT_BAR
+	[active]=DT_ACTIVE [idle]=DT_IDLE [face]=DT_FACE [ink]=DT_INK
+	[dim]=DT_DIM [selink]=DT_SELINK [good]=DT_GOOD [warn]=DT_WARN
+	[bad]=DT_BAD [info]=DT_INFO [well]=DT_WELL [lcd]=DT_LCD
+	[lcdink]=DT_LCDINK [titlebar]=DT_TITLE [titleink]=DT_TITLEINK
+	[highlight]=DT_HIGHLIGHT [shadowink]=DT_SHADOWINK [hot]=DT_HOT
+	[track]=DT_TRACK [trackfill]=DT_TRACKFILL [knob]=DT_KNOB
+	[buttonface]=DT_BUTTONFACE [buttonlight]=DT_BUTTONLIGHT
+	[buttondark]=DT_BUTTONDARK)
 
 
 # Read one colour file into CP_CO[name], or refuse it whole: every colour
@@ -51,7 +71,7 @@ fn cp_colourread(n, f) {
 		[ "${j["$k"]}" = "#$v" ] && [ ${#v} -eq 6 ] &&
 			[ -z "${v//[0-9a-fA-F]/}" ] || return 1
 	done
-	for k in titlebar titleink highlight shadowink hot; do
+	for k in "${CP_COOPT[@]}"; do
 		[ -n "${j["$k"]+x}" ] || continue
 		v=${j["$k"]}
 		v=${v#\#}
@@ -70,9 +90,29 @@ fn cp_colourread(n, f) {
 	done
 	CP_CO["$n"]["shadow"]=$v
 	CP_CO["$n"]["checks"]=${j["checks"]-}
-	CP_CO["$n"]["titlebar"]=${j["titlebar"]-}
-	CP_CO["$n"]["titleink"]=${j["titleink"]-}
-	CP_CO["$n"]["highlight"]=${j["highlight"]-}
-	CP_CO["$n"]["shadowink"]=${j["shadowink"]-}
-	CP_CO["$n"]["hot"]=${j["hot"]-}
+	for k in "${CP_COOPT[@]}"; do
+		CP_CO["$n"]["$k"]=${j["$k"]-}
+	done
+}
+
+# A role the settings file has never held -- one a release added after the
+# file was written -- is the scheme in force's, not the default every
+# scheme shares, so a new role arrives in the colours already chosen
+# (Gitea #603). Run once, as the settings are read; a role the file holds
+# is the person's and is left alone, and nothing is written until the next
+# save. With no settings at all the defaults are the default scheme's
+# already; a scheme not read here (none, or one gone) changes nothing.
+cp_rolefill() {
+	local t=${CP_COLOURS-} k v c
+
+	[ "${#DT_CONFJ["settings"][@]}" -gt 0 ] || return 0
+	[ -n "$t" ] && [ -n "${CP_CO["$t"]["wall"]+x}" ] || return 0
+	for k in "${CP_COROLES[@]}" "${CP_COOPT[@]}"; do
+		v=${CP_COVAR["$k"]}
+		[ -n "${DT_CONFJ["settings"]["$v"]+x}" ] && continue
+		c=${CP_CO["$t"]["$k"]}
+		[ "$k" = shadowink ] && c=${c:-#000000}
+		declare -g "$v=$c"
+	done
+	return 0
 }

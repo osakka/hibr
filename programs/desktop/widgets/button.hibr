@@ -67,6 +67,37 @@ dt_hotcolour() {
 	ret "$DT_HOTC"
 }
 
+# An icon button's colours, "face light dark" (Gitea #604): the scheme's
+# buttonface, buttonlight and buttondark where it gives them. Otherwise a
+# key worked out from the scheme: the icon is drawn in the light edge's
+# colour, as Blit draws a key (ADR 0237), so it has to read on the face --
+# on a dark scheme the well, lit by the ink; on a light one the face
+# deepened to a grey the face's own colour reads on -- and the dark edge is
+# the key's face at half its brightness. Worked out once per scheme.
+DT_BTNC=
+DT_BTNC_FOR=
+
+dt_btncolours() {
+	local k="$DT_BUTTONFACE $DT_BUTTONLIGHT $DT_BUTTONDARK $DT_FACE $DT_WELL $DT_INK $DT_IDLE" f l d
+
+	if [ "$DT_BTNC_FOR" != "$k" ]; then
+		if dt_islight "$DT_FACE"; then
+			f := console shade "$DT_FACE" 55 || f=$DT_IDLE
+			l=$DT_FACE
+		else
+			f=$DT_WELL
+			l=$DT_INK
+		fi
+		f=${DT_BUTTONFACE:-$f}
+		l=${DT_BUTTONLIGHT:-$l}
+		d=$DT_BUTTONDARK
+		[ -n "$d" ] || d := console shade "$f" 50 || d=$DT_IDLE
+		DT_BTNC="$f $l $d"
+		DT_BTNC_FOR=$k
+	fi
+	ret "$DT_BTNC"
+}
+
 # Draw one button, " label " filled: the accent colour when it has focus,
 # muted when it has not, with Turbo Vision's shadow -- a ▄ beside it and a
 # row of ▀ under it. With DT_DLGBTN=brackets it is [label] on the window's
@@ -74,9 +105,17 @@ dt_hotcolour() {
 # for focus and 2 for the default -- the button enter presses while focus is
 # in a field or a list -- whose label is the accent colour, so it is always
 # plain what enter will do. tag is what dt_hit answers for a click on it.
-fn dt_button(id, int r, int c, label, int on, tag) {
+# Given a width w, it is an icon button instead (Gitea #604): label is the
+# icon, drawn as a key cap w columns wide, and state is raised (empty),
+# pressed -- while the pointer holds it, which only the caller knows -- or
+# lit, a latched key such as a player's play (dt_iconbutton).
+fn dt_button(id, int r, int c, label, int on, tag, int? w = "", state = "") {
 	local t n sh bg=$DT_IDLE hot s
 
+	if [ -n "$w" ]; then
+		dt_iconbutton "$id" "$r" "$c" "$label" "$on" "$tag" "$w" "$state"
+		return 0
+	fi
 	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
 	t=" $label "
 
@@ -118,6 +157,59 @@ fn dt_button(id, int r, int c, label, int on, tag) {
 		dt_bput "$id" $((r + 1)) $((c + 1)) "$t"
 	fi
 	dt_wreg "$id" "$r" "$c" "$n" "$tag"
+}
+
+# An icon button, dt_button's icon form: a key cap w columns wide -- its
+# left end, the icon centred on its face, its right end -- in
+# dt_btncolours' face, with the icon and the light edge in the light
+# colour and the dark edge in the line colour. In the blit glyph set the
+# ends are Blit's key-left and key-right and the icon's cells carry the
+# bevel, raised (framed-raised, SGR 51:6) or pressed (key-pressed-*,
+# framed-pressed, 51:7), Blit itself turning the bevel over for a pressed
+# key; elsewhere the ends are blank face, and a key that is down takes its
+# dark edge's colour for a face, there being no bevel to show it. lit is a
+# latched key, down and filled with the accent, its icon in the colour a
+# selection's text is. Under the pointer, or with the focus, the face is
+# brighter on a dark key and deeper on a light one.
+fn dt_iconbutton(id, int r, int c, glyph, int on, tag, int w, state = "") {
+	local cols f l d le=${GL[keyl]} re=${GL[keyr]} fr=framed-raised gw p t s
+	local -a fx=()
+
+	cols := dt_btncolours
+	read -r f l d <<< "$cols"
+	if dt_hot "$id" "$tag" || [ "$on" = 1 ]; then
+		if dt_islight "$f"; then
+			f := console shade "$f" 85 || f=$d
+		else
+			f := dt_lighten "$f" 15
+		fi
+	fi
+	case $state in
+	pressed | lit)
+		le=${GL[keypl]}
+		re=${GL[keypr]}
+		fr=framed-pressed
+		[ -n "${GL[keyl]}" ] || f=$d
+		;;
+	esac
+	if [ "$state" = lit ]; then
+		f=$DT_ACTIVE
+		l=$DT_SELINK
+	fi
+	[ -n "${GL[keyl]}" ] && fx=("$fr")
+	gw := str width "$glyph"
+	[ "$w" -ge $((gw + 2)) ] || w=$((gw + 2))
+	p=$(((w - 2 - gw) / 2))
+	t := dt_rep "$p" " "
+	t+=$glyph
+	s := dt_rep $((w - 2 - gw - p)) " "
+	t+=$s
+	console pen "$l" "$f" "line=$d"
+	dt_bput "$id" "$r" "$c" "${le:- }"
+	dt_bput "$id" "$r" $((c + w - 1)) "${re:- }"
+	console pen "$l" "$f" "${fx[@]}" "line=$d"
+	dt_bput "$id" "$r" $((c + 1)) "$t"
+	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
 
 # The columns a row of buttons with these labels takes, shadow included --

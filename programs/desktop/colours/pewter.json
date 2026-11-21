@@ -1,7 +1,7 @@
 {
   "title": "Pewter",
   "about": "Light grey faces on a cool grey desktop, black ink and a blue accent, with grey title bars: the colours Slate is drawn in by Blit.",
-  "version": "1.1",
+  "version": "1.1.1",
   "wall": "#a8a8b8",
   "dot": "#9898a8",
   "bar": "#eeeeee",
@@ -19,5 +19,7 @@
   "titlebar": "#d6d6d6",
   "titleink": "#000000",
   "highlight": "#ffffff",
+  "lcd": "#0a0a0c",
+  "lcdink": "#9cf09c",
   "shadow": 90
 }

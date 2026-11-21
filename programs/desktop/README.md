@@ -463,6 +463,20 @@ so its title bar can be charcoal while its accent is a bright white. One
 more, `hot`, is what a button is filled with while a press or enter would
 act on it -- under the pointer, or with the focus: left out, it is the
 accent made brighter, lighter on a dark face and deeper on a light one.
+Two more, `lcd` and `lcdink` (Gitea #603), are an LCD's panel and its lit
+colour -- a player's time, its meters and spectrum and the small text
+beside them, all on one panel: near black in every scheme, light ones
+included, as a real LCD is, and each scheme's ink chosen to read as small
+text on it (amber's amber, phosphor's green, midnight's ice blue). Left
+out, they are midnight's, and a settings file written before them takes
+them from the scheme it names rather than from midnight. Six more are
+the controls' (Gitea #604): `track`, `trackfill` and `knob`, a slider's
+and a fader's track, its filled part and its knob -- left out, the dim
+colour, the accent and the ink -- and `buttonface`, `buttonlight` and
+`buttondark`, an icon button's face, its light edge (the icon is drawn in
+it, as Blit draws a key) and its dark edge -- left out, the well lit by
+the ink on a dark scheme, the face deepened to a grey on a light one, and
+the dark edge that face at half its brightness.
 Every colour must
 be `#rrggbb` and the shadow a whole number in range, or the file is left
 out of the list; a scheme added while the desktop runs appears at its next
@@ -547,7 +561,12 @@ A player has its own names since 0.99.548 -- `play`, `pause`, `stop`,
 `prev`, `next`, `rewind`, `ffwd`, `eject`, `record`, `repeat`, `repeat1`
 and `shuffle`, one cell each in every set -- and `dt_lcd TEXT` answers
 digits, `:` and `-` as an LCD shows them, two cells a character: fullwidth
-forms in unicode and nerd, the character and a space in ascii.
+forms in unicode and nerd, the character and a space in ascii. A slider's
+parts are `slidercapl`, `sliderfill`, `sliderknob`, `slidertrack` and
+`slidercapr`, a fader's `fadercapt`, `fadertrack`, `faderknob`,
+`faderfill` and `fadercapb` (━ ● ─ and │ ● ┃, `= o -` and `: o |` in
+ascii, Blit's own pieces in blit), and a key cap's ends `keyl`, `keyr`,
+`keypl` and `keypr`, which only the blit set fills.
 **blit** is for Blit's own Retro and Modern fonts (Gitea #330). Those carry
 the whole Nerd catalogue, so it is the nerd set, plus the colour icons Blit
 drew for hibr, one cell each: the hibr menu's pen, Bluetooth, Wi-Fi as

@@ -1,7 +1,7 @@
 {
   "title": "Neon",
   "about": "Cyan on deep violet with a magenta accent: eighties arcade, after dark.",
-  "version": "1.0",
+  "version": "1.0.1",
   "wall": "#0d0221",
   "dot": "#2a0a4a",
   "bar": "#1a0533",
@@ -10,5 +10,7 @@
   "face": "#120428",
   "ink": "#2de2e6",
   "checks": "knob",
+  "lcd": "#07010f",
+  "lcdink": "#2de2e6",
   "shadow": 55
 }

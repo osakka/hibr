@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.17.3
+app appearance "The Control Panel pane for how the desktop looks" 2.17.4
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -98,12 +98,20 @@ fn cp_colours(t, ...more) {
 		DT_BAD "${CP_CO["$t"]["bad"]}" \
 		DT_INFO "${CP_CO["$t"]["info"]}" \
 		DT_WELL "${CP_CO["$t"]["well"]}" \
+		DT_LCD "${CP_CO["$t"]["lcd"]}" \
+		DT_LCDINK "${CP_CO["$t"]["lcdink"]}" \
 		DT_THEMECHECKS "${CP_CO["$t"]["checks"]}" \
 		DT_TITLE "${CP_CO["$t"]["titlebar"]}" \
 		DT_TITLEINK "${CP_CO["$t"]["titleink"]}" \
 		DT_HIGHLIGHT "${CP_CO["$t"]["highlight"]}" \
 		DT_SHADOWINK "${CP_CO["$t"]["shadowink"]:-#000000}" \
 		DT_HOT "${CP_CO["$t"]["hot"]}" \
+		DT_TRACK "${CP_CO["$t"]["track"]}" \
+		DT_TRACKFILL "${CP_CO["$t"]["trackfill"]}" \
+		DT_KNOB "${CP_CO["$t"]["knob"]}" \
+		DT_BUTTONFACE "${CP_CO["$t"]["buttonface"]}" \
+		DT_BUTTONLIGHT "${CP_CO["$t"]["buttonlight"]}" \
+		DT_BUTTONDARK "${CP_CO["$t"]["buttondark"]}" \
 		"${more[@]}"
 	return 0
 }

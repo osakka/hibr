@@ -1,0 +1,7 @@
+0
+old: lcd #05080c lcdink #7fd4ff track [] buttonface []
+new: lcd #010203 lcdink #a0ff60 trackfill #336699 buttondark #000000 knob []
+a bad value in any role refuses the scheme
+every shipped scheme's LCD is near black, its ink its own
+no settings file: default default default
+written before the roles: #202020 #ffb000 []

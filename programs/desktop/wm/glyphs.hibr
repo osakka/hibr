@@ -60,6 +60,9 @@ fn dt_glyphs(set = "unicode") {
 	GL["batchgw0"]=; GL["batchgw1"]=; GL["batchgw2"]=; GL["batchgw3"]=
 	GL["batchgw4"]=; GL["batacw"]=
 	GL["huil"]=; GL["huir"]=; GL["huimarkl"]=; GL["huimarkr"]=
+	# And a key cap's ends, raised and pressed (Blit 0.3.127): an icon
+	# button draws its bevel only while these are set (dt_button).
+	GL["keyl"]=; GL["keyr"]=; GL["keypl"]=; GL["keypr"]=
 	# And the window chrome's frame, Chalk and Slate parts.
 	GL["chalk-check-on"]=; GL["chalk-check-off"]=; GL["slate-check-on"]=; GL["slate-check-off"]=
 	GL["capsule-on"]=; GL["capsule-off"]=
@@ -165,6 +168,13 @@ fn dt_glyphs(set = "unicode") {
 		GL["lcd0"]="0 "; GL["lcd1"]="1 "; GL["lcd2"]="2 "; GL["lcd3"]="3 "; GL["lcd4"]="4 "
 		GL["lcd5"]="5 "; GL["lcd6"]="6 "; GL["lcd7"]="7 "; GL["lcd8"]="8 "; GL["lcd9"]="9 "
 		GL["lcdcolon"]=": "; GL["lcdminus"]="- "; GL["lcdblank"]="  "
+		# A slider's parts, left to right -- its left end, the filled
+		# track, the knob, the track ahead, its right end -- and a
+		# fader's, top to bottom: dt_slider and dt_fader draw them.
+		GL["slidercapl"]="="; GL["sliderfill"]="="; GL["sliderknob"]="o"
+		GL["slidertrack"]="-"; GL["slidercapr"]="-"
+		GL["fadercapt"]=":"; GL["fadertrack"]=":"; GL["faderknob"]="o"
+		GL["faderfill"]="|"; GL["fadercapb"]="|"
 		GL["reload"]="@"; GL["plus"]="+"; GL["larr"]="<"; GL["rarr"]=">"
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"; GL["bundle"]="#"
@@ -257,6 +267,17 @@ fn dt_glyphs(set = "unicode") {
 		GL["lcdcolon"]=$'：'  # FULLWIDTH COLON
 		GL["lcdminus"]=$'－'  # FULLWIDTH HYPHEN-MINUS
 		GL["lcdblank"]=$'　'  # IDEOGRAPHIC SPACE
+		# A slider's parts, left to right, and a fader's, top to bottom.
+		GL["slidercapl"]=$'━'   # BOX DRAWINGS HEAVY HORIZONTAL
+		GL["sliderfill"]=$'━'   # BOX DRAWINGS HEAVY HORIZONTAL
+		GL["sliderknob"]=$'●'   # BLACK CIRCLE
+		GL["slidertrack"]=$'─'  # BOX DRAWINGS LIGHT HORIZONTAL
+		GL["slidercapr"]=$'─'   # BOX DRAWINGS LIGHT HORIZONTAL
+		GL["fadercapt"]=$'│'    # BOX DRAWINGS LIGHT VERTICAL
+		GL["fadertrack"]=$'│'   # BOX DRAWINGS LIGHT VERTICAL
+		GL["faderknob"]=$'●'    # BLACK CIRCLE
+		GL["faderfill"]=$'┃'    # BOX DRAWINGS HEAVY VERTICAL
+		GL["fadercapb"]=$'┃'    # BOX DRAWINGS HEAVY VERTICAL
 		GL["reload"]=$'\u21bb'  # CLOCKWISE OPEN CIRCLE ARROW
 		GL["plus"]="+"
 		GL["larr"]=$'\u2190'    # LEFTWARDS ARROW
@@ -478,7 +499,7 @@ fn dt_blitpart(part) {
 	grow*) ret "${GL[grow]}" ;;
 	*button-left) ret "[" ;;
 	*button-right) ret "]" ;;
-	title | capl | capr) ret " " ;;
+	title | capl | capr | keyl | keyr | keypl | keypr) ret " " ;;
 	esac
 	ret ""
 }
@@ -844,5 +865,22 @@ dt_glyphsblit() {
 	dt_bg fjpg file-image-jpg-left file-image-jpg-right
 	dt_bg fpng file-image-png-left file-image-png-right
 	dt_bg fgif file-image-gif-left file-image-gif-right
+	# A slider's and a fader's parts, which join edge to edge across
+	# cells, and a key cap's ends, raised and pressed (0.3.126, 0.3.127,
+	# Blit ADR 0237), each in the cell's own pens.
+	dt_bg slidercapl slider-cap-left
+	dt_bg sliderfill slider-track-filled
+	dt_bg sliderknob slider-knob
+	dt_bg slidertrack slider-track
+	dt_bg slidercapr slider-cap-right
+	dt_bg fadercapt fader-cap-top
+	dt_bg fadertrack fader-track
+	dt_bg faderknob fader-knob
+	dt_bg faderfill fader-track-filled
+	dt_bg fadercapb fader-cap-bottom
+	dt_bg keyl key-left
+	dt_bg keyr key-right
+	dt_bg keypl key-pressed-left
+	dt_bg keypr key-pressed-right
 }
 dt_glyphs "$DT_GLYPHSET"

@@ -1,39 +1,57 @@
-# widgets/slider -- a slider.
+# widgets/slider -- a slider, and a fader, its upright twin.
 #
 # Part of the widget library apps draw with -- see widgets/README.md.
 # interface: shared
 
 strict
 
-# Draw a slider: a track of ─ over w columns with a ● at the position
-# value falls between min and max, arrow keys the way to change it once
-# the row is selected -- clicking selects it, the same as a dropdown
-# before it is opened, but there is no popup to open; the track is a
-# picture of the value, not a control of its own to press at a given
-# column. tag is what dt_hit answers for a click on it.
+# The colours a slider's and a fader's parts are drawn in, "track fill
+# knob": the scheme's track, trackfill and knob where it gives them (Gitea
+# #604), and otherwise its dim colour, its accent and its ink.
+dt_trackcolours() {
+	ret "${DT_TRACK:-$DT_DIM} ${DT_TRACKFILL:-$DT_ACTIVE} ${DT_KNOB:-$DT_INK}"
+}
+
+# Draw a slider over w columns: its left end, the track filled up to the
+# knob, the knob at the position value falls between min and max, the track
+# ahead and its right end, each in its own colour -- in the blit glyph set
+# Blit's own pieces, which join edge to edge across cells (Blit ADR 0237),
+# and elsewhere ━, ● and ─ (= o - in ascii). The knob at either end takes
+# that end's cell, so the knob has w places and dt_slidepos is the exact
+# inverse. Arrow keys change it once the row is selected -- clicking
+# selects it, the same as a dropdown before it is opened. Drawn on the
+# window's face, on the well with its knob in the hot colour while the
+# pointer is over it, and the caller's pen put back after. tag is what
+# dt_hit answers for a click on it.
 fn dt_slider(int id, int r, int c, int w, int value, int min, int max, tag) {
 	local tag=${tag:-$value}
-	local pos i t
+	local pos t bg=$DT_FACE cols tr fi kn
 
 	pos=0
 	[ "$max" -gt "$min" ] &&
 		pos=$(( (value - min) * (w - 1) / (max - min) ))
 	[ "$pos" -lt 0 ] && pos=0
 	[ "$pos" -gt $((w - 1)) ] && pos=$((w - 1))
-	t=""
-	i=0
-	while [ "$i" -lt "$w" ]; do
-		[ "$i" = "$pos" ] && t="$t${GL[circle]}" || t="$t${GL[hline]}"
-		i=$((i + 1))
-	done
+	cols := dt_trackcolours
+	read -r tr fi kn <<< "$cols"
 	if dt_hot "$id" "$tag"; then
-		console pen -s
-		console pen "$DT_ACTIVE" "$DT_WELL"
-		console put -p "w$id" "$r" "$c" "$t"
-		console pen -r
-	else
-		console put -p "w$id" "$r" "$c" "$t"
+		bg=$DT_WELL
+		kn := dt_hotcolour
 	fi
+	console pen -s
+	if [ "$pos" -gt 0 ]; then
+		t := dt_rep $((pos - 1)) "${GL[sliderfill]}"
+		console pen "$fi" "$bg"
+		console put -p "w$id" "$r" "$c" "${GL[slidercapl]}$t"
+	fi
+	console pen "$kn" "$bg"
+	console put -p "w$id" "$r" $((c + pos)) "${GL[sliderknob]}"
+	if [ "$pos" -lt $((w - 1)) ]; then
+		t := dt_rep $((w - pos - 2)) "${GL[slidertrack]}"
+		console pen "$tr" "$bg"
+		console put -p "w$id" "$r" $((c + pos + 1)) "$t${GL[slidercapr]}"
+	fi
+	console pen -r
 	dt_wreg "$id" "$r" "$c" "$w" "$tag"
 }
 
@@ -49,6 +67,62 @@ fn dt_slidepos(int c, int c0, int w, int min, int max, int frac = 500) {
 	local v=$min
 
 	[ "$w" -gt 1 ] && v=$((min + ((c - c0) * 1000 + frac - 500) * (max - min) / ((w - 1) * 1000)))
+	[ "$v" -lt "$min" ] && v=$min
+	[ "$v" -gt "$max" ] && v=$max
+	ret "$v"
+}
+
+# Draw a fader down h rows from row r in column c, min at the bottom and max
+# at the top (Gitea #604): the slider stood on end, its parts top to bottom
+# -- its top end, the track ahead of the knob, the knob, the track filled
+# below it, its bottom end -- in the same colours, the same pieces from
+# Blit's set (fader-*) and │, ● and ┃ elsewhere. The knob at either end
+# takes that end's cell, so it has h places, and dt_fadepos is the inverse.
+# One region the height of the fader, tagged tag.
+fn dt_fader(int id, int r, int c, int h, int value, int min, int max, tag) {
+	local tag=${tag:-$value}
+	local pos k i bg=$DT_FACE cols tr fi kn g
+
+	pos=0
+	[ "$max" -gt "$min" ] &&
+		pos=$(( (value - min) * (h - 1) / (max - min) ))
+	[ "$pos" -lt 0 ] && pos=0
+	[ "$pos" -gt $((h - 1)) ] && pos=$((h - 1))
+	k=$((h - 1 - pos))
+	cols := dt_trackcolours
+	read -r tr fi kn <<< "$cols"
+	if dt_hot "$id" "$tag"; then
+		bg=$DT_WELL
+		kn := dt_hotcolour
+	fi
+	console pen -s
+	console pen "$tr" "$bg"
+	for ((i = 0; i < k; i++)); do
+		g=${GL[fadertrack]}
+		[ "$i" = 0 ] && g=${GL[fadercapt]}
+		console put -p "w$id" $((r + i)) "$c" "$g"
+	done
+	console pen "$kn" "$bg"
+	console put -p "w$id" $((r + k)) "$c" "${GL[faderknob]}"
+	console pen "$fi" "$bg"
+	for ((i = k + 1; i < h; i++)); do
+		g=${GL[faderfill]}
+		[ "$i" = $((h - 1)) ] && g=${GL[fadercapb]}
+		console put -p "w$id" $((r + i)) "$c" "$g"
+	done
+	console pen -r
+	dt_wreg "$id" "$r" "$c" 1 "$tag" "$h"
+}
+
+# The value a click at row r means, for a fader of h rows whose top is row
+# r0, from min at the bottom to max at the top: dt_slidepos turned upright,
+# beside dt_fader so the two cannot drift. frac is where in the cell the
+# pointer was, in thousandths from its top -- the second word dt_cellpx
+# answers -- and 500, the middle, is exactly the row.
+fn dt_fadepos(int r, int r0, int h, int min, int max, int frac = 500) {
+	local v=$min
+
+	[ "$h" -gt 1 ] && v=$((min + ((r0 + h - 1 - r) * 1000 + 500 - frac) * (max - min) / ((h - 1) * 1000)))
 	[ "$v" -lt "$min" ] && v=$min
 	[ "$v" -gt "$max" ] && v=$max
 	ret "$v"

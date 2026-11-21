@@ -204,12 +204,28 @@ DT_WELL="${DT_WELL-#2d3748}"
 # do -- under the pointer, or with the focus (Gitea #384). Empty, the
 # default, is the accent made brighter: see dt_hotcolour.
 DT_HOT="${DT_HOT-}"
+# An LCD's panel and its lit colour -- a segment display, a level meter, a
+# spectrum and the small text beside them, all on one panel (Gitea #603):
+# near black in every scheme, light ones too, as a real LCD is.
+DT_LCD="${DT_LCD-#05080c}"
+DT_LCDINK="${DT_LCDINK-#7fd4ff}"
+# A slider's and a fader's track, its filled part and its knob, and an icon
+# button's face, its light edge (and the icon) and its dark edge (Gitea
+# #604). Empty, the default, is worked out from the scheme's own colours:
+# dt_trackcolours (widgets/slider.hibr) and dt_btncolours (widgets/button.hibr).
+DT_TRACK="${DT_TRACK-}"
+DT_TRACKFILL="${DT_TRACKFILL-}"
+DT_KNOB="${DT_KNOB-}"
+DT_BUTTONFACE="${DT_BUTTONFACE-}"
+DT_BUTTONLIGHT="${DT_BUTTONLIGHT-}"
+DT_BUTTONDARK="${DT_BUTTONDARK-}"
 DT_GLYPH="${DT_GLYPH-·}"
 # A colour is the screen; ink and face are also what the console darkens a
 # default-coloured cell toward (dt_darkdef).
 dt_onset DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_DIM DT_SELINK DT_TITLE \
 	DT_TITLEINK DT_HIGHLIGHT DT_SHADOWINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT \
-	DT_GLYPH dt_setwhole
+	DT_LCD DT_LCDINK DT_TRACK DT_TRACKFILL DT_KNOB DT_BUTTONFACE DT_BUTTONLIGHT \
+	DT_BUTTONDARK DT_GLYPH dt_setwhole
 dt_onset DT_INK DT_FACE dt_darkdef
 
 # A real image as the wallpaper instead of the repeated glyph, drawn by the
@@ -579,6 +595,7 @@ DT_CONF="${DT_CONF-${XDG_CONFIG_HOME:-$HOME/.config}/hibr/desktop.json}"
 declare -gA DT_CONFJ DT_CONFOUT
 DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_DIM DT_SELINK DT_GOOD DT_WARN DT_BAD DT_INFO DT_WELL DT_HOT DT_TITLE DT_TITLEINK DT_HIGHLIGHT DT_SHADOWINK
+	DT_LCD DT_LCDINK DT_TRACK DT_TRACKFILL DT_KNOB DT_BUTTONFACE DT_BUTTONLIGHT DT_BUTTONDARK
 	DT_WALLIMG DT_WALLMODE
 	DT_ICONS DT_DISKS DT_ICONBG DT_CURSOR DT_CURSOR_BLINK DT_SHADOW
 	DT_MSHADOW DT_BARSHADOW DT_DBLACTION DT_SHADOW_PCT CS_SIDE CS_YREL
@@ -645,6 +662,7 @@ dt_load() {
 	for v in "${DT_KEEP[@]}"; do
 		dt_keepload "$v"
 	done
+	dt_has cp_rolefill && cp_rolefill
 	for k in "${!DT_CONFJ["keys"][@]}"; do
 		DT_KEYS["$k"]=${DT_CONFJ["keys"]["$k"]}
 	done

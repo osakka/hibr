@@ -85,7 +85,7 @@ local	dt_hotpen	widgets/hit.hibr	20	13	told	-	dt_hotpen(id, tag, fg, bg, ...attr
 local	pe_servers	lib/pim.hibr	20	4	waited	-	pe_servers()	-	-
 local	dt_hot	widgets/hit.hibr	19	7	waited	-	dt_hot(id, tag)	-	-
 local	dt_searchclear	widgets/search.hibr	18	12	told	-	dt_searchclear(int id)	-	-
-local	dt_button	widgets/button.hibr	18	6	told	-	dt_button(id, int r, int c, label, int on, tag)	-	-
+local	dt_button	widgets/button.hibr	18	6	told	-	dt_button(id, int r, int c, label, int on, tag, int? w = "", state = "")	-	7@0.99.556;8@0.99.556
 local	dt_joblast	wm/jobs.hibr	17	11	asked	-	dt_joblast(int n)	-	-
 local	dt_buttons	widgets/button.hibr	16	4	told	-	dt_buttons(id, int r, int c, focus, ...pairs)	-	-
 local	dt_searchshut	widgets/search.hibr	16	10	told	-	dt_searchshut(int id)	-	-

@@ -1,7 +1,7 @@
 {
   "title": "Dracula",
   "about": "The Dracula palette: off-white on dark slate with a violet accent.",
-  "version": "1.0",
+  "version": "1.0.1",
   "wall": "#282a36",
   "dot": "#383a4c",
   "bar": "#44475a",
@@ -9,5 +9,7 @@
   "idle": "#6272a4",
   "face": "#21222c",
   "ink": "#f8f8f2",
+  "lcd": "#0b0c10",
+  "lcdink": "#50fa7b",
   "shadow": 55
 }
