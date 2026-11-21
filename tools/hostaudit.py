@@ -598,7 +598,7 @@ def hdr(a, rows):
         " ".join(sorted(k for k, v in a.carried.items() if v == "partly")))
     s += "\nnot carried yet: %s" % " ".join(sorted(k for k, v in a.carried.items() if v == "no"))
     s += ("\nglobal, for every entry: registrations are still run, not read (Decision 3: dt_app, cp_pane, "
-          "cs_module, dt_baritem, dt_keep read by inspect at scan) -- no track builds that")
+          "cs_module, dt_baritem, dt_keep read by inspect at scan): not built in this tree")
     return s
 
 
