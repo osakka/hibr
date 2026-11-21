@@ -556,6 +556,7 @@ int hd_anyprimary(vec *cls);
 int hd_unorm(vec *cls);
 void hd_ubox(vec *cls, int *rows, int *cols);
 void hd_cellpx(vec *cls, int *w, int *h);
+int hd_ufollow(vec *cls, struct hd_cli *cn, int orows, int ocols);
 int hd_union(vec *cls, int id, int tid);
 void hd_cclear(vec *cls, const char *why, size_t n);
 void hd_rensend1(vec *cls, struct hd_cli *cn, int tid);

@@ -163,6 +163,22 @@ nothing above or left of it is how space is *reserved* for a display that
 has not joined yet, which is how `desktop --join` and `tests/desktop.py`
 both stack a union.
 
+A display whose grid changes size -- on Blit, a font made smaller or
+larger -- **keeps the arrangement** (`hd_ufollow`, Gitea #409). A display
+that touched its bottom edge, with columns in common, goes up or down with
+that edge; one that touched its right edge, with rows in common, goes
+across with it; and each one moved takes along whatever touched its own
+edge on that side. Every test is made against where they all were before
+the change, so two stacked displays growing one after the other move the
+display beside both once, not twice, and a sweep of font sizes and back
+ends where it began in any order. A display apart from the one that
+changed is left where a person put it, and a mirror (two at one place)
+touches no edge. Before this the grid that grew lay over the next
+display's first rows, which then showed the other display's menu bar and
+windows a second time, and a grid that shrank left rows no display shows.
+A moved display is repainted whole and the program is told, as `hold move`
+does (`tests/holdseam.py`).
+
 The program is told, because it cannot work it out. `hold shift` is the
 running total, and the two things a program might infer it from are each
 wrong: where the **primary** is moves by a whole display when somebody
@@ -482,7 +498,10 @@ which Blit it is (`HD_BVER`, `bf_blitver` in its own session, before
 `HD_FDCAP`), and to one of 0.3.127 or newer (`BF_SUBVIEW`) the render pass
 redraws a subsurface's placement through its view (`hd_imgview`: the part
 of the buffer behind what it shows, drawn there with `W=`/`T=`), after any
-cut at that display's edge, and tells it the view. An older one, or a
+cut at that display's edge, and tells it the view. The cut comes first
+because it is made in what is shown: one across the seam of two displays
+gives each the rows of the buffer behind its own part, the two slices
+meeting where the seam does (`tests/holdseam.py`). An older one, or a
 client that never said, is sent the placement as the console made it and
 not the view (`hd_vto`), since its Blit would map the pointer through a
 view the picture is not drawn through. Which pictures are subsurfaces the

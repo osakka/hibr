@@ -411,6 +411,96 @@ int hd_focusin(const char *p, size_t n)
 	return 0;
 }
 
+/* One display's grid changed size -- its font did, on Blit -- and the
+   arrangement is kept: a display that touched its bottom edge with columns
+   in common goes up or down with that edge, one that touched its right
+   edge with rows in common goes with that, and so on down the chain, every
+   test made against where they all were before. Without it a grid that
+   grew lay over the next display's first rows, which showed the other
+   display's menu bar and windows a second time, and one that shrank left
+   rows nobody shows (Gitea #409). A display apart from it is left where a
+   person put it, and one at the same place -- a mirror -- touches no edge.
+   How many moved, each one's own picture dropped as a move drops it. */
+int hd_ufollow(vec *cls, struct hd_cli *cn, int orows, int ocols)
+{
+	size_t n = cls->n, i, k, a, qh = 0, qt = 0;
+	int *g, *mv, *q, eb, er, moved = 0;
+
+	if (orows <= 0 || ocols <= 0 || (orows == cn->rows && ocols == cn->cols))
+		return 0;
+	g = xm(n * 4 * sizeof *g);
+	mv = xm(n * 3 * sizeof *mv);
+	q = xm((2 * n + 1) * 3 * sizeof *q);
+	for (i = 0; i < n; i++) {
+		struct hd_cli *c = cls->p[i];
+
+		g[4 * i] = c->row;
+		g[4 * i + 1] = c->col;
+		g[4 * i + 2] = c == cn ? orows : c->rows;
+		g[4 * i + 3] = c == cn ? ocols : c->cols;
+		mv[3 * i] = c == cn ? 3 : 0;
+		mv[3 * i + 1] = mv[3 * i + 2] = 0;
+		if (c == cn) {
+			q[0] = (int)i;
+			q[1] = cn->rows - orows;
+			q[2] = cn->cols - ocols;
+			qt = 1;
+		}
+	}
+	while (qh < qt) {
+		a = (size_t)q[3 * qh];
+		eb = q[3 * qh + 1];
+		er = q[3 * qh + 2];
+		qh++;
+		for (k = 0; k < n; k++) {
+			if (k == a)
+				continue;
+			if (eb && !(mv[3 * k] & 1) &&
+			    g[4 * k] == g[4 * a] + g[4 * a + 2] &&
+			    g[4 * k + 1] < g[4 * a + 1] + g[4 * a + 3] &&
+			    g[4 * a + 1] < g[4 * k + 1] + g[4 * k + 3]) {
+				mv[3 * k] |= 1;
+				mv[3 * k + 1] = eb;
+				q[3 * qt] = (int)k;
+				q[3 * qt + 1] = eb;
+				q[3 * qt + 2] = 0;
+				qt++;
+			}
+			if (er && !(mv[3 * k] & 2) &&
+			    g[4 * k + 1] == g[4 * a + 1] + g[4 * a + 3] &&
+			    g[4 * k] < g[4 * a] + g[4 * a + 2] &&
+			    g[4 * a] < g[4 * k] + g[4 * k + 2]) {
+				mv[3 * k] |= 2;
+				mv[3 * k + 2] = er;
+				q[3 * qt] = (int)k;
+				q[3 * qt + 1] = 0;
+				q[3 * qt + 2] = er;
+				qt++;
+			}
+		}
+	}
+	for (k = 0; k < n; k++) {
+		struct hd_cli *c = cls->p[k];
+
+		if (c == cn || (!mv[3 * k + 1] && !mv[3 * k + 2]))
+			continue;
+		c->row += mv[3 * k + 1];
+		c->col += mv[3 * k + 2];
+		free(c->front);
+		c->front = 0;
+		c->imgen = 0;
+		hd_ratemoved(c, g[4 * k], g[4 * k + 1]);
+		lg(HIBR_LDBG, "hold: %s follows %s's new size to %d,%d",
+		   c->name.p ? c->name.p : "", cn->name.p ? cn->name.p : "",
+		   c->row, c->col);
+		moved++;
+	}
+	free(g);
+	free(mv);
+	free(q);
+	return moved;
+}
+
 int hd_union(vec *cls, int id, int tid)
 {
 	int rows, cols, cw = 0, ch = 0, moved, r0 = hd_shiftr, c0 = hd_shiftc;
@@ -1305,6 +1395,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					   whatever small diff came next. */
 					int same = cn->rows == sz[0] &&
 						   cn->cols == sz[1];
+					int orows = cn->rows, ocols = cn->cols;
 
 					cn->rows = sz[0];
 					cn->cols = sz[1];
@@ -1320,7 +1411,12 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 						cn->front = 0;
 						cn->imgen = 0;
 					}
-					hd_union(&cls, id, tid);
+					if (!same && hd_ufollow(&cls, cn, orows, ocols)) {
+						hd_union(&cls, id, tid);
+						hd_rensend(&cls, tid);
+						hd_poke(m);
+					} else
+						hd_union(&cls, id, tid);
 				}
 			} else if (t == HD_GFX && in.n == sizeof(int)) {
 				struct hd_cli *cn = hd_cfind(&cls, fd);
