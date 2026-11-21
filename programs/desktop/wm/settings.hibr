@@ -681,9 +681,6 @@ dt_load() {
 # Write every kept variable back, through a temporary file and a rename,
 # so a crash halfway through never leaves half a settings file. A setting
 # nothing has kept yet this session, a pane not loaded, goes back as it came.
-# A desktop hosting one app for another saves nothing: desktop.json is the
-# other desktop's, and two writers would each undo the other.
-DT_HOSTED=
 # A desktop setting changed by name, and saved at once: the one way anything
 # but the desktop's own code sets one (ADR 0050), the same in-process and
 # hosted. Pairs of NAME VALUE, every name a kept setting (DT_KEEP), all
@@ -737,10 +734,6 @@ fn dt_set(...pairs) {
 dt_save() {
 	local v k n i s
 
-	if [ -n "$DT_HOSTED" ]; then
-		dt_hostkeep
-		return 0
-	fi
 	# Every connected app process is sent what changed, before anything
 	# else it is told this pass (ADR 0050, the settings' door).
 	# A rebind or Use Super Instead of Alt is saved as it is made: Blit is told

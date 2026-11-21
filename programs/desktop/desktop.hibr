@@ -57,7 +57,7 @@ DT_HERE=${BASH_SOURCE%/*}
 dt_share DT_HERE DT_VER
 for dt_part in settings session latency windows workspaces tile place frame \
 	wallpaper input keys menus bar context apps \
-	files copying fullscreen keyphase locations remote handlers filepick saver lock icons hold standby notify bus confirm ask restart recover shot clip strip ctl hud prayer vault kbd polkit machine native appmode programs isolate rtserve rtview; do
+	files copying fullscreen keyphase locations remote handlers filepick saver lock icons hold standby notify bus confirm ask restart recover shot clip strip ctl hud prayer vault kbd polkit machine native appmode programs rtserve rtview; do
 	. "$DT_HERE/wm/$dt_part.hibr"
 done
 unset dt_part

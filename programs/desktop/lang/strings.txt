@@ -9,7 +9,6 @@
 %s %s items%s
 %s %s, in %s, runs in place of the newer %s: remove it, or update it in the Catalogue
 %s %s; %s
-%s (not responding)
 %s Settings…
 %s already has a %s
 %s at %s

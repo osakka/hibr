@@ -60,12 +60,6 @@ dt_fullbar() {
 
 	DT_FULLBAR=
 	for id in "${DT_FULLS[@]}"; do
-		# A hosted app's window covers its screen from one cell past it
-		# (dt_fullrect), and is the only thing on it.
-		if [ -n "${DT_HOSTED-}" ]; then
-			DT_FULLBAR=$id
-			continue
-		fi
 		[ "${DT[$id]["row"]}" = "${DT_PRIMARY_ROW:-0}" ] &&
 			[ "${DT[$id]["col"]}" = "${DT_PRIMARY_COL:-0}" ] && DT_FULLBAR=$id
 	done
@@ -83,18 +77,6 @@ dt_fullbar() {
 # DTW_C, DTW_H and DTW_W.
 fn dt_fullrect(int id) {
 	local cr cc dsp dr dc drows dcols dgx
-
-	# A hosted app's desktop has one screen, its window's body in the
-	# desktop showing it: its window covers that and its own frame, one
-	# cell past each edge, so the app's body lands where it would in an
-	# ordinary window -- a window's content starts at row 1, column 1.
-	if [ -n "${DT_HOSTED-}" ]; then
-		DTW_R=-1
-		DTW_C=-1
-		DTW_H=$((DT_ROWS + 2))
-		DTW_W=$((DT_COLS + 2))
-		return 0
-	fi
 
 	cr=$((${DT[$id]["row"]} + ${DT[$id]["h"]} / 2))
 	cc=$((${DT[$id]["col"]} + ${DT[$id]["w"]} / 2))
@@ -193,7 +175,7 @@ fn dt_fullscreen(int id, how) {
 	DT[$id]["col"]=$DTW_C
 	DT[$id]["h"]=$DTW_H
 	DT[$id]["w"]=$DTW_W
-	[ -n "${DT_HOSTED-}" ] || DT[$id]["chrome"]=none
+	DT[$id]["chrome"]=none
 	DT[$id]["noshadow"]=1
 	DT_FOCUS=$id
 	dt_fullfit "$id"

@@ -938,10 +938,6 @@ dt_appname() {
 
 	if [ -z "$MB_APP" ]; then
 		ret "Desktop"
-	elif dt_has dt_isowin && dt_isowin "$DT_FOCUS" && [ -n "${TW[$DT_FOCUS]["isotitle"]-}" ]; then
-		# A hosted app is named as itself, not as the terminal window
-		# that shows it.
-		ret "${TW[$DT_FOCUS]["isotitle"]}"
 	elif dt_has "${MB_APP}_appname" && n := dt_appfn "$MB_APP" "${MB_APP}_appname" "$DT_FOCUS" && [ -n "$n" ]; then
 		# An app whose windows are each a program of their own -- a
 		# program window through Blit's compositor -- names the one in

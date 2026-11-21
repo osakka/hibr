@@ -83,7 +83,6 @@ DT_FRAME	4	0	wm/settings.hibr	shared
 DT_HADJ	4	0	wm/lang.hibr	shared
 DT_HCAL	4	0	wm/lang.hibr	shared
 DT_HOVER	3	1	wm/settings.hibr	shared
-DT_ISON	2	2	wm/isolate.hibr	gone
 DT_KB	4	0	wm/keymatch.hibr	shared
 DT_KBN	4	0	wm/kbd.hibr	shared
 DT_LOG	4	0	wm/settings.hibr	shared
@@ -203,7 +202,6 @@ DT_FULLENDS	2	0	wm/settings.hibr	shared
 DT_FULLON	2	0	wm/settings.hibr	shared
 DT_GLYPHSETS	2	0	wm/glyphs.hibr	local
 DT_HANDLERS	2	0	wm/handlers.hibr	shared
-DT_HOSTMARK	2	0	wm/isolate.hibr	gone
 DT_ICONBG	2	0	wm/icons.hibr	shared
 DT_ICONPENS	2	0	wm/settings.hibr	shared
 DT_ICONS	2	0	wm/icons.hibr	shared
@@ -234,8 +232,6 @@ DT_MIRROR	2	0	wm/lang.hibr	shared
 DT_MONTHS	2	0	wm/lang.hibr	local
 DT_MOVEMODE	2	0	wm/settings.hibr	shared
 DT_MSHADOW	2	0	wm/settings.hibr	shared
-DT_NATCH	2	0	wm/native.hibr	call
-DT_NATCW	2	0	wm/native.hibr	call
 DT_NATFOCUS	2	0	wm/native.hibr	shared
 DT_NATFOCUSES	2	0	wm/native.hibr	call
 DT_NATIVE	2	0	wm/native.hibr	shared
@@ -331,6 +327,8 @@ DT_KEYBASE	1	0	wm/keyphase.hibr	call
 DT_KEYCODE	1	0	wm/keyphase.hibr	call
 DT_KEYMODS	1	0	wm/keyphase.hibr	call
 DT_KEYPHASE	1	0	wm/keyphase.hibr	call
+DT_NATCH	1	0	wm/native.hibr	call
+DT_NATCW	1	0	wm/native.hibr	call
 DT_NATLAYOUT	0	1	wm/native.hibr	request
 DT_NOTE_NEXT	1	0	wm/notify.hibr	?
 DT_PHASEWIN	1	0	wm/keyphase.hibr	call

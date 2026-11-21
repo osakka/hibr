@@ -118,7 +118,7 @@ BYNAME = {}
 for _n in """DT_OPENCMD DT_OPENSELF DT_OPENSHELL DT_CLIPKIND DT_CLIP DT_CLIPOP
         DT_NOTEFROM DT_NOTEWIN""".split():
     BYNAME[_n] = "arg"
-for _n in "DT_FORCEONCE DT_MENUIN DT_BARWAS DT_ISON".split():
+for _n in "DT_FORCEONCE DT_MENUIN DT_BARWAS".split():
     BYNAME[_n] = "gone"
 # The input method's engine runs in every app process (owner, 2026-11-18):
 # what it holds is each process's; the teach box and the chords told to
@@ -180,7 +180,6 @@ SHARED, SECRET, OWNER = sharedset()
 #   call     moves with input or a frame: travels in the call that uses it
 #            (the pointer, a menu's place, a drag, a key's phase)
 #   answer   comes back as the answer of the asked request that set it
-#   gone     the prototype's, removed with it
 #   kept     the settings file's parse: the kept-settings slice
 CONVERT = {}
 for _n in """DT_PX DT_PY MB_CX MB_CY MB_CTXID MB_CTXWHO DT_DND DT_KEYBASE DT_KEYCODE DT_KEYMODS
@@ -189,8 +188,6 @@ for _n in """DT_PX DT_PY MB_CX MB_CY MB_CTXID MB_CTXWHO DT_DND DT_KEYBASE DT_KEY
     CONVERT[_n] = "call"
 for _n in "DT_DLGR DT_DLGC DT_DLGH DT_DLGW DT_OWLIST DT_OVLIST".split():
     CONVERT[_n] = "answer"
-for _n in "DT_HOSTMARK".split():
-    CONVERT[_n] = "gone"
 CONVERT["DT_CONFJ"] = "kept"
 KINDS = ("apps", "system", "control-panel", "control-strip", "menubar", "savers")
 

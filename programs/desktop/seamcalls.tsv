@@ -44,7 +44,7 @@ wm/bar.hibr	507	dt_popdraw	dt_appfn	"${DT_POP}_popdraw"	bar:popdraw	none	tail-un
 wm/bar.hibr	542	dt_barido	dt_appfn	"${a[@]}"	bar:do	none	tail-unread	tell
 wm/bar.hibr	646	dt_barilay	dt_appfn	"$d"	bar:draw	none	-	push
 wm/bar.hibr	776	dt_bar	dt_hookfn	"$hk"	hook:DT_BARHOOKS	none	-	push
-wm/bar.hibr	945	dt_appname	dt_appfn	"${MB_APP}_appname"	_appname	value	:=	push
+wm/bar.hibr	941	dt_appname	dt_appfn	"${MB_APP}_appname"	_appname	value	:=	push
 wm/bus.hibr	65	dt_busgive	dt_hookfn	"$f"	hook:DT_BUS	none	-	tell
 wm/confirm.hibr	127	dt_confirm_key	dt_appfn	$cmd	handed	none	-	ask
 wm/context.hibr	65	dt_ctxbuild	dt_appfn	"${who}_context"	_context	none	-	push
@@ -58,17 +58,17 @@ wm/files.hibr	433	dt_fieldundo	dt_wincall	"$cb"	_key	none	|| true	ask
 wm/files.hibr	437	dt_fieldundo	dt_wincall	"$cb"	_key	none	|| true	ask
 wm/files.hibr	441	dt_fieldundo	dt_wincall	"$cb"	_key	none	|| true	ask
 wm/files.hibr	446	dt_fieldundo	dt_wincall	"$cb"	_key	none	|| true	ask
-wm/files.hibr	498	dt_edit	dt_wincall	"$cb"	_edit	none	-	ask
-wm/files.hibr	502	dt_edit	dt_winget	"$cb"	_edit	value	:=	ask
-wm/frame.hibr	81	dt_winbare	dt_appfn	$dr	_draw	none	-	push
-wm/frame.hibr	165	dt_clean	dt_appfn	"${ap}_dirty"	_dirty	status	tested	push
-wm/frame.hibr	825	dt_contentonly	dt_appfn	"${ap}_paintsall"	_paintsall	status	tested	push
-wm/frame.hibr	887	dt_win	dt_appfn	$dr	_draw	none	-	push
-wm/frame.hibr	890	dt_win	dt_appfn	$dr	_draw	none	-	push
-wm/frame.hibr	935	dt_win	dt_appfn	$dr	_draw	none	-	push
-wm/frame.hibr	964	dt_win	dt_appfn	$dr	_draw	none	-	push
-wm/frame.hibr	967	dt_win	dt_appfn	$dr	_draw	none	-	push
-wm/fullscreen.hibr	157	dt_fulltell	dt_appfn	"${ap}_fullscreen"	_fullscreen	none	-	tell
+wm/files.hibr	492	dt_edit	dt_wincall	"$cb"	_edit	none	-	ask
+wm/files.hibr	496	dt_edit	dt_winget	"$cb"	_edit	value	:=	ask
+wm/frame.hibr	84	dt_winbare	dt_appfn	$dr	_draw	none	-	push
+wm/frame.hibr	181	dt_clean	dt_appfn	"${ap}_dirty"	_dirty	status	tested	push
+wm/frame.hibr	846	dt_contentonly	dt_appfn	"${ap}_paintsall"	_paintsall	status	tested	push
+wm/frame.hibr	919	dt_win	dt_appfn	$dr	_draw	none	-	push
+wm/frame.hibr	922	dt_win	dt_appfn	$dr	_draw	none	-	push
+wm/frame.hibr	970	dt_win	dt_appfn	$dr	_draw	none	-	push
+wm/frame.hibr	1003	dt_win	dt_appfn	$dr	_draw	none	-	push
+wm/frame.hibr	1006	dt_win	dt_appfn	$dr	_draw	none	-	push
+wm/fullscreen.hibr	139	dt_fulltell	dt_appfn	"${ap}_fullscreen"	_fullscreen	none	-	tell
 wm/handlers.hibr	342	dt_openverb	dt_appfn	"$call"	hook:DT_OPENVERBS	none	-	tell
 wm/ime.hibr	135	dt_imetype	dt_wincall	"$cb"	_key	none	|| true	ask
 wm/input.hibr	39	dt_altclick	dt_wincall	"$mo"	_mouse	none	-	tell
@@ -91,7 +91,7 @@ wm/input.hibr	1142	dt_mbtnev	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
 wm/input.hibr	1205	dt_event	dt_wincall	"${DT[$DT_KEYSWIN]["key"]}"	_key	none	-	ask
 wm/input.hibr	1410	dt_event	dt_appfn	"${DT_POP}_popkey"	bar:popkey	status	tested	ask
 wm/input.hibr	1456	dt_event	dt_appfn	${DT[$DT_FOCUS]["savefile"]}	_savefile	none	-	tell
-wm/input.hibr	1519	dt_event	dt_wincall	"${DT[$DT_FOCUS]["key"]}"	_key	status	tested	ask
+wm/input.hibr	1511	dt_event	dt_wincall	"${DT[$DT_FOCUS]["key"]}"	_key	status	tested	ask
 wm/keyphase.hibr	65	dt_keyletgo	dt_wincall	"$fn"	_key	none	-	ask
 wm/keyphase.hibr	74	dt_keyletgo	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
 wm/keyphase.hibr	150	dt_focuscheck	dt_wincall	"${DT[$old]["focus"]}"	_focus	none	-	tell
@@ -114,7 +114,7 @@ wm/restart.hibr	303	dt_restore	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
 wm/saver.hibr	173	dt_saverawake	dt_appfn	"${ap}_awake"	_awake	status	tested	push
 wm/session.hibr	499	dt_answer	dt_appfn	"${ap}_idle"	_idle	none	-	tell
 wm/session.hibr	501	dt_answer	dt_appfn	"${ap}_dirty"	_dirty	status	tail	push
-wm/session.hibr	890	dt_idlecall	dt_appfn	${DT[$id]["idle"]}	_idle	none	-	tell
+wm/session.hibr	888	dt_idlecall	dt_appfn	${DT[$id]["idle"]}	_idle	none	-	tell
 wm/strip.hibr	120	cs_relist	dt_prefixfn	_shown	strip_shown	status	tested	push
 wm/strip.hibr	469	dt_stripdraw	dt_prefixfn	_draw	strip_draw	none	-	push
 wm/strip.hibr	515	cs_press	dt_prefixfn	_click	strip_click	none	-	tell
@@ -123,9 +123,9 @@ wm/vault.hibr	420	dt_vwpick	dt_appfn	"$callback"	handed	none	-	ask
 wm/vault.hibr	509	vwp_choose	dt_appfn	"$cb"	handed	status	tail	ask
 wm/vault.hibr	526	dt_vwfill	dt_appfn	"$cb"	_signin	value	:=	ask
 wm/vault.hibr	553	dt_vwfilled	dt_appfn	"$cb"	_signfill	none	-	tell
-wm/windows.hibr	36	dt_new	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
-wm/windows.hibr	118	dt_del	dt_appfn	${DT[$id]["close"]}	_close	none	-	ask
-wm/windows.hibr	1158	dt_closereq	dt_wincall	"$cb"	_canclose	status	tested	ask
+wm/windows.hibr	41	dt_new	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
+wm/windows.hibr	137	dt_del	dt_appfn	${DT[$id]["close"]}	_close	none	-	ask
+wm/windows.hibr	1175	dt_closereq	dt_wincall	"$cb"	_canclose	status	tested	ask
 #kind	_about	tell	-
 #kind	_appname	push	its registered name
 #kind	_awake	push	asleep: the saver may start

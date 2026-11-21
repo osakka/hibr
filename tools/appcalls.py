@@ -98,12 +98,10 @@ OVERRIDE["dt_identify"] = "request"
 # The one way an installable changes a kept setting (ADR 0050).
 OVERRIDE["dt_set"] = "request"
 OVERRIDE["dt_sbscan"] = "request"
-# The prototype's own plumbing, and what only the platform's own windows
-# reach for: no installable calls these once the runtime exists.
+# What only the platform's own windows reach for: no installable calls
+# these once the runtime exists.
 OVERRIDE["dt_launched"] = "request"
 OVERRIDE["dt_natlayout"] = "request"
-for _n in """dt_isosent dt_isomsg dt_isodrop dt_isosend dt_isomenus""".split():
-    OVERRIDE[_n] = "gone"
 
 
 def defs():
@@ -401,10 +399,14 @@ def nextver():
 
 
 # A deliberate break of the app interface, kept only against the one tag it
-# is compared with: function -> (that tag, why). It goes at the next release,
-# and an entry that names another tag, or a row that did not change, fails
-# as stale -- an exception never outlives the break it admits (ADR 0050).
-BREAKS = {}
+# is compared with: function -> (that tag, why). A row changed or removed
+# since that tag is admitted. It goes at the next release, and an entry that
+# names another tag, or a row that did not change, fails as stale -- an
+# exception never outlives the break it admits (ADR 0050).
+_ISO = ("v0.99.555", "the ADR 0050 prototype's own hooks, removed with it (#605): an "
+        "installable reached them only behind TW[..][\"iso\"], which only the prototype's "
+        "dt_isonew ever set, so no call is left that can run")
+BREAKS = {n: _ISO for n in "dt_isosent dt_isomsg dt_isodrop dt_isosend dt_isomenus".split()}
 
 
 def params(sig):
@@ -565,6 +567,9 @@ def contract(ref):
     changed = set()
     for n, (c, sg, since) in readtable(got.stdout).items():
         if n not in sig:
+            if n in BREAKS and BREAKS[n][0] == ref:
+                changed.add(n)
+                continue
             fails.append("%s was in the app interface at %s and is gone" % (n, ref))
             continue
         if not sg or sg == sig[n]:

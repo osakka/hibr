@@ -570,11 +570,6 @@ DT_RSTILL=150
 # slow the build is, and never drives a desktop as a plain program.
 DT_TESTIDLE=${HIBR_TESTIDLE-}
 [ -n "$DT_TESTIDLE" ] && printf '\e]7777;desktop\a'
-# A desktop hosting one app for another desktop (lib/apphost.hibr, ADR
-# 0050's prototype) stamps this file with the time each pass goes idle, so
-# the desktop showing it can tell an app that has answered its input from
-# one that has not -- without ever waiting on it.
-DT_HOSTACK=
 
 # What the desktop wants mouse reporting to be, and how many components
 # have borrowed it. The mode is the window manager's, not whoever touched
@@ -791,7 +786,6 @@ dt_run() {
 			dt_saverwait
 		fi
 		dt_passcheck
-		[ -z "$DT_HOSTACK" ] || printf '%s\n' "$EPOCHREALTIME" > "$DT_HOSTACK"
 		if [ -n "$DT_TESTIDLE" ]; then
 			k := console consumed
 			k=$((k + DT_INBASE))

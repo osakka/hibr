@@ -77,7 +77,6 @@
   "%s columns": "%s أعمدة",
   "%s connected": "%s متصل",
   "%s does not take files": "%s لا يستقبل ملفات",
-  "%s (not responding)": "%s (لا يستجيب)",
   "hibr was updated: click to restart the desktop and open %s": "تم تحديث hibr: انقر لإعادة تشغيل سطح المكتب وفتح %s",
   "%s edited file(s) not yet saved to a server were kept": "احتُفظ بـ %s من الملفات المعدّلة التي لم تُحفظ على خادم بعد",
   "%s file with it": {

@@ -1477,14 +1477,6 @@ fn dt_event(k) {
 		dt_editdo selall
 		return 0
 	fi
-	# Not a paste: the desktop showing this one, saying what to do, with
-	# the token only the two of them know (wm/isolate.hibr). Asked only in
-	# a hosted desktop, so an ordinary paste is never mistaken for one.
-	if [ -n "$DT_HOSTED" ] && [ -n "$DT_HOSTTOK" ] &&
-	   [[ $k == "paste $DT_HOSTMARK:$DT_HOSTTOK "* ]]; then
-		dt_hostcmd "${k#"paste $DT_HOSTMARK:$DT_HOSTTOK "}"
-		return 0
-	fi
 	case $k in
 	"paste "*)
 		# The host terminal's own paste is the Paste key's, through the

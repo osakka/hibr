@@ -180,15 +180,7 @@ fn dt_slow(name, int us, app = "", rd = "") {
 			fi
 		fi
 		if [ -n "$held" ]; then
-			# A hosted app held its own window, and the desktop showing
-			# it went on -- still a held: line, which fails the suites as
-			# any stall does: isolation must not make a slow app quiet
-			# (ADR 0050, the owner's sensitivity requirement).
-			if [ -n "${DT_HOSTED-}" ]; then
-				dt_log "held: $name held its own window $ms ms (a stall is $DT_HOLDMS ms), in a process of its own$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
-			else
-				dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
-			fi
+			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		else
 			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		fi

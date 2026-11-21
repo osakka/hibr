@@ -469,12 +469,6 @@ fn dt_fieldundo(op) {
 fn dt_edit(op) {
 	local cb t
 
-	# A hosted app's window: Edit is done there, to the app (ADR 0050's
-	# prototype); a paste carries its text, down the terminal's own paste.
-	if [ "$op" != paste ] && dt_has dt_isowin && dt_isowin "$DT_FOCUS"; then
-		dt_isosend "$DT_FOCUS" "edit $op"
-		return 0
-	fi
 	if [ -z "$DT_FOCUS" ]; then
 		[ "$op" = copy ] || return 0
 		if t := dt_iconcopy && [ -n "$t" ]; then

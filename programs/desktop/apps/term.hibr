@@ -259,11 +259,6 @@ fn tw_fit(int id, int h, int w) {
 				-c "$w" "${TW_CMD[@]}" || return 1
 		fi
 		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"
-		# A hosted app that draws pixels is told what a cell measures.
-		if [ -n "${TW[$id]["isofn"]-}" ] && dt_has dt_natcell; then
-			dt_natcell
-			term size "${TW[$id]["t"]}" "$h" "$w" "$DT_NATCW" "$DT_NATCH"
-		fi
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
 		# console key's own wait now watches this pty's master fd
@@ -282,12 +277,7 @@ fn tw_fit(int id, int h, int w) {
 		return 0
 	fi
 	if [ "$h" != "${TW[$id]["h"]}" ] || [ "$w" != "${TW[$id]["w"]}" ]; then
-		if [ -n "${TW[$id]["isofn"]-}" ] && dt_has dt_natcell; then
-			dt_natcell
-			term size "${TW[$id]["t"]}" "$h" "$w" "$DT_NATCW" "$DT_NATCH"
-		else
-			term size "${TW[$id]["t"]}" "$h" "$w"
-		fi
+		term size "${TW[$id]["t"]}" "$h" "$w"
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
 	fi
@@ -295,7 +285,7 @@ fn tw_fit(int id, int h, int w) {
 }
 
 fn term_draw(int id, int h, int w, int row, int col) {
-	local t st sb cur=0 ms tw view stored n want rgb c note ttl pre at pl pid pr pc prs pcs
+	local t st sb cur=0 ms tw view stored n want rgb c note ttl pre at
 
 	tw=$w
 	# A visible scrollbar costs the program inside a real column, not just
@@ -331,9 +321,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		# A program does what DT_TERMEND says: by default it closes on
 		# success and stays to show why it failed.
 		st := term status "$t"
-		# A hosted app's window is the app: when its process ends, so does
-		# the window, however it ended.
-		if [ -n "${TW[$id]["iso"]-}" ] || term_isshell "$id" || [ "$DT_TERMEND" = always ] ||
+		if term_isshell "$id" || [ "$DT_TERMEND" = always ] ||
 		   { [ "$DT_TERMEND" != never ] && [ "$st" = 0 ] &&
 		     [ "${TW[$id]["selfrun"]}" != 1 ]; }; then
 			dt_wantclose "$id"
@@ -343,7 +331,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		dt_tput "$id" 1 2 "[exited %s — close this window]" "$st"
 		return 0
 	fi
-	if [ "$DT_TERMTITLE" = 1 ] && [ -z "${TW[$id]["iso"]-}" ]; then
+	if [ "$DT_TERMTITLE" = 1 ]; then
 		n := term title "$t"
 		if [ -n "$n" ] && [ "$n" != "${TW[$id]["ptitle"]}" ]; then
 			TW[$id]["ptitle"]="$n"
@@ -354,7 +342,7 @@ fn term_draw(int id, int h, int w, int row, int col) {
 			fi
 		fi
 	fi
-	if c := term clip "$t" && { [ "$DT_TERMCLIP" = 1 ] || [ -n "${TW[$id]["iso"]-}" ]; }; then
+	if c := term clip "$t" && [ "$DT_TERMCLIP" = 1 ]; then
 		if command -v dt_clipset > /dev/null; then
 			dt_clipset "$c"
 		else
@@ -382,11 +370,6 @@ fn term_draw(int id, int h, int w, int row, int col) {
 	while note := term note "$t"; do
 		ttl=${note%%$'\t'*}
 		note=${note#*$'\t'}
-		# A hosted app's own word to the desktop: its menus, a setting.
-		if [ "$ttl" = "$DT_HOSTMARK" ] && [ -n "${TW[$id]["iso"]-}" ]; then
-			dt_isomsg "$id" "$note"
-			continue
-		fi
 		[ -n "$ttl" ] || ttl=${DT[$id]["title"]#${GL[bullet]} }
 		DT_NOTEFROM=$ttl
 		dt_notify "$note" dt_raise "$id"
@@ -419,12 +402,6 @@ fn term_draw(int id, int h, int w, int row, int col) {
 		fi
 	fi
 	term draw "$t" 1 1 "$h" "$tw" "$cur" -p "w$id"
-	# A hosted app's picture, its pixels by descriptor: where its console
-	# placed it, in this window's body.
-	if [ -n "${TW[$id]["isofn"]-}" ] && pl := term images "$t"; then
-		read -r pid pr pc prs pcs <<< "${pl%%$'\n'*}"
-		frames place "${TW[$id]["isofn"]}" "w$id" $((pr + 1)) $((pc + 1)) "$prs" "$pcs" 2> /dev/null
-	fi
 	console translucent off
 	# What this frame drew, for term_dirty to compare next time.
 	TW[$id]["gen"] := term gen "$t"
@@ -484,7 +461,6 @@ fn term_scroll(int id, key, int top) {
 fn term_key(int id, key) {
 	local t=${TW[$id]["t"]} h=${TW[$id]["h"]}
 
-	[ -z "${TW[$id]["iso"]-}" ] || dt_isosent "$id"
 	# Enter in a terminal may start a program, whose window may then take
 	# the focus (Programs Take Focus, Gitea #507).
 	[ "$key" = enter ] && dt_has dt_launched && dt_launched
@@ -550,7 +526,6 @@ fn term_mouse(int id, act, btn, int r, int c, mods) {
 	local -a px
 
 	[ -n "$t" ] || return 0
-	[ -z "${TW[$id]["iso"]-}" ] || dt_isosent "$id"
 	# A link first, ctrl and a click, before a program that has the mouse
 	# is sent it: ctrl-click on nothing still goes where it went.
 	if [ "$DT_TERMLINKS" = 1 ] && [ "$btn" = left ] && [ "$act" = press ]; then
@@ -670,7 +645,6 @@ fn term_copy(int id) {
 # Paste as the terminal's own paste arrives: bracketed, when the program
 # asked for that, so a shell does not run each line as it lands.
 fn term_paste(int id, text, op = "") {
-	[ -z "${TW[$id]["iso"]-}" ] || dt_isosent "$id"
 	[ -n "${TW[$id]["t"]}" ] && term key "${TW[$id]["t"]}" "paste $text"
 	return 0
 }
@@ -682,7 +656,6 @@ fn term_wheel(int id, dir, int r, int c) {
 	local t=${TW[$id]["t"]} s k
 
 	[ -n "$t" ] || return 0
-	[ -z "${TW[$id]["iso"]-}" ] || dt_isosent "$id"
 	term mouse "$t" "wheel$dir" $(($r - 1)) $(($c - 1)) && return 0
 	s := term screen "$t"
 	if [ "$s" = alt ]; then
@@ -750,10 +723,6 @@ fn term_drop(int id, int r, int c, op, ...paths) {
 	local t=${TW[$id]["t"]} q p out=
 
 	[ -n "$t" ] || return 0
-	if [ -n "${TW[$id]["iso"]-}" ]; then
-		dt_isodrop "$id" "$r" "$c" "$op" "${paths[@]}"
-		return 0
-	fi
 	for p in "${paths[@]}"; do
 		printf -v q '%q' "$p"
 		out="$out$q "
@@ -768,16 +737,6 @@ fn term_close(int id) {
 	[ -n "${TW[$id]["t"]}" ] && term close "${TW[$id]["t"]}"
 	TW[$id]["t"]=
 	TW[$id]["fd"]=
-	if [ -n "${TW[$id]["isofn"]-}" ]; then
-		frames stop "${TW[$id]["isofn"]}" 2> /dev/null
-		TW[$id]["isofn"]=
-	fi
-	if [ -n "${TW[$id]["iso"]-}" ]; then
-		[ "${DT_ISON:-0}" -gt 0 ] && DT_ISON=$((DT_ISON - 1))
-		rm -f "${TW[$id]["iso"]}" 2> /dev/null
-		TW[$id]["iso"]=
-		TW[$id]["isoin"]=
-	fi
 }
 
 # Unseen -- minimised, or on another workspace -- the program's output is
@@ -935,14 +894,6 @@ fn tw_busy(int id) {
 # a menu, the Close Window key -- and takes a refusal as "the app has it",
 # so the box below is what closes the window if told to.
 fn term_canclose(int id) {
-	# A hosted app answers its own close (its _canclose: a document with
-	# changes asks first); a second close while it has not, ends it.
-	if [ -n "${TW[$id]["iso"]-}" ]; then
-		[ -n "${TW[$id]["isoclose"]-}" ] && return 0
-		TW[$id]["isoclose"]=1
-		dt_isosend "$id" close
-		return 1
-	fi
 	[ "$DT_TERMASK" = 1 ] || return 0
 	tw_busy "$id" || return 0
 	TW_CLOSEID=$id
@@ -1003,10 +954,6 @@ fn term_resume(int id) {
 term_menus() {
 	local t n
 
-	if [ -n "${TW[$DT_FOCUS]["iso"]-}" ]; then
-		dt_isomenus "$DT_FOCUS"
-		return 0
-	fi
 	t=${TW[$DT_FOCUS]["t"]}
 	dt_menu "File"
 	dt_item "New Window" n dt_launch term

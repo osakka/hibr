@@ -43,13 +43,8 @@ declare	dt_barishown	wm/bar.hibr	2	2	waited	-	dt_barishown(name)	-	-
 declare	dt_baritoggle	wm/bar.hibr	2	2	told	-	dt_baritoggle(name)	-	-
 declare	dt_subtext	wm/menus.hibr	2	2	told	-	dt_subtext(text)	-	-
 declare	dt_baridraw	wm/bar.hibr	2	2	told	-	dt_baridraw(name, fn)	-	-
-gone	dt_isosent	wm/isolate.hibr	8	2	told	-	dt_isosent(int id)	-	-
-gone	dt_isomsg	wm/isolate.hibr	2	2	told	-	dt_isomsg(int id, msg)	-	-
-gone	dt_isodrop	wm/isolate.hibr	2	2	told	-	dt_isodrop(int id, int r, int c, op, ...paths)	-	-
-gone	dt_isosend	wm/isolate.hibr	2	2	told	-	dt_isosend(int id, cmd)	-	-
-gone	dt_isomenus	wm/isolate.hibr	2	2	told	-	dt_isomenus(int id)	-	-
 local	dt_tr	lib/tr.hibr	541	82	asked	-	dt_tr(key, ...rest)	-	-
-local	dt_has	wm/names.hibr	421	107	waited	-	dt_has(name)	-	-
+local	dt_has	wm/names.hibr	419	107	waited	-	dt_has(name)	-	-
 local	dt_tput	wm/lang.hibr	321	52	told	-	dt_tput(int id, int r, int c, text, ...rest)	-	-
 local	dt_want	wm/loop.hibr	253	74	waited	-	dt_want(int ms)	-	-
 local	dt_wreg	widgets/hit.hibr	171	43	told	-	dt_wreg(id, int r, int c, int w, tag, int? h = "")	-	-
@@ -139,6 +134,7 @@ local	dt_davserver	wm/servers.hibr	8	4	told	dt_davserver > dt_dlgat	dt_davserver
 local	dt_sysdir	wm/state.hibr	8	2	asked	-	dt_sysdir(kind)	-	-
 local	dt_watchstart	wm/state.hibr	8	6	told	-	dt_watchstart(...cmd)	-	-
 local	dt_keyis	wm/keymatch.hibr	7	3	waited	-	dt_keyis(what, key)	-	-
+local	pe_qadd	lib/pim.hibr	7	3	told	-	pe_qadd(dir, ...fields)	0.99.556	-
 local	dt_imgm	wm/picmode.hibr	6	6	told	-	dt_imgm(mode = "")	-	-
 local	dt_pname	wm/prayertimes.hibr	6	4	asked	-	dt_pname(int i)	-	-
 local	dt_live	wm/loop.hibr	6	2	told	-	dt_live(int id, on = "")	-	-
@@ -295,7 +291,6 @@ request	dt_openwith	wm/handlers.hibr	8	4	told	-	dt_openwith(name, path)	-	-
 request	dt_loccan	wm/locations.hibr	8	2	waited	-	dt_loccan(p, op)	-	-
 request	dt_fopsave	wm/files.hibr	8	2	told	-	dt_fopsave(kind, ...rest)	-	-
 request	dt_fopundo	wm/files.hibr	8	2	told	-	dt_fopundo(op)	-	-
-request	dt_natcell	wm/native.hibr	8	2	told	-	dt_natcell()	-	-
 request	dt_busoff	wm/bus.hibr	8	4	told	-	dt_busoff(w, fn)	-	-
 request	dt_vwcopy	wm/vault.hibr	7	3	told	-	dt_vwcopy(field, id)	-	-
 request	dt_resize	wm/windows.hibr	6	4	waited	-	dt_resize(int id, int h, int w)	-	-
@@ -312,6 +307,7 @@ request	dt_location	wm/locations.hibr	4	2	told	-	dt_location(scheme, prefix, app
 request	dt_setgeom	wm/windows.hibr	4	2	told	-	dt_setgeom(int id, int r, int c, int h, int w)	-	-
 request	dt_trash	wm/files.hibr	4	2	told	-	dt_trash()	-	-
 request	dt_dnd	wm/files.hibr	4	2	told	-	dt_dnd()	-	-
+request	dt_natcell	wm/native.hibr	4	1	told	-	dt_natcell()	-	-
 request	dt_launched	wm/native.hibr	4	2	told	-	dt_launched()	-	-
 request	dt_rslog	wm/restart.hibr	4	2	told	-	dt_rslog(text)	-	-
 request	dt_vwacct	wm/vault.hibr	4	4	waited	-	dt_vwacct()	-	-

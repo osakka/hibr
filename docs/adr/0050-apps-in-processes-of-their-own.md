@@ -3,6 +3,7 @@
 Status: decided (owner, 2026-11-18): every installable runs in a process of
 its own, by one path, with no switch -- the Decision below. The first plan
 (0.99.400) and the prototype that measured it follow it, as history.
+The prototype was removed (2026-11-21, #605) because the spine replaces it.
 
 ## Context
 
