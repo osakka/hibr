@@ -28,6 +28,8 @@ app mail "Email, offline, labels and conversations as Gmail has them" 2.5.5
 command -v dt_app > /dev/null && dt_app mail "Mail" 26 100 many "✉"
 command -v dt_app > /dev/null && dt_app mailc "New Message" 22 76 many "" "" hidden
 
+[ -n "${PE_LIBDONE-}" ] || . "$DT_HERE/lib/pim.hibr"
+
 ML_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hibr/mail"
 ML_LIB=$DT_HERE/lib
 DT_MAILMAX="${DT_MAILMAX-1000}"
