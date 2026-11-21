@@ -42,6 +42,7 @@ carried yet is read from the tree.
 Reads ~/hibr-apps (or $HIBR_APPS) and never writes it.
 """
 import collections, glob, json, os, re, subprocess, sys
+from urllib.parse import unquote
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -240,12 +241,15 @@ def catalogue_entries():
     for k, e in sorted(idx.items()):
         kind = e.get("kind")
         b = e.get("bundle")
+        if kind in CODEKINDS and b and not os.path.exists(os.path.join(APPS, unquote(b))):
+            sys.exit("FAIL %s: its bundle %s is not in the catalogue checkout" % (k, b))
         if kind not in CODEKINDS or not b or not b.endswith(".hibr"):
             out.append({"entry": k, "where": "catalogue", "version": e.get("version", "-"), "kind": kind,
                         "files": [], "data": True, "hibr": e.get("hibr", "-")})
             continue
-        files = [os.path.join(APPS, b)] + [os.path.join(APPS, p["path"]) for p in e.get("parts", [])
-                                           if p.get("path", "").endswith(".hibr")]
+        # The index keeps paths as they go in a URL (Sound%20%26%20Video).
+        files = [os.path.join(APPS, unquote(b))] + [os.path.join(APPS, unquote(p["path"])) for p in e.get("parts", [])
+                                                    if p.get("path", "").endswith(".hibr")]
         out.append({"entry": k, "where": "catalogue", "version": e.get("version", "-"), "kind": kind,
                     "files": [f for f in files if os.path.exists(f)], "hibr": e.get("hibr", "-"),
                     "needs": re.split(r"[,\s]+", e.get("needs", "") or "") if isinstance(e.get("needs", ""), str)
