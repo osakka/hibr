@@ -1,7 +1,8 @@
-# archive — a tarball as a folder
+# archive — a tarball, a zip or a disc image as a folder
 
-Open a `.tar` or `.tar.gz` and walk it as though it were a folder (Gitea
-#102). What `archivemount` does with FUSE, without a kernel mount, because
+Open a `.tar`, a `.tar.gz`, a zip or a disc image (ISO 9660, or a CUE
+sheet and its BIN) and walk it as though it were a folder (Gitea #102,
+#488). What `archivemount` does with FUSE, without a kernel mount, because
 the shell already has the one mechanism it needs: a module can register a
 *protocol*, so `/dev/archive/<name>/path/inside` is a filename anywhere a
 filename goes.
@@ -21,6 +22,14 @@ archive create [-z] OUT [-C DIR] PATH...
                            `.` is everything in it), gzipped with -z or
                            when OUT ends .gz or .tgz
 ```
+
+What FILE is is decided from its bytes, never from its name, in this
+order: gzip (a tar inside it), a zip (`PK` and a local header or an empty
+archive's end record at the start), a tar (a first header whose checksum
+adds up), a raw disc image (a CD sector's sync pattern at the start), an
+ISO 9660 image (`CD001` at sector 16), a CUE sheet (text with a `FILE` and
+a `TRACK` line), and anything else is read as a tar, which says when it is
+not one. A zip and a disc image are read only; `create` writes tar.
 
 A line is `kind TAB size TAB mtime TAB name`, the shape `dav ls` already
 has: `f`, `d` or `l`. With `:=`, `ls` fills a map per entry (`kind`, `size`,
@@ -56,8 +65,8 @@ two
 so a builtin called `tar` would make `/usr/bin/tar` unreachable the moment
 the module loaded. The cat module shadows `cat` on purpose, because it is
 byte-identical in a pipe and nothing can tell; this is no replacement for
-tar, so it does not take the name. The name also leaves room for a zip
-reader behind the same commands later.
+tar, so it does not take the name. The name also left room for the zip
+and disc image readers that are behind the same commands now.
 
 ## Writing a new one, and extracting one
 
@@ -135,6 +144,72 @@ is a folder here when anything is under it, so `archive ls a sub` lists
 `sub`'s own whether or not the archive ever mentioned `sub`. Implied folders
 come back as `d` with size 0 and the time of the member that revealed them.
 
+## Zip
+
+The central directory at the end of the file is the index; each member's
+own local header is read only for where its bytes start. A member is
+stored or deflated -- inflated whole, through `mods/inflate.c`, when it is
+first read, its length and CRC checked before a byte is handed out -- and
+anything else is listed but not read: an encrypted member, or one
+compressed another way (bzip2, LZMA, Deflate64, zstd), says so by name when
+it is asked for, and an extraction holding one writes nothing. zip64's own
+fields and end records are read, so a member or an archive past 4 GB is
+fine; a zip spread over several files is refused.
+
+A name marked UTF-8, or that reads as UTF-8, is kept as it is, and any
+other is read as code page 437, which is what DOS wrote; Info-ZIP's
+Unicode path field wins over both when its checksum matches. A name made on
+DOS or Windows has its backslashes taken for folders. Times are the
+extended timestamp field's when there is one, and otherwise the DOS time,
+which has no zone and is read as local time. A member made on Unix keeps
+its mode, and a symbolic link -- a member whose mode says so, its target
+its bytes -- is a link, under the same rule as a tar's: one that points out
+of the folder refuses the extraction.
+
+<!-- setup
+mkdir -p ex/notes && printf 'hibr\n' > ex/README.md
+printf 'one\ntwo\n' > ex/notes/list.txt
+(cd ex && bsdtar --format zip -cf ../demo.zip README.md notes)
+-->
+```sh
+need archive
+archive open z demo.zip
+archive ls z notes | cut -f1,2,4
+archive cat z notes/list.txt
+archive close z
+```
+
+```output
+f	8	list.txt
+one
+two
+```
+
+## Disc images
+
+An ISO 9660 image is read from its volume descriptors at sector 16. The
+names are Rock Ridge's when the image has them -- with each file's mode,
+time and links, and folders relocated for depth followed back to where they
+belong -- else Joliet's, else the plain ISO 9660 ones, their `;1` taken
+off. A file recorded in several pieces reads whole when the pieces lie
+together, and is refused by name when they do not, as is an interleaved
+one. A folder the image names twice, or that is its own ancestor, is walked
+once, and the folders together may not read more than the image holds.
+
+A CUE sheet names a BIN beside it: the first track that is `MODE1/2048`,
+`MODE1/2352` or `MODE2/2352` is opened from its `INDEX 01`, and the raw
+sectors' sync and headers are skipped as it is read, so nothing is copied.
+The BIN is found in the sheet's own folder, matching its case when no file
+has it exactly, as a sheet written on Windows often needs; a sheet naming a
+file anywhere else is refused, and so is one with no such track, naming
+the mode it found. A raw `.bin` opens by itself too. Audio tracks are left
+alone, and an image with only UDF on it is not read.
+
+`ARCHIVE_MAX` bounds a zip and a disc image as well: what their members add
+up to may pass the archive's own size by no more than it, which is what
+stops a zip whose small members inflate enormously, or a disc image whose
+files all claim the same bytes, from filling the disk on extraction.
+
 ## What it does with the file
 
 A gzip archive is expanded once, at open, into a file of its own that
@@ -168,7 +243,9 @@ the first version did with a 40-byte text file.
 - Changing a member in place: an archive is written whole, or not at all.
 - `.tar.bz2`, `.tar.xz`, `.tar.zst`: each is another decompressor, and only
   gzip came free with the prompt module's inflate.
-- zip, which is a different container with its own index at the end.
+- Writing a zip or a disc image: `create` writes tar.
+- A zip member compressed any way but deflate, an encrypted one, a
+  self-extracting zip, and a disc image's second session or its UDF.
 - Members larger than memory: `cat` streams, but the scheme and the gzip
   expansion both hold the whole thing.
 - A member for a module that opens its own path. "Anywhere a filename goes"

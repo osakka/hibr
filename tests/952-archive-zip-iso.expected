@@ -1,0 +1,49 @@
+0
+--- b.zip
+open 0
+f	6	1700000000	a.txt
+d	0	1700000000	sub
+l	5	1700000000	link
+f	8893	1700000000	n.txt
+f	8893	1700000000	sub/n.txt
+2000
+read: hello
+extracted 4: 0
+the same tree
+--- b.iso
+open 0
+f	6	1700000000	a.txt
+l	0	1700000000	link
+d	0	1700000000	sub
+f	8893	1700000000	n.txt
+f	8893	1700000000	sub/n.txt
+2000
+read: hello
+extracted 4: 0
+the same tree
+--- j.iso
+open 0
+f	6	1700000000	a.txt
+d	0	1700000000	sub
+f	8893	1700000000	n.txt
+f	8893	1700000000	sub/n.txt
+2000
+read: hello
+extracted 3: 0
+Only in src: link
+--- game.cue
+open 0
+f	6	1700000000	a.txt
+l	0	1700000000	link
+d	0	1700000000	sub
+f	8893	1700000000	n.txt
+f	8893	1700000000	sub/n.txt
+2000
+read: hello
+extracted 4: 0
+the same tree
+--- a zip that climbs out
+hibr: archive extract: ../up.txt would land outside box, so nothing was written
+extract 1
+--- the same bytes under any name
+f	6	1700000000	a.txt
