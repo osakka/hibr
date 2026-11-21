@@ -40,7 +40,7 @@ SUITES = ["inspect_symbols", "inspect_records", "inspect_spans", "inspect_vars",
           "mon", "mtr", "editor", "term_diff", "uifuzz", "strictvars", "deps", "appcalls", "scopes",
           "md_spec", "html_tree", "mail", "mailapp", "contacts", "contactscmd", "calapp", "pim", "pim_rrule", "web", "dav", "fetch", "media", "sound", "net", "bt",
           "uni_bidi", "uni_shape", "hcal_icu", "salat_adhan", "vw_crypto", "vw", "vault", "sixel", "kitgfx", "holdpix", "dmabuf", "frames", "holdrenew", "holdseam", "holdlock", "native", "rtchan", "onset", "stale", "audience", "cellwire", "appseam", "inputlat", "archive", "mermaid", "pdfapp",
-          "appmgr", "menuedit", "shots", "contain", "archives", "traymod", "upgrade", "saverload", "superdrag", "hoverwant", "hosted",
+          "appmgr", "menuedit", "shots", "contain", "archives", "traymod", "upgrade", "saverload", "superdrag", "hoverwant", "hosted", "widgetroles",
           "keepawake", "natscale"]
 
 
