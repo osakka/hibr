@@ -9,6 +9,8 @@
 %s %s items%s
 %s %s, in %s, runs in place of the newer %s: remove it, or update it in the Catalogue
 %s %s; %s
+%s (not responding)
+%s (quit)
 %s Settings…
 %s already has a %s
 %s at %s
@@ -19,6 +21,7 @@
 %s changed outside Sheet: its formulas run contained until you give it full access again
 %s columns
 %s connected
+%s could not be started again
 %s did not start
 %s does not take files
 %s edited file(s) not yet saved to a server were kept
@@ -67,6 +70,9 @@
 %s of %s
 %s of %s rows
 %s pixels, a cell is %s by %s
+%s quit unexpectedly
+%s quit unexpectedly and was opened again
+%s quit unexpectedly: click to reopen it
 %s reads as
 %s rows
 %s runs with full access
@@ -1299,6 +1305,7 @@ Week
 What a key is and types: Blit Keyboard
 What it prints is the cell's value:
 Wheel Scrolls
+When an App Quits
 Where are you? Control Panel > Prayer Times
 Where:
 Wi-Fi

@@ -315,6 +315,8 @@ DTW_C	1	0	wm/winfacts.hibr	local
 DTW_H	1	0	wm/winfacts.hibr	local
 DTW_R	1	0	wm/winfacts.hibr	local
 DTW_W	1	0	wm/winfacts.hibr	local
+DT_APPGONE	1	0	wm/settings.hibr	shared
+DT_APPGONES	1	0	wm/settings.hibr	shared
 DT_FITLINES	1	0	widgets/textfit.hibr	local
 DT_IMEAT	1	0	wm/ime.hibr	local
 DT_KEYBASE	1	0	wm/keyphase.hibr	call

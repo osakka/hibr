@@ -332,19 +332,21 @@ PER = 'C0=${EPOCHREALTIME/./}; for i in {1..200}; do dt_wincall "$C" calc_click 
 ph, pu = result(t, PER), result(u, PER)
 print("one input report, us: hosted %s, in-process %s" % (ph, pu))
 
-# The keys withheld from a hosted window -- every chord of a shortcut or an
-# app launcher's key, plain ones included, and the harness's q -- are each
-# declined by the in-process Calculator, so withholding them is exact.
+# The keys the desktop also acts on -- every chord of a shortcut or an app
+# launcher's key, plain ones included, and the harness's q -- are each
+# declined by the in-process Calculator; hosted, one is sent and the
+# desktop's own action waits for the answer (wm/rtfail.hibr: the hold).
 got = result(u, r'''for k in $(printf '%s\n' "${DT_KEYS[@]}" "${DT_APPKEY[@]}") q; do calc_key "$C" "$k"; echo "$k $?"; done | sort -u | tr '\n' ' ' ''')
 pairs = re.findall(r"(\S+) (\d+) ", got)
 taken = [x for x in pairs if x[1] != "1"]
-print("withheld keys, each with in-process calc_key's status: %s" % got)
-check("every key withheld from a hosted window is declined in-process",
+print("the desktop's keys, each with in-process calc_key's status: %s" % got)
+check("every key the desktop also acts on is declined in-process",
       len(pairs) >= 30 and not taken, (len(pairs), taken, got[:400]))
 t.send(b"\x1b", settle=0.3, collect=0.3)
 t.send(b"\x1b", settle=0.3, collect=0.3)
-check("and one sent to a hosted window is withheld, said in the log, and the "
-      "desktop's own action runs", "hosted: key escape withheld" in log(t), log(t)[-400:])
+check("and one sent to a hosted window is declined by its own process, said "
+      "in the log, and the desktop's own action runs",
+      "hosted: key escape declined" in log(t), log(t)[-400:])
 
 u.close()
 t.close()

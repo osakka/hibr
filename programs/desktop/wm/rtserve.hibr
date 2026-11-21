@@ -328,7 +328,7 @@ dt_rttick() {
 	for c in "${!DT_RTPEND[@]}"; do
 		dt_rtsay "$c" ""
 	done
-	[ "${#DT_RVASK[@]}${#DT_RTENDPID[@]}" = 00 ] || dt_rvtick
+	[ "${#DT_RVASK[@]}${#DT_RTENDPID[@]}${#DT_RVLATE[@]}" = 000 ] || dt_rvtick
 	[ "${#DT_RTCELLC[@]}" = 0 ] || dt_rvtakes
 	if command -v console > /dev/null; then
 		w := console woke "$DT_RTLFD" "${!DT_RTC[@]}"
@@ -369,7 +369,7 @@ dt_rttick() {
 		done
 		if [ "$st" = 2 ]; then
 			dt_log "app runtime: ${DT_RTC["$c"]} sent ${#DT_RTBUF["$c"]} bytes with no end of line; let go"
-			dt_rtdrop "$c"
+			dt_rtdrop "$c" "it sent a line with no end"
 		fi
 	done
 	return 0
@@ -490,11 +490,15 @@ fn dt_rttell(launch, name, ...args) {
 	dt_rtsay "$c" "$x"
 }
 
-# Let a connection go.
-fn dt_rtdrop(int c) {
-	local x
+# Let a connection go: why, when it is the desktop that lets it go rather
+# than the app that went, said to its windows (dt_rvdrop), which carry on as
+# the person chose (ADR 0050, Decision 7). Its app and its process are
+# taken before the records go, since the drop below forgets both.
+fn dt_rtdrop(int c, why = "") {
+	local x pid
 
 	[ -n "${DT_RTC["$c"]+x}" ] || return 0
+	pid=${DT_RTCPID["$c"]-}
 	command -v console > /dev/null && console unwatch "$c" 2> /dev/null
 	send -c "$c"
 	exec {c}>&-
@@ -508,7 +512,7 @@ fn dt_rtdrop(int c) {
 	unset DT_RTPENDB["$c"] DT_RTPENDT["$c"] DT_RTCPID["$c"]
 	# Gone first, so nothing below says anything more to it: then its
 	# cells channel and its windows.
-	dt_rvdrop "$c"
+	dt_rvdrop "$c" "$x" "$pid" "$why"
 	return 0
 }
 
@@ -538,7 +542,7 @@ fn dt_rtsay(int c, line) {
 		DT_RTPENDB["$c"]=$RET
 		if [ "$RET" -gt "$DT_RTQMAX" ] && [ $((EPOCHSECONDS - DT_RTPENDT["$c"])) -ge "$DT_RTQSECS" ]; then
 			dt_log "app runtime: ${DT_RTC["$c"]-a connection} stopped reading ($RET bytes waiting for it); let go"
-			dt_rtdrop "$c"
+			dt_rtdrop "$c" "it stopped reading"
 			return 1
 		fi
 		DT_RTPEND["$c"]=1
@@ -558,7 +562,7 @@ dt_rtclose() {
 
 	[ -n "$DT_RTLFD" ] || return 0
 	for c in "${!DT_RTC[@]}"; do
-		dt_rtdrop "$c"
+		dt_rtdrop "$c" closing
 	done
 	command -v console > /dev/null && console unwatch "$DT_RTLFD" 2> /dev/null
 	exec {DT_RTLFD}>&-

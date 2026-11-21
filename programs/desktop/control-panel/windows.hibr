@@ -5,14 +5,15 @@
 # drawn with, the Title Bar Buttons list -- each button on or off, and on
 # which side of the title -- Placement, what Zoom fills
 # -- the window's own display or every display (Gitea #286) -- and how wide
-# a tiled workspace's main window is. How the mouse moves, resizes and double-clicks one is the
-# Mouse pane's. Every value here is read by wm/frame.hibr; this pane only
+# a tiled workspace's main window is, and what an app's windows do when its
+# own process quits (ADR 0050). How the mouse moves, resizes and double-clicks one is the
+# Mouse pane's. Every value here is read by the window manager; this pane only
 # ever changes the DT_* settings, never the drawing itself.
 
 strict
 
 
-app windows "The Control Panel pane for how a window looks and where it opens" 1.11.5
+app windows "The Control Panel pane for how a window looks and where it opens" 1.11.6
 command -v cp_pane > /dev/null && cp_pane windows "Windows" "▭"
 
 fn cp_set_frame(int? id = "", value = "") { dt_set DT_FRAME "$value"; }
@@ -23,6 +24,7 @@ fn cp_set_place(int? id = "", value = "") { dt_set DT_PLACE "$value"; }
 fn cp_set_natfocus(int? id = "", value = "") { dt_set DT_NATFOCUS "$value"; }
 fn cp_set_zoomfill(int? id = "", value = "") { dt_set DT_ZOOMFILL "$value"; }
 fn cp_set_fullend(int? id = "", value = "") { dt_set DT_FULLEND "$value"; }
+fn cp_set_appgone(int? id = "", value = "") { dt_set DT_APPGONE "$value"; }
 # How much of a picture wallpaper shows through a window, in tens.
 fn cp_wintrans(int v) {
 	[ "$v" -lt 0 ] && v=0
@@ -63,6 +65,10 @@ fn windows_rows(int w) {
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Full Screen Ends"; CP[$w][$n]["key"]=fullend
 	cp_choice "$w" "$n" "$DT_FULLEND" cp_set_fullend "${DT_FULLENDS[@]}"
+	n=$((n + 1))
+	# What an app's windows do when its own process ends (ADR 0050).
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="When an App Quits"; CP[$w][$n]["key"]=appgone
+	cp_choice "$w" "$n" "${DT_APPGONE:-keep}" cp_set_appgone "${DT_APPGONES[@]}"
 	n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tiled Main"
 	CP[$w][$n]["after"]="($DT_TILEMAIN%)"

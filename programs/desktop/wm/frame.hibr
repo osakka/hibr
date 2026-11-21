@@ -89,6 +89,7 @@ fn dt_winbare(int id) {
 	console put -p "w$id" 0 0 "$t"
 	t=${DT[$id]["title"]}
 	case $DT_LANG in ?*) t := dt_trtitle "$t" ;; esac
+	[ -z "${DT_RVC[$id]+x}" ] || t := dt_rvtitle "$id" "$t"
 	[ ${#t} -gt $((w - 5)) ] && t="${t:0:$((w - 5))}"
 	console put -p "w$id" 0 1 "${GL[cross]}"
 	console pen "$fg" "$bg" dim
@@ -1014,6 +1015,7 @@ fn dt_win(int id) {
 	local t=${DT[$id]["title"]}
 
 	case $DT_LANG in ?*) t := dt_trtitle "$t" ;; esac
+	[ -z "$hv" ] || t := dt_rvtitle "$id" "$t"
 	DT[$id]["btns"] := dt_chrome "w$id" 0 0 "$h" "$w" "$t" "$on" "$cap" "${fixed:-0}" "$id"
 	# A window its app's own process draws, once its view is bound, paints
 	# what it changed as a paints-all app does; one waiting for its view

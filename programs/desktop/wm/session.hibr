@@ -857,13 +857,18 @@ dt_run() {
 			fi
 		fi
 		pk=
-		# Numbered as it is acted on, not as it was read: a key that
-		# came during a resize waits out the settling above, and that
-		# wait is the desktop's, never the focused app's (wm/latency.hibr).
+		# Input held while a key's answer was awaited from an app's own
+		# process goes first, in the order it came, once the answer is in
+		# (wm/rtfail.hibr); and while one is awaited, this joins it. Its
+		# first entry is never empty, so asking for that is the cheaper
+		# test, every pass.
+		[ -z "$DT_RVHELD" ] || [ -n "$DT_RVHOLD" ] || dt_rvdrain
 		if [ -n "$k" ] && dt_saverseen; then
-			dt_answerable "$k" && dt_innum
-			dt_event "$k"
-			[ -z "$DT_INANS" ] || { DT_INANS=; dt_inanswered; }
+			if [ -z "$DT_RVHOLD" ]; then
+				dt_input "$k"
+			else
+				DT_RVHELD+=("$k")
+			fi
 		fi
 		[ -n "$DT_PTRLOCK" ] && dt_ptrlockcheck
 		[ "${#DT_FULLS[@]}" = 0 ] || dt_fullcheck
@@ -873,6 +878,16 @@ dt_run() {
 }
 
 dt_quit() { DT_QUIT=1; }
+
+# One of the person's inputs acted on. Numbered as it is acted on, not as it
+# was read: a key that came during a resize waits out the settling, and
+# that wait is the desktop's, never the focused app's (wm/latency.hibr).
+fn dt_input(k) {
+	dt_answerable "$k" && dt_innum
+	dt_event "$k"
+	[ -z "$DT_INANS" ] || { DT_INANS=; dt_inanswered; }
+	return 0
+}
 
 # A window's _idle, timed under `idle:<app>`. Called for a paused app too:
 # a terminal's program left unread keeps its pty readable, and the desktop

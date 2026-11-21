@@ -6,11 +6,12 @@
 # as it is made, and is then never drawn in-process: until its view is
 # bound it shows its face and frame and nothing else. The desktop never
 # waits on the app: a call into it is a line on its socket, an asked one
-# (a close) holds the window until the app's `took` or DT_HOLDMS, and a key
-# the desktop also acts on is never sent, so it is never done twice (the
-# held fallback is the input track's). The wire is scratchpad's
-# wire-spine.md, protocol 7. Only a test session listens (dt_rtlisten), so
-# in a real session every branch on DT_RVC is one empty lookup.
+# (a close) holds the window until the app's `took` or DT_HOLDMS, and the
+# person's input is numbered so an app that leaves it unanswered is seen
+# (what then happens, and what happens when the app ends, is
+# wm/rtfail.hibr's). The wire is scratchpad's wire-spine.md, protocol 7.
+# Only a test session listens (dt_rtlisten), so in a real session every
+# branch on DT_RVC is one empty lookup.
 #
 # Part of the window manager; desktop.hibr sources it. It only defines
 # functions and sets state, so it can be read on its own and is never run.
@@ -25,7 +26,8 @@ strict
 declare -gA DT_RVGEN DT_RVARGS DT_RVDIRTY DT_RVUNC DT_RVOPEN DT_RVCLOSE
 # What a hosted app's process said it has, by prefix (`has`), and the
 # request connection that draws for it; the asks waiting for a `took`, by
-# number ("KIND ID DEADLINE"); what has been said once; and an app process
+# number ("KIND ID DEADLINE", and for the person's input its time and its
+# app's processor time too: dt_rvinput); what has been said once; and an app process
 # with no window left, by pid, with when it is ended if still there.
 declare -gA DT_RTHAS DT_RTHOST DT_RVASK DT_RVSAID DT_RTENDPID
 DT_RVSEQ=0
@@ -107,6 +109,8 @@ fn dt_rvargs(int id) {
 fn dt_rvbind(int id) {
 	local ap=${DT[$id]["app"]-} c fd a h w dh dw or oc x new=
 
+	# One whose app has gone keeps its last picture, never bound again.
+	[ "${DT_RVC[$id]}" != - ] || return 0
 	c=${DT_RTHOST["$ap"]-}
 	[ -n "$c" ] || return 1
 	fd=${DT_RTCELLS["$c"]-}
@@ -182,35 +186,69 @@ fn dt_rvwithheld(key) {
 	return 1
 }
 
+# The person's input to a hosted window, numbered as an ask so its answer
+# can be told from a late one and its time kept (ADR 0050, the
+# not-responding mark): "KIND ID DEADLINE T0 ON WAIT FLAGS", the deadline
+# DT_HOLDMS on, T0 the clock in microseconds, ON and WAIT the app process's
+# processor and run-queue time then (schedstat), by which a wait past the
+# deadline is judged a stall as dt_slow judges one. Answered with ret.
+fn dt_rvinput(int id, kind) {
+	local p on=0 wt=0 now=${EPOCHREALTIME/./}
+
+	DT_RVSEQ=$((DT_RVSEQ + 1))
+	p=${DT_RTCPID["${DT_RVC[$id]}"]-}
+	[ -z "$p" ] || read -r on wt _ 2> /dev/null < "/proc/$p/schedstat" || { on=0; wt=0; }
+	DT_RVASK[$DT_RVSEQ]="$kind $id $((now / 1000 + DT_HOLDMS)) $now $on $wt -"
+	ret "$DT_RVSEQ"
+}
+
 # A hosted window's input handler (dt_wincall): sent and never waited for.
-# A key is numbered, as an ask, so its answer can be told from a late one;
-# one the desktop also acts on is withheld and declined at once, so the
-# desktop's own action runs and it is never done twice (ADR 0050, B). The
-# person's own input marks the window's cells channel as input, so the
-# echo is drawn when it comes.
+# The person's own input -- a key, a click, a press or a release, the
+# wheel, a paste, a drop, never the pointer moving -- is numbered
+# (dt_rvinput), so the window is marked not responding when its app leaves
+# it unanswered; one key the desktop also acts on is withheld and declined at
+# once, so the desktop's own action runs and it is never done twice (ADR
+# 0050, B). The person's own input marks the window's cells channel as
+# input, so the echo is drawn when it comes.
 fn dt_rvcall(int id, cb, ...args) {
-	local ap=${DT[$id]["app"]-} kind seq
+	local ap=${DT[$id]["app"]-} kind seq=0
 
 	kind=${cb#"${ap}_"}
 	if [ -z "${DT_RVC[$id]}" ]; then
 		dt_rvonce "early:$id" "app runtime: window $id of $ap was given $kind before its view was bound; not sent"
 		return 1
 	fi
+	# Its app has gone: nothing to send to, and a key is declined, so the
+	# desktop's own action on it -- Close among them -- still runs.
+	if [ "${DT_RVC[$id]}" = - ]; then
+		dt_rvonce "gone:$id" "app runtime: window $id's app $ap has gone; its $kind is not sent"
+		return 1
+	fi
 	case $kind in
 	key)
+		seq := dt_rvinput "$id" key
+		# One the desktop also acts on once a window declines it: the
+		# desktop's action and everything the person does after it wait
+		# for the app's answer, or DT_HOLDMS, never longer -- then the
+		# action runs and, if no answer came, the key is revoked, so it is
+		# never done twice (dt_rvunhold). Answered "taken" here, since
+		# nothing more may be done with it now.
 		if dt_rvwithheld "${args[0]-}"; then
-			dt_log "hosted: key ${args[0]-} withheld, the desktop's"
-			return 1
+			DT_RVHOLD=$seq
+			DT_RVHOLDK=${args[0]-}
+			dt_want "$DT_HOLDMS"
 		fi
-		DT_RVSEQ=$((DT_RVSEQ + 1))
-		seq=$DT_RVSEQ
-		DT_RVASK[$seq]="key $id $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
 		console cells input "w$id"
 		dt_rvsend "$id" "$seq" key "${args[@]}"
 		;;
 	click | mouse | wheel | paste | drop)
+		if [ "$kind" != mouse ]; then
+			seq := dt_rvinput "$id" "$kind"
+		else
+			case ${args[0]##*-} in press | release) seq := dt_rvinput "$id" "$kind" ;; esac
+		fi
 		console cells input "w$id"
-		dt_rvsend "$id" 0 "$kind" "${args[@]}"
+		dt_rvsend "$id" "$seq" "$kind" "${args[@]}"
 		;;
 	*) dt_rvsend "$id" 0 "$kind" "${args[@]}" ;;
 	esac
@@ -233,6 +271,10 @@ fn dt_rvget(int id, cb, ...args) {
 fn dt_rvclose(int id) {
 	local c=${DT_RVC[$id]-} seq
 
+	if [ "$c" = - ]; then
+		dt_rvforget "$id"
+		return 0
+	fi
 	if [ -n "$c" ] && [ -z "${DT_RVCLOSE[$id]-}" ] && [ -n "${DT[$id]["close"]-}" ]; then
 		DT_RVSEQ=$((DT_RVSEQ + 1))
 		seq=$DT_RVSEQ
@@ -253,6 +295,11 @@ fn dt_rvforget(int id) {
 	local c=${DT_RVC[$id]-} fd i p x
 
 	unset DT_RVC[$id] DT_RVGEN[$id] DT_RVARGS[$id] DT_RVDIRTY[$id] DT_RVUNC[$id] DT_RVOPEN[$id] DT_RVCLOSE[$id]
+	unset DT_RVLATE[$id] DT_RVMARK[$id]
+	if [ "$c" = - ]; then
+		dt_rvletgo "$id"
+		return 0
+	fi
 	[ -n "$c" ] || return 0
 	fd=${DT_RTCELLS["$c"]-}
 	[ -z "$fd" ] || console cells drop "$fd" "w$id"
@@ -268,20 +315,25 @@ fn dt_rvforget(int id) {
 	return 0
 }
 
-# An app's answer to an ask: a close answered lets its window go; a key's
-# is noted (the input track holds on it); one not awaited, or late, is
+# An app's answer to an ask: a close answered lets its window go; an
+# input's is the app answering, which takes back the not-responding mark
+# once nothing older of that window's is left unanswered; one not awaited is
 # dropped and said.
 fn dt_rvtook(int c, seq, st = "") {
 	local kind id end
 
 	if [ -z "${DT_RVASK["$seq"]+x}" ]; then
-		dt_log "app runtime: ${DT_RTC["$c"]-an app} answered ask $seq after its time; dropped"
+		dt_log "app runtime: ${DT_RTC["$c"]-an app} answered ask $seq, which was not awaited; dropped"
 		return 0
 	fi
-	read -r kind id end <<< "${DT_RVASK["$seq"]}"
+	read -r kind id end _ <<< "${DT_RVASK["$seq"]}"
 	unset DT_RVASK["$seq"]
-	[ "$kind" = close ] || return 0
 	[ "${DT_RVC[$id]-}" = "$c" ] || return 0
+	if [ "$kind" != close ]; then
+		[ "$DT_RVHOLD" != "$seq" ] || dt_rvunhold "$seq" "$st"
+		[ "${DT_RVLATE[$id]-}" != "$seq" ] || dt_rvrelate "$id"
+		return 0
+	fi
 	DT_RVCLOSE[$id]=done
 	dt_del "$id"
 }
@@ -348,7 +400,11 @@ fn dt_rvtake(int fd) {
 		l=broke
 		[ "$st" = 1 ] && l=ended
 		dt_log "app runtime: ${DT_RTC["$c"]-an app}'s cells channel $l; let go"
-		dt_rtdrop "$c"
+		if [ "$l" = broke ]; then
+			dt_rtdrop "$c" "its cells channel broke"
+		else
+			dt_rtdrop "$c"
+		fi
 		return 0
 	fi
 	while read -ra w; do
@@ -394,53 +450,72 @@ dt_rvtakes() {
 # Every pass while listening: asks and closes past their time, and app
 # processes left with no window and not gone by themselves.
 dt_rvtick() {
-	local s kind id end now p
+	local s kind id end now p fl
 
 	now=$((${EPOCHREALTIME/./} / 1000))
 	for s in "${!DT_RVASK[@]}"; do
-		read -r kind id end <<< "${DT_RVASK["$s"]}"
+		read -r kind id end _ _ _ fl <<< "${DT_RVASK["$s"]}"
 		[ "$now" -ge "$end" ] || continue
+		if [ -z "${DT_RVC[$id]+x}" ]; then
+			unset DT_RVASK["$s"]
+			[ "$DT_RVHOLD" != "$s" ] || dt_rvunhold "$s" 1
+			continue
+		fi
+		# The person's input past its time is kept until it is answered:
+		# the oldest such is what the window waits on (dt_rvlate). A key
+		# whose answer the desktop's action waited on is declined now and
+		# revoked, so the app does not act on it as well when it wakes.
+		if [ "$kind" != close ]; then
+			[ "$fl" = - ] || continue
+			DT_RVASK["$s"]=${DT_RVASK["$s"]%-}x
+			[ -n "${DT_RVLATE[$id]-}" ] && [ "${DT_RVLATE[$id]}" -lt "$s" ] || DT_RVLATE[$id]=$s
+			if [ "$DT_RVHOLD" = "$s" ]; then
+				dt_rvrevoke "$id" "$s"
+				dt_rvunhold "$s" 1
+			fi
+			continue
+		fi
 		unset DT_RVASK["$s"]
-		[ "$kind" = close ] || continue
 		dt_log "app runtime: ${DT[$id]["app"]-?} did not answer the close of window $id in $DT_HOLDMS ms; it goes"
 		DT_RVCLOSE[$id]=done
 		dt_del "$id"
 	done
 	for p in "${!DT_RTENDPID[@]}"; do
 		if ! kill -0 "$p" 2> /dev/null; then
-			unset DT_RTENDPID["$p"]
+			# Gone and reaped: what it ended with is its job's kept
+			# status, read without waiting, and said once for an app
+			# that went with windows open.
+			if [ -n "${DT_RTENDOWE["$p"]-}" ]; then
+				wait "$p" 2> /dev/null
+				dt_rvended "$p" "$?"
+			fi
+			unset DT_RTENDPID["$p"] DT_RTENDAPP["$p"] DT_RTENDWHY["$p"] DT_RTENDOWE["$p"] DT_RTENDHIT["$p"]
 		elif [ "$EPOCHSECONDS" -ge "${DT_RTENDPID["$p"]}" ]; then
-			dt_log "app runtime: process $p had no window left and had not gone in $DT_RTENDSECS s; ended"
-			kill "$p" 2> /dev/null
-			unset DT_RTENDPID["$p"]
+			# Still there: ended, then watched until it has gone, and
+			# killed outright once more time has passed.
+			if [ -z "${DT_RTENDHIT["$p"]-}" ]; then
+				if [ -n "${DT_RTENDOWE["$p"]-}" ]; then
+					dt_log "app runtime: process $p (${DT_RTENDAPP["$p"]}) had not gone $DT_RTENDSECS s after its connection ended; ended"
+				else
+					dt_log "app runtime: process $p had no window left and had not gone in $DT_RTENDSECS s; ended"
+				fi
+				kill "$p" 2> /dev/null
+				DT_RTENDHIT["$p"]=1
+			else
+				dt_log "app runtime: process $p did not end when asked; killed"
+				kill -9 "$p" 2> /dev/null
+			fi
+			DT_RTENDPID["$p"]=$((EPOCHSECONDS + DT_RTENDSECS))
 		fi
 	done
-	[ "${#DT_RVASK[@]}${#DT_RTENDPID[@]}" = 00 ] || dt_want 100
+	for id in "${!DT_RVLATE[@]}"; do
+		dt_rvlate "$id" "$now"
+	done
+	[ "${#DT_RVASK[@]}${#DT_RTENDPID[@]}${#DT_RVLATE[@]}" = 000 ] || dt_want 100
+	if [ -n "$DT_RVHOLD" ]; then
+		read -r _ _ end _ <<< "${DT_RVASK["$DT_RVHOLD"]}"
+		dt_want $((end > now ? end - now : 0))
+	fi
 	return 0
 }
 
-# A request connection going: its cells channel with it, and its windows --
-# until the crash track gives the person the choice (ADR 0050, Decision 7),
-# an ended app's windows close, said in the log.
-fn dt_rvdrop(int c) {
-	local fd=${DT_RTCELLS["$c"]-} id p
-
-	for id in "${!DT_RVC[@]}"; do
-		[ "${DT_RVC[$id]}" = "$c" ] || continue
-		dt_log "app runtime: window $id's app ${DT[$id]["app"]-?} has gone; the window closes"
-		DT_RVCLOSE[$id]=done
-		dt_del "$id"
-	done
-	for p in "${!DT_RTHOST[@]}"; do
-		[ "${DT_RTHOST["$p"]}" = "$c" ] && unset DT_RTHOST["$p"] DT_RTHAS["$p"]
-	done
-	for p in "${!DT_RTCELLTOK[@]}"; do
-		[ "${DT_RTCELLTOK["$p"]}" = "$c" ] && unset DT_RTCELLTOK["$p"]
-	done
-	[ -n "$fd" ] || return 0
-	console cells drop "$fd" 2> /dev/null
-	console unwatch "$fd" 2> /dev/null
-	exec {fd}>&-
-	unset DT_RTCELLS["$c"] DT_RTCELLC["$fd"]
-	return 0
-}

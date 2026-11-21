@@ -1,0 +1,424 @@
+# wm/rtfail -- an app in a process of its own that is late, or has gone
+# (ADR 0050, Decision 7, the Requirement and Review 4): the app's alone,
+# never the desktop's, and never charged to the person at the screen.
+#
+# Late: the person's input to its window (numbered by wm/rtview.hibr) not
+# answered within DT_HOLDMS marks the window not responding in its title --
+# never paused, never hidden, its input still sent -- and is a `held:` line
+# in the log as a stall in-process is, judged by the same rule; the mark
+# goes when the app answers. A key the desktop also acts on waits for the
+# app's answer, and the input behind it with it, at most DT_HOLDMS: then the
+# desktop's own action runs and the key is revoked, so it is never done
+# twice.
+#
+# Gone: what its windows do is the person's choice (DT_APPGONE, Control
+# Panel > Windows > When an App Quits) -- kept showing their last picture
+# with Reopen offered, the app started again at once, or closed -- with one
+# note saying it has gone and the log saying why. And a Restart Desktop
+# finds the app processes it carried across its exec by their pids and sees
+# each end, rather than leaving it a zombie.
+#
+# Part of the window manager; desktop.hibr sources it after wm/rtview.hibr.
+# It only defines functions and sets state, so it can be read on its own
+# and is never run.
+
+strict
+
+# An app process whose connection has ended while it still had windows
+# (ADR 0050, Decision 7), by pid: its app, why the desktop let it go when
+# it was the desktop that did, and whether it has been ended -- watched
+# until it has gone, when its exit status is read and said once. A window
+# kept after its app has gone holds DT_RVC "-" and the cells channel its
+# last picture is kept on (DT_RVGONE); when an app was last reopened at
+# once, so one that dies again straight away is kept rather than started
+# for ever.
+declare -gA DT_RTENDAPP DT_RTENDWHY DT_RTENDOWE DT_RTENDHIT DT_RVGONE DT_RVREOPENAT
+# A window whose app has left the person's input unanswered past its time:
+# the number of the oldest such input, and whether its title says so yet.
+declare -gA DT_RVLATE DT_RVMARK
+# A key the desktop also acts on, sent to a hosted window as an ask whose
+# answer the desktop's own action waits on (ADR 0050, Review 4): its number
+# and the key; and the person's input that came while it waited, in order,
+# dispatched once it is answered (dt_rvdrain). An entry that begins with
+# \x1f is a declined key's own action, run in its place in that order.
+DT_RVHOLD=
+DT_RVHOLDK=
+DT_RVHELD=()
+# How soon after a reopen at once an app ending again is kept instead.
+DT_RVLOOPSECS="${DT_RVLOOPSECS-10}"
+
+# The title a window its app's own process draws shows: its own, saying so
+# when that app has quit or has not answered the person's input (ADR 0050,
+# Decision 7 and the not-responding mark). Translated whole, the app's own
+# title already translated.
+fn dt_rvtitle(int id, t) {
+	if [ "${DT_RVC[$id]-}" = - ]; then
+		t := dt_tr "%s (quit)" "$t"
+	elif [ -n "${DT_RVMARK[$id]-}" ]; then
+		t := dt_tr "%s (not responding)" "$t"
+	fi
+	ret "$t"
+}
+
+# A window whose app has left the person's input unanswered past its time
+# (DT_RVLATE, the oldest such): marked not responding in its title once it
+# has waited DT_RVMARKMS -- never paused, never hidden, its input still
+# sent (ADR 0050, Decision 2) -- and named in the log as a stall, `held:`,
+# once what the app has spent on it reaches DT_HOLDMS by the rule a stall
+# is judged by in-process (DT_HOLDBY: its process's own processor time
+# under cpu; the clock less what it waited for a processor under wall).
+# The log line is what fails a suite, and the only one an app that never
+# returns makes: its own process says `held:` only when the call ends.
+DT_RVMARKMS="${DT_RVMARKMS-}"
+fn dt_rvlate(int id, int now) {
+	local s=${DT_RVLATE[$id]} kind t0 on wt fl p on2 wt2 ms ap=${DT[$id]["app"]-?} el
+
+	if [ -z "${DT_RVASK["$s"]+x}" ]; then
+		dt_rvrelate "$id"
+		return 0
+	fi
+	read -r kind _ _ t0 on wt fl <<< "${DT_RVASK["$s"]}"
+	el=$((now - t0 / 1000))
+	if [ -z "${DT_RVMARK[$id]-}" ] && [ "$el" -ge "${DT_RVMARKMS:-$DT_HOLDMS}" ]; then
+		DT_RVMARK[$id]=1
+		DT_RVDIRTY[$id]=1
+		DT_RVUNC[$id]=1
+		dt_want 0
+		dt_log "app runtime: $ap has not answered its window $id's $kind in $el ms; marked not responding"
+	fi
+	[ "$fl" = x ] || return 0
+	p=${DT_RTCPID["${DT_RVC[$id]}"]-}
+	on2=$on
+	wt2=$wt
+	[ -z "$p" ] || read -r on2 wt2 _ 2> /dev/null < "/proc/$p/schedstat" || { on2=$on; wt2=$wt; }
+	if [ "$DT_HOLDBY" = cpu ]; then
+		ms=$(((on2 - on) / 1000000))
+	else
+		ms=$((el - (wt2 - wt) / 1000000))
+	fi
+	[ "$ms" -ge "$DT_HOLDMS" ] || return 0
+	DT_RVASK["$s"]+=h
+	if [ "$DT_HOLDBY" = cpu ]; then
+		dt_log "held: input:$ap has not answered the person's $kind in window $id: $ms ms on the processor, $el ms by the clock (a stall is $DT_HOLDMS ms)"
+	else
+		dt_log "held: input:$ap has not answered the person's $kind in window $id for $ms ms (a stall is $DT_HOLDMS ms)"
+	fi
+	return 0
+}
+
+# A window's oldest input past its time was answered: the next oldest
+# still unanswered past its time is the one it waits on now, and with none
+# the window is no longer marked, drawn whole with its own title.
+fn dt_rvrelate(int id) {
+	local s m= k i fl
+
+	for s in "${!DT_RVASK[@]}"; do
+		read -r k i _ _ _ _ fl <<< "${DT_RVASK["$s"]}"
+		[ "$i" = "$id" ] && [ "$k" != close ] && [ "$fl" != - ] || continue
+		[ -n "$m" ] && [ "$m" -lt "$s" ] || m=$s
+	done
+	if [ -n "$m" ]; then
+		DT_RVLATE[$id]=$m
+		return 0
+	fi
+	unset DT_RVLATE[$id]
+	[ -n "${DT_RVMARK[$id]-}" ] || return 0
+	unset DT_RVMARK[$id]
+	DT_RVDIRTY[$id]=1
+	DT_RVUNC[$id]=1
+	dt_want 0
+	dt_log "app runtime: ${DT[$id]["app"]-?} answered; window $id is no longer marked not responding"
+	return 0
+}
+
+# A held key's answer has come, or its time has passed: the desktop's input
+# goes on, in the order it came, from the next pass (dt_rvdrain). Status
+# st 0 is the app taking it; anything else is declined, and its own action
+# runs first, as it would have in-process the moment the window declined it.
+fn dt_rvunhold(seq, st = 1) {
+	[ "$DT_RVHOLD" = "$seq" ] || return 0
+	DT_RVHOLD=
+	if [ "$st" != 0 ]; then
+		DT_RVHELD=($'\x1f'"$DT_RVHOLDK" "${DT_RVHELD[@]}")
+		dt_log "hosted: key $DT_RVHOLDK declined; the desktop's own action runs"
+	fi
+	DT_RVHOLDK=
+	dt_want 0
+	return 0
+}
+
+# Withdraw a key from an app that did not answer it in time (`revoke SEQ`):
+# its process drops the call if it has not run it yet and says so if it
+# had (runtime.hibr).
+fn dt_rvrevoke(int id, int seq) {
+	local x c=${DT_RVC[$id]-}
+
+	dt_log "app runtime: ${DT[$id]["app"]-?} did not answer key $DT_RVHOLDK of window $id in $DT_HOLDMS ms; declined, and revoked"
+	[ -n "$c" ] && [ "$c" != - ] && [ -n "${DT_RTC["$c"]+x}" ] || return 0
+	x := dt_rtline revoke "$seq"
+	dt_rtsay "$c" "$x"
+}
+
+# The person's input held while a key's answer was awaited, dispatched in
+# the order it came -- a declined key's own action in its place -- until
+# another key is held or none is left. From the frame loop's dispatch, so
+# it runs where input always runs.
+dt_rvdrain() {
+	local k
+
+	while [ -z "$DT_RVHOLD" ] && [ "${#DT_RVHELD[@]}" -gt 0 ]; do
+		k=${DT_RVHELD[0]}
+		DT_RVHELD=("${DT_RVHELD[@]:1}")
+		if [ "${k:0:1}" = $'\x1f' ]; then
+			dt_keyrest "${k:1}"
+		else
+			dt_input "$k"
+		fi
+	done
+	return 0
+}
+
+# A request connection going: its cells channel with it, and what becomes
+# of its windows. At Quit or a restart (why closing), or with none open,
+# they go with it. An app that has gone with windows open is the person's to
+# decide for (ADR 0050, Decision 7: DT_APPGONE): its windows kept showing
+# their last picture with Reopen offered (keep, the default), its app
+# started again at once (reopen), or its windows closed (close) -- a close
+# the person had already asked for is done whatever the choice. Its process
+# is watched until it has gone, when the log says why it ended and one note
+# says it has (dt_rvended). Status 0.
+fn dt_rvdrop(int c, who = "", pid = "", why = "") {
+	local fd=${DT_RTCELLS["$c"]-} id p how=${DT_APPGONE:-keep} kept= x
+	local -a ids
+
+	for id in "${!DT_RVC[@]}"; do
+		[ "${DT_RVC[$id]}" = "$c" ] && ids+=("$id")
+	done
+	for p in "${!DT_RTHOST[@]}"; do
+		[ "${DT_RTHOST["$p"]}" = "$c" ] && unset DT_RTHOST["$p"] DT_RTHAS["$p"]
+	done
+	for p in "${!DT_RTCELLTOK[@]}"; do
+		[ "${DT_RTCELLTOK["$p"]}" = "$c" ] && unset DT_RTCELLTOK["$p"]
+	done
+	# What it was asked and never answered goes with it; a held key is
+	# declined, so the desktop's own action runs.
+	for p in "${!DT_RVASK[@]}"; do
+		read -r _ id _ <<< "${DT_RVASK["$p"]}"
+		[ "${DT_RVC[$id]-}" = "$c" ] || continue
+		unset DT_RVASK["$p"]
+		[ "$DT_RVHOLD" != "$p" ] || dt_rvunhold "$p" 1
+	done
+	if [ -n "$fd" ]; then
+		unset DT_RTCELLS["$c"] DT_RTCELLC["$fd"]
+		# Its last records in first, so what is kept is its last frame;
+		# then nothing more is read from it.
+		x := console cells take "$fd" 2> /dev/null || true
+		console unwatch "$fd" 2> /dev/null
+	fi
+	if [ "$why" = closing ] || [ "${#ids[@]}" = 0 ]; then
+		for id in "${ids[@]}"; do
+			DT_RVC[$id]=-
+			DT_RVGONE[$id]=$fd
+			DT_RVCLOSE[$id]=done
+			dt_del "$id"
+		done
+		[ -z "$fd" ] || [ "${#ids[@]}" -gt 0 ] || dt_rvcellsgo "$fd"
+		return 0
+	fi
+	# Reopened at once and gone again straight away: kept instead, or it
+	# would be started for ever.
+	if [ "$how" = reopen ] && [ $((EPOCHSECONDS - ${DT_RVREOPENAT["$who"]:-0})) -lt "$DT_RVLOOPSECS" ]; then
+		dt_log "app runtime: $who ended again within $DT_RVLOOPSECS s of being reopened; its windows are kept instead"
+		how=keep
+	fi
+	for id in "${ids[@]}"; do
+		DT_RVC[$id]=-
+		DT_RVGONE[$id]=$fd
+		unset DT_RVLATE[$id] DT_RVMARK[$id]
+		if [ "$how" = close ] || [ -n "${DT_RVCLOSE[$id]-}" ]; then
+			DT_RVCLOSE[$id]=done
+			dt_del "$id"
+			continue
+		fi
+		# Drawn whole next frame, its title saying the app has gone; or,
+		# reopened at once, given way to a fresh one in its place.
+		DT_RVDIRTY[$id]=1
+		DT_RVUNC[$id]=1
+		kept=1
+	done
+	[ -z "$kept" ] || dt_want 0
+	if [ "$how" = reopen ]; then
+		DT_RVREOPENAT["$who"]=$EPOCHSECONDS
+		dt_rvreopen "$who"
+	fi
+	if [ -n "$pid" ]; then
+		DT_RTENDPID["$pid"]=$((EPOCHSECONDS + DT_RTENDSECS))
+		DT_RTENDAPP["$pid"]=$who
+		DT_RTENDWHY["$pid"]=$why
+		DT_RTENDOWE["$pid"]=$how
+		dt_want 100
+	else
+		DT_RTENDAPP[0]=$who
+		DT_RTENDWHY[0]=$why
+		DT_RTENDOWE[0]=$how
+		dt_rvended 0 ""
+	fi
+	return 0
+}
+
+# An app process that went with windows open has gone: the log says why --
+# its exit status or the signal that ended it, and the desktop's reason when
+# it was the desktop that let it go -- and one note says it has, an event,
+# offering Reopen where its windows were kept. Pid 0 is one whose process
+# was never known.
+fn dt_rvended(int pid, st = "") {
+	local ap=${DT_RTENDAPP["$pid"]-} why=${DT_RTENDWHY["$pid"]-} how=${DT_RTENDOWE["$pid"]-keep} w nm t
+
+	if [ -z "$st" ]; then
+		w="ended; its status is not known"
+	elif [ "$st" -gt 128 ]; then
+		nm=$(kill -l "$st" 2> /dev/null) # fork: once an app ends, never a frame
+		w="was ended by signal ${nm:-$((st - 128))} (status $st)"
+	else
+		w="exited with status $st"
+	fi
+	[ "$pid" = 0 ] || w="(process $pid) $w"
+	dt_log "app runtime: $ap $w${why:+; the desktop had let it go: $why}; its windows: $how"
+	t=${DT_APPS["$ap"]["title"]:-$ap}
+	case $how in
+	keep)
+		t := dt_tr "%s quit unexpectedly: click to reopen it" "$t"
+		dt_notifyp high "$t" dt_rvreopen "$ap"
+		;;
+	reopen) dt_notep normal "%s quit unexpectedly and was opened again" "$t" ;;
+	*) dt_notep high "%s quit unexpectedly" "$t" ;;
+	esac
+	# A note from a ticker asks for the frame that shows it.
+	dt_want 30
+	unset DT_RTENDAPP[0] DT_RTENDWHY[0] DT_RTENDOWE[0]
+	return 0
+}
+
+# Start an app whose process has gone again: what Reopen does, from the
+# note or at once. Its kept windows give way to fresh ones in the same
+# places, since what they held was the process's and went with it; with
+# none left it opens as a launch does.
+fn dt_rvreopen(ap) {
+	local id g h w r c t
+	local -a geo
+
+	for id in "${!DT_RVC[@]}"; do
+		[ "${DT_RVC[$id]}" = - ] && [ "${DT[$id]["app"]-}" = "$ap" ] || continue
+		geo+=("${DT[$id]["h"]} ${DT[$id]["w"]} ${DT[$id]["row"]} ${DT[$id]["col"]}")
+		DT_RVCLOSE[$id]=done
+		dt_del "$id"
+	done
+	if ! t := dt_rthost "$ap"; then
+		dt_notep high "%s could not be started again" "${DT_APPS["$ap"]["title"]:-$ap}"
+		return 1
+	fi
+	dt_log "app runtime: $ap reopened"
+	if [ "${#geo[@]}" = 0 ]; then
+		dt_launch "$ap"
+		return 0
+	fi
+	for g in "${geo[@]}"; do
+		read -r h w r c <<< "$g"
+		dt_new "${DT_APPS["$ap"]["title"]}" "$h" "$w" "$r" "$c" "$ap"
+	done
+	return 0
+}
+
+# A window kept after its app had gone, letting go of its last picture: the
+# cells channel holding it goes once no kept window needs it.
+fn dt_rvletgo(int id) {
+	local fd=${DT_RVGONE[$id]-} i
+
+	unset DT_RVGONE[$id]
+	[ -n "$fd" ] || return 0
+	console cells drop "$fd" "w$id" 2> /dev/null
+	for i in "${!DT_RVGONE[@]}"; do
+		[ "${DT_RVGONE[$i]}" = "$fd" ] && return 0
+	done
+	dt_rvcellsgo "$fd"
+}
+
+# A cells channel let go at the desktop's end: its views, its watch and the
+# descriptor.
+fn dt_rvcellsgo(int fd) {
+	console cells drop "$fd" 2> /dev/null
+	console unwatch "$fd" 2> /dev/null
+	exec {fd}>&-
+	return 0
+}
+
+# Every app process this desktop started and has not seen end, by pid, one
+# line: what a Restart Desktop writes down (wm/restart.hibr), since each is
+# still this process's child across the exec. Answered with ret.
+dt_rvpids() {
+	local x out=" "
+
+	for x in "${DT_RTCPID[@]}" "${DT_RTLPID[@]}" "${!DT_RTENDPID[@]}"; do
+		[ -n "$x" ] && [[ $out != *" $x "* ]] && out+="$x "
+	done
+	out=${out# }
+	ret "${out% }"
+}
+
+# The app processes a Restart Desktop carried across its exec (ADR 0050,
+# Decision 7: a restart finds a host by its pid). The socket they spoke on
+# went with the desktop before, so each is ending; it is still this
+# process's child, and nothing else would ever wait for it -- it would stay
+# a zombie for the life of the desktop. Each found to be this process's own
+# child by its pid -- a pid alone may since be somebody else's -- is
+# watched until it has ended, its status read and logged, and one still
+# there after DT_RTENDSECS is ended, as one left with no window is.
+declare -gA DT_RVCARRY
+fn dt_rvcarried(...pids) {
+	local p k v
+
+	for p in "${pids[@]}"; do
+		[[ $p =~ ^[0-9]+$ ]] || continue
+		v=
+		while read -r k v; do
+			[ "$k" = PPid: ] && break
+			v=
+		done 2> /dev/null < "/proc/$p/status"
+		if [ "$v" != "$$" ]; then
+			dt_log "app runtime: process $p, carried across the restart, is not this desktop's child; left alone"
+			continue
+		fi
+		DT_RVCARRY["$p"]=$((EPOCHSECONDS + DT_RTENDSECS))
+	done
+	[ "${#DT_RVCARRY[@]}" = 0 ] || dt_ticker dt_rvcarrytick
+	return 0
+}
+
+# Each carried app process: ended and not yet waited for -- a zombie -- is
+# waited for and its status logged; still running past its time, ended,
+# then killed outright.
+dt_rvcarrytick() {
+	local p l st
+
+	for p in "${!DT_RVCARRY[@]}"; do
+		l=
+		read -r l 2> /dev/null < "/proc/$p/stat"
+		if [ -z "$l" ]; then
+			unset DT_RVCARRY["$p"]
+			continue
+		fi
+		l=${l##*) }
+		if [ "${l%% *}" = Z ]; then
+			wait "$p" 2> /dev/null
+			st=$?
+			dt_log "app runtime: process $p, carried across the restart, ended with status $st"
+			unset DT_RVCARRY["$p"]
+		elif [ "$EPOCHSECONDS" -ge "${DT_RVCARRY["$p"]}" ]; then
+			dt_log "app runtime: process $p, carried across the restart, had not ended in $DT_RTENDSECS s; ended"
+			kill "$p" 2> /dev/null
+			kill -0 "$p" 2> /dev/null && DT_RVCARRY["$p"]=$((EPOCHSECONDS + DT_RTENDSECS))
+		fi
+	done
+	[ "${#DT_RVCARRY[@]}" = 0 ] || dt_want 100
+	return 0
+}

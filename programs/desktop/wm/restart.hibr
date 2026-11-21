@@ -211,6 +211,13 @@ fn dt_rswrite(f, int carry, why = "restart") {
 		done
 	done
 	json set DT_RS .carry "${DT_RSCARRY[*]}" -s
+	# The app processes this desktop started (ADR 0050), by pid: still its
+	# children across the exec, so the desktop after it finds each by its
+	# pid and sees it end (dt_rvcarried) rather than leaving it a zombie.
+	if [ "$carry" = 1 ]; then
+		j := dt_rvpids
+		json set DT_RS .hosts "$j" -s
+	fi
 	# Through a file of this process's own, then renamed: a desktop and
 	# its supervisor stopped by one signal both write, and with one
 	# name for both, one renamed it from under the other ("mv: cannot
@@ -339,6 +346,8 @@ dt_restore() {
 	fi
 	dt_tile
 	dt_rsorphans
+	read -ra ps <<< "${DT_RS["hosts"]-}"
+	[ "${#ps[@]}" = 0 ] || dt_rvcarried "${ps[@]}"
 	rm -f "$f" "$f.err" "$DT_RSDIR"/term-*.save 2> /dev/null
 	DT_RESTORED=1
 	dt_rslog "restored ${#DT[@]} windows from $f"

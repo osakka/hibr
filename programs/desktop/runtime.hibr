@@ -84,6 +84,12 @@ DT_RTPFX=()
 # the process.
 declare -gA DT_RTV DT_RTVNEW
 DT_RTHADV=
+# The calls the desktop has revoked (`revoke SEQ`: a key it took as
+# declined when no answer came in time, ADR 0050), noted as their lines
+# arrive -- before any call is run -- so one still waiting is dropped, never
+# run; and those dropped, so the revoke's own line, reached in turn, says
+# nothing more of them.
+declare -gA DT_RTREVOKED DT_RTDROPPED
 # The window a note an app's callback raises is about, and why a call said
 # no, as the desktop keeps them around a callback.
 DT_NOTEWIN=
@@ -241,6 +247,7 @@ fn dt_rtask(name, ...args) {
 		dt_rtlines "$DT_RTFD"
 		i=$?
 		for l in "${DT_RTGOT[@]}"; do
+			[[ $l == "revoke "* ]] && DT_RTREVOKED["${l#revoke }"]=1
 			if [ -n "$got" ]; then
 				DT_RTQ+=("$l")
 				continue
@@ -332,7 +339,14 @@ fn dt_rtcalled(line) {
 		console cells forget "$name"
 		unset DT_RTV["$name"] DT_RTVNEW["$name"]
 		;;
-	revoke) dt_log "app runtime: the desktop revoked call ${a[0]-?}, which had run (ADR 0050, a declined key)" ;;
+	revoke)
+		if [ -n "${DT_RTDROPPED["${a[0]-}"]+x}" ]; then
+			unset DT_RTDROPPED["${a[0]}"]
+		else
+			dt_log "app runtime: the desktop revoked call ${a[0]-?}, which had run (ADR 0050, a declined key)"
+		fi
+		unset DT_RTREVOKED["${a[0]-}"]
+		;;
 	esac
 	return 0
 }
@@ -346,6 +360,16 @@ fn dt_rtcalled(line) {
 fn dt_rtcall(seq, target, name, ...args) {
 	local fn= st=126 v= why= k t0
 
+	# Revoked before it ran: dropped, and answered 125, not run -- an answer
+	# all the same, so the desktop sees this process answering again.
+	if [ "$seq" != 0 ] && [ -n "${DT_RTREVOKED["$seq"]+x}" ]; then
+		unset DT_RTREVOKED["$seq"]
+		DT_RTDROPPED["$seq"]=1
+		dt_log "app runtime: the desktop revoked call $seq ($name of window $target) before it ran; dropped"
+		k := dt_rtline took "$seq" 125 - "" ""
+		send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+		return 0
+	fi
 	if [ "$target" = - ]; then
 		fn=$name
 	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ]; then
@@ -573,7 +597,11 @@ dt_rtrun() {
 		st=$?
 		# The batch waits in DT_RTQ and is taken one line at a time, so an
 		# ask made by one of them applies the rest of the batch's shared
-		# lines first, in the order they came.
+		# lines first, in the order they came. A revoke in it is noted
+		# first, so the call it withdraws is dropped, not run.
+		for l in "${DT_RTGOT[@]}"; do
+			[[ $l == "revoke "* ]] && DT_RTREVOKED["${l#revoke }"]=1
+		done
 		DT_RTQ+=("${DT_RTGOT[@]}")
 		while [ "${#DT_RTQ[@]}" -gt 0 ]; do
 			l=${DT_RTQ[0]}
