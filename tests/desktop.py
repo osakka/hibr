@@ -28,6 +28,19 @@ if len(sys.argv) > 1:
 MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 ROWS, COLS = 24, 80
+# Nor the machine's own disks: every desktop draws an icon for each mounted
+# filesystem it finds in /proc/mounts, and that list is not this suite's to
+# hold still. A container started anywhere on the box bind-mounts its
+# storage folder, which /proc/mounts lists as one more ext4 disk, so a
+# desktop started during it draws an `overlay` icon where the trash was --
+# which is what made the drag oracle, comparing two sessions, differ at
+# every step in gates (Gitea #608, #589, #515): the cells #608 kept are
+# exactly that icon, and the other failures fell in hours the host's
+# container storage was mounting and unmounting. One disk, the root, as
+# this box has, is what every session here sees now; the icon checks give
+# their own.
+os.environ["DT_MOUNTS"] = scratch("mounts.txt")
+open(os.environ["DT_MOUNTS"], "w").write("/dev/sda1 / ext4 rw 0 0\n")
 
 
 def run(session, feed=(), wait=1.2, env=None, pre="", cell=(0, 0), caps=None):
@@ -2283,10 +2296,23 @@ check("a key the app wants reaches it", sc.find("count 2") == (8, 13), sc)
 
 QUIET = ('quiet_draw() { console put -p "w$1" 1 2 "no keys here"; }\n'
          'dt_new "Quiet" 6 24 4 6 quiet\n')
+
+
+# What the desktop said last: how many bytes of input it had read, and how
+# many frames it had drawn. Kept with a failure that is about a key, so the
+# next one says whether the key was read and not acted on, or never read --
+# this check and the menu walk below failed now and then in gates for that
+# reason and none other could be told (Gitea #82, #183). A resize that
+# settles while two keys arrive keeps only the second; that is one way.
+def lastidle(raw):
+    m = screen.IDLE.findall(raw)
+    return [(int(a), int(b or 0)) for a, b in m[-3:]]
+
+
 sc, raw = run(QUIET)
 check("an app with no key handler cannot swallow one",
       sc.quit and b"\x1b[?1049l" in raw and
-      sc.find("no keys here") == (5, 8), sc)
+      sc.find("no keys here") == (5, 8), ("read, frames", lastidle(raw), sc))
 
 # --- the menu bar ---------------------------------------------------------
 
@@ -2441,8 +2467,9 @@ check("an open menu is a rectangle: every row ends at the same column",
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C"])
 check("right walks to the next menu along",
       sc.find("Bump") is not None and sc.find("Screen Saver") is None, sc)
-sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
-check("and on to the one after that", sc.find("Bump Twice") is not None, sc)
+sc, raw = run(MENUS, [b"\x1b[21~", b"\x1b[C", b"\x1b[C"])
+check("and on to the one after that", sc.find("Bump Twice") is not None,
+      ("read, frames", lastidle(raw), sc))
 sc, _ = run(MENUS, [b"\x1b[21~", b"\x1b[D"])
 check("left from the first wraps round to the application menu",
       sc.find("Noted") is not None and sc.find("Screen Saver") is None, sc)
@@ -4485,31 +4512,66 @@ check("dt_putruns draws each run in a pen of its own: the cool tone, the "
       and tone.style(r, c + 8)["fg"] == INK, tone)
 
 # A window that offers a _dirty can be left undrawn, and the oracle for one
-# is the same as for every other saving in this desktop: the same session,
-# the same moment, drawn both ways, compared cell for cell -- pens as well
-# as glyphs, since this window's whole point is that it has more than one
-# pen in it. About's own staleness is bounded by AB_SLOWMS, so the two
-# frames are of the same reading.
-plain, _ = run('dt_new "About This Computer" 20 52 2 4 about', pre=APPS)
-forced, _ = run('dt_new "About This Computer" 20 52 2 4 about', pre=APPS,
-                env={"DT_FORCEDRAW": "1"})
-diff = [(r, c) for r in range(plain.rows) for c in range(plain.cols)
+# is the same as for every other saving in this desktop: one session, two
+# frames of it, the second drawn with the skipping turned off from inside,
+# compared cell for cell -- pens as well as glyphs, since this window's
+# whole point is that it has more than one pen in it. It compared two
+# sessions, and two desktops settle at their own pace: it
+# failed two gates in about twenty-five and never on demand, with a filter
+# over the bar, the meters and the uptime admitting that the two runs were
+# at different moments (Gitea #177).
+#
+# What changes on its own is pinned rather than filtered: the clock is a
+# format with no field, the readings are taken once for the whole run
+# (AB_SLOWMS), and the uptime and who is in are a stand-in's, since each is
+# read again on any frame About is drawn and a minute turning would be a
+# difference the dirty flag is entitled to. The window that takes the keys
+# sits beside About, not over it, so About is left alone because it said it
+# was clean. Its S scrolls About's box sideways through about_scroll, the
+# callback a dragged scrollbar calls -- from outside About, with no key to
+# it and nothing raised, since either would draw it whole anyway and a
+# _dirty that missed the change would pass unseen (it did, the first time
+# this was written with About's own arrow keys and a click to focus). And
+# every time About is left alone it says so in a file, so a run in which it
+# never was cannot pass.
+abmark = scratch("about-left.txt")
+open(abmark, "w").close()
+abp = scratch("about-oracle.hibr")
+open(abp, "w").write(
+    "%s. %s\n%s\ndt_open\n" % (load(MOD), WM, APPS) +
+    'about_uptime() { ret "3 days, 4:05"; }\n'
+    'about_users() { ret "nobody"; }\n'
+    'eval "$(declare -f about_dirty | sed \'1s/^fn about_dirty(/fn abo_dirty0(/\')"\n'
+    'fn about_dirty(int id) { abo_dirty0 "$id" && return 0; '
+    'printf "left\\n" >> ' + abmark + '; return 1; }\n'
+    'abo_draw() { console put -p "w$1" 1 2 "keys"; return 0; }\n'
+    'abo_key() { case $2 in F) DT_FORCEDRAW=1 ;; '
+    'S) about_scroll "$ABOID" side 3 ;; esac; return 0; }\n'
+    'ABOID := dt_new "About This Computer" 20 52 2 4 about\n'
+    'dt_new "Keys" 5 16 2 62 abo\n'
+    "dt_run\ndt_close\n")
+abt = Term(abp, env={"DT_TICK": "60", "DT_BARTIME": "hibr",
+                     "AB_SLOWMS": "600000"}, rows=ROWS, cols=COLS, settle=0.6)
+if not abt.idle:
+    abt.idle = abt.until_idle(8 * (4 if os.environ.get("ASAN_OPTIONS") else 1))
+abt.keys([0.3])
+left0 = len(open(abmark).read().split())
+abt.keys([b"S", 0.3, b"z", 0.3, b"z"])
+plain = orsettled(abt)
+left = len(open(abmark).read().split()) - left0
+abt.keys([b"F", 0.4, b"z", 0.4, b"z"])
+forced = orsettled(abt)
+abt.quit(b"qy", 1.2)
+os.unlink(abp)
+os.unlink(abmark)
+diff = [(r, c, plain.at(r, c), forced.at(r, c)) for r in range(plain.rows)
+        for c in range(plain.cols)
         if plain.at(r, c) != forced.at(r, c)
         or plain.style(r, c) != forced.style(r, c)]
-# The clock in the bar and the two meters are readings, not drawings: a
-# second between the runs legitimately moves them. The meters are found by
-# their own labels: this used to leave out the terminal's last rows but
-# two, which the meters are not on, and passed only while the machine's
-# memory held still between the two runs -- under a full gate it moved a
-# point, and MEM's 10% against 11% failed a release.
-# Uptime is the same kind of reading: its minute turned between the two runs
-# under a sanitizer gate, one cell at its tens of minutes.
-meters = [r for r in range(plain.rows)
-          if " CPU " in plain.row(r) or " MEM " in plain.row(r)
-          or " Uptime: " in plain.row(r)]
-diff = [(r, c) for (r, c) in diff if r != 0 and r not in meters]
 check("and About with its own _dirty draws what a forced redraw would",
-      not diff, (diff[:12], plain, forced))
+      left > 0 and not diff and plain.find("Hostname: ") is not None,
+      ("left alone %d times" % left, "snapshots never settled: %d"
+       % len(ORUNSETTLED), diff[:12], plain, forced))
 # And the other half of offering a _dirty: about_draw is where
 # dt_want "$AB_SLOWMS" lives, so a frame About is skipped on has to ask for
 # the next one from the dirty check instead -- otherwise nothing re-arms,
@@ -7582,7 +7644,9 @@ check("--standby with nothing running waits, saying so with its name",
       sc.find("waiting for the desktop") is not None and
       sbstate("spare") == "waiting", sc)
 t1 = Term(SESSION, env=SBENV, cols=80, settle=2.0)
-ts.collect(3.0)
+# Waited for, as every check below is (Gitea #425): a fixed three seconds
+# was a bet on how soon the desktop's first scan finds the display.
+ts.until(lambda sc: "spare" in sbclients(), 150)
 check("when the desktop starts, a waiting display joins it on its own",
       "spare" in sbclients(), sbclients())
 # The drop's own answer is kept and the drop tried again if it failed: the
@@ -7628,8 +7692,8 @@ t1.close()
 os.makedirs(os.path.join(SB, "state", "hibr"), exist_ok=True)
 open(os.path.join(SB, "state", "hibr", "blanked"), "w").write("spare\n")
 t1 = Term(SESSION, env=SBENV, cols=80, settle=2.0)
-ts.collect(3.5)
-sc = ts.screen()
+sc = ts.until(lambda sc: "spare" in sbclients() and
+              sc.style(10, 30).get("bg") == "#000000", 150)
 st = sc.style(10, 30)
 check("a blank display stays joined and goes dark",
       "spare" in sbclients() and st.get("bg") == "#000000" and
@@ -9210,6 +9274,34 @@ check("and told -1 -1 when the pointer leaves its window",
 
 # A hover that changes nothing under the pointer draws no frame: the
 # pointer crossing the empty desktop is many reports and no frames.
+#
+# Counted as the frames drawn on a pass that read input, not as every frame
+# in the window: anything that wakes the desktop on its own -- the icons'
+# rescan, the bar's clock, a job's poll -- draws a frame there too, which
+# read 4 where 2 were wanted in three gates and never alone (Gitea #403).
+# The idle marker says both how much input had been read and how many
+# frames drawn, so a frame on a pass that read nothing is a timer's. What
+# this cannot see is a hover asking for a second frame of its own, a pass
+# later; the checks of what a hover draws are below, on the screen.
+# The frames on passes that read input, and, for a failure to show, the
+# rest and the markers themselves.
+def inframes(t, since):
+    pc = pf = None
+    n = other = 0
+    seen = []
+    for m in screen.IDLE.finditer(t.out):
+        c, f = int(m.group(1)), int(m.group(2) or 0)
+        if m.start() >= since and pf is not None and f > pf:
+            if c > pc:
+                n += f - pf
+            else:
+                other += f - pf
+        if m.start() >= since:
+            seen.append((c, f))
+        pc, pf = c, f
+    return n, (n, "frames on no input", other, "read, frames", seen)
+
+
 def hvframes(feed):
     path = scratch("hover-frames.hibr")
     open(path, "w").write("%s. %s\n\ndt_open\n%s\ndt_run\ndt_close\n"
@@ -9217,20 +9309,20 @@ def hvframes(feed):
     t = Term(path, env={"DT_TICK": "60", "DT_HOVER": "on"}, rows=ROWS,
              cols=COLS, settle=0.8)
     t.keys([0.5, hov(19, 40), 0.3])
-    f0 = t.frames()
+    since = len(t.out)
     t.keys(feed)
     t.collect(0.5)
-    f1 = t.frames()
+    got = inframes(t, since)
     t.quit(b"qy", 1.0)
     os.unlink(path)
-    return f1 - f0
+    return got
 
 
-n = hvframes([hov(18, 50 + i) for i in range(12)])
-check("twelve hover reports across the empty desktop draw no frame", n == 0, n)
-n = hvframes([hov(18, 50), hov(7, 15), hov(18, 50)])
+n, why = hvframes([hov(18, 50 + i) for i in range(12)])
+check("twelve hover reports across the empty desktop draw no frame", n == 0, why)
+n, why = hvframes([hov(18, 50), hov(7, 15), hov(18, 50)])
 check("while moving onto a window and off again draws a frame each time",
-      n == 2, n)
+      n == 2, why)
 
 # What a click would land on lights under the pointer (Gitea #370): any
 # region an app registers with dt_wreg, through dt_hotpen in its own row
@@ -9293,19 +9385,19 @@ def hvrframes(feed):
     t = Term(path, env={"DT_TICK": "60", "DT_HOVER": "on"}, rows=ROWS,
              cols=COLS, settle=0.8)
     t.keys([0.5, hov(7, 14), 0.3])
-    f0 = t.frames()
+    since = len(t.out)
     t.keys(feed)
     t.collect(0.5)
-    f1 = t.frames()
+    got = inframes(t, since)
     t.quit(b"qy", 1.0)
     os.unlink(path)
-    return f1 - f0
+    return got
 
 
-n = hvrframes([hov(7, 15 + i) for i in range(6)])
-check("moving along one row draws no frame", n == 0, n)
-n = hvrframes([hov(8, 14), hov(9, 14)])
-check("and moving onto the next row draws one each", n == 2, n)
+n, why = hvrframes([hov(7, 15 + i) for i in range(6)])
+check("moving along one row draws no frame", n == 0, why)
+n, why = hvrframes([hov(8, 14), hov(9, 14)])
+check("and moving onto the next row draws one each", n == 2, why)
 
 # The Control Strip's module under the pointer has its brackets lit.
 sc, _ = run("", [0.5, hov(striprow(), stripcol("Shadow") + 1), 0.4],
