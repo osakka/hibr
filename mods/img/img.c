@@ -215,14 +215,48 @@ void im_fail(str *err)
 	lg(HIBR_LERR, "%s", m);
 }
 
+/* What a file this cannot decode says it is, by its first bytes, so the
+   message names a GIF or a WebP called .png rather than leaving it a guess
+   (Gitea #557); 0 when they say nothing known. */
+static const char *im_kind(const unsigned char *m, size_t n)
+{
+	if (n >= 6 && (!memcmp(m, "GIF87a", 6) || !memcmp(m, "GIF89a", 6)))
+		return "a GIF";
+	if (n >= 12 && !memcmp(m, "RIFF", 4) && !memcmp(m + 8, "WEBP", 4))
+		return "a WebP";
+	if (n >= 12 && !memcmp(m + 4, "ftyp", 4) &&
+	    (!memcmp(m + 8, "avif", 4) || !memcmp(m + 8, "avis", 4)))
+		return "an AVIF";
+	if (n >= 12 && !memcmp(m + 4, "ftyp", 4) &&
+	    (!memcmp(m + 8, "heic", 4) || !memcmp(m + 8, "heix", 4) ||
+	     !memcmp(m + 8, "mif1", 4) || !memcmp(m + 8, "msf1", 4)))
+		return "a HEIF";
+	if ((n >= 2 && m[0] == 0xFF && m[1] == 0x0A) ||
+	    (n >= 12 && !memcmp(m, "\0\0\0\x0cJXL \r\n\x87\n", 12)))
+		return "a JPEG XL";
+	if (n >= 4 && (!memcmp(m, "II*\0", 4) || !memcmp(m, "MM\0*", 4)))
+		return "a TIFF";
+	if (n >= 4 && !memcmp(m, "\0\0\1\0", 4))
+		return "a Windows icon";
+	if (n >= 2 && m[0] == 'B' && m[1] == 'M')
+		return "a BMP";
+	if (n >= 4 && !memcmp(m, "<svg", 4))
+		return "an SVG";
+	if (n >= 2 && m[0] == 'P' && m[1] >= '1' && m[1] <= '5')
+		return "a Netpbm file other than a binary PPM";
+	return 0;
+}
+
 /* Decode an image by what its first bytes say it is, not its name: PNG's
    signature or JPEG's start-of-image marker, so a photo called .JPG, .jpeg
    or nothing at all still opens. */
 static int im_load(const char *path, image *out, str *err)
 {
-	unsigned char m[8];
+	/* enough for the longest signature im_kind reads */
+	unsigned char m[12];
 	FILE *f = fopen(path, "rb");
 	size_t n;
+	const char *k;
 
 	if (!f) {
 		s_cat(err, "cannot open ");
@@ -238,7 +272,15 @@ static int im_load(const char *path, image *out, str *err)
 	if (n >= 2 && m[0] == 'P' && m[1] == '6')
 		return im_ppmload(path, out, err);
 	s_cat(err, path);
+	if (!n) {
+		s_cat(err, ": an empty file, not a picture");
+		return HIBR_FAIL;
+	}
 	s_cat(err, ": neither a PNG, a JPEG nor a PPM");
+	if ((k = im_kind(m, n))) {
+		s_cat(err, ", but ");
+		s_cat(err, k);
+	}
 	return HIBR_FAIL;
 }
 

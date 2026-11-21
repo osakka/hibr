@@ -28,7 +28,7 @@ bad -o: 2
 2 2
 32 32
 16 32
-neither a PNG, a JPEG nor a PPM
+an empty file, not a picture
 --- save as a PNG
 save: 0
 16 32
@@ -37,7 +37,15 @@ draws as the source does
 13 7
 an RGBA PNG keeps its colours
 unreadable: 1
-neither a PNG, a JPEG nor a PPM
+an empty file, not a picture
 No such file or directory
 hibr: usage: img save in out.png
 usage: 2
+--- what it is instead
+neither a PNG, a JPEG nor a PPM, but a GIF
+neither a PNG, a JPEG nor a PPM, but a WebP
+neither a PNG, a JPEG nor a PPM, but an AVIF
+neither a PNG, a JPEG nor a PPM, but a BMP
+neither a PNG, a JPEG nor a PPM, but an SVG
+neither a PNG, a JPEG nor a PPM
+an empty file, not a picture

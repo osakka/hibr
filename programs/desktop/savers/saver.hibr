@@ -27,7 +27,7 @@
 
 strict
 
-declare -gA SV
+declare -gA SV SV_READ
 SV_LIST=()
 sv_sysd=
 command -v dt_sysdir > /dev/null && sv_sysd := dt_sysdir savers
@@ -72,21 +72,46 @@ fn sv_saver(name, title, int ms) {
 	SV[$name]["ms"]=$ms
 }
 
-# Load every saver beside this file.
+# Load every saver beside this file and in SV_DIRS, each file once: called
+# again -- a desktop does, after a catalogue change -- it reads only a file
+# it has not read, and lists only savers whose file is still there. A file
+# read a second time redefines its functions, which strict refuses, and
+# runs its top level again (Gitea #556).
 sv_load() {
-	local d=${BASH_SOURCE%/*} f
+	local d=${BASH_SOURCE%/*} f n s
 
 	[ "$d" = "$BASH_SOURCE" ] && d=.
 	[ -n "${GL["hline"]}" ] || . "$d/../wm/glyphs.hibr"
 	for f in "$d"/*.hibr; do
 		case $f in */saver.hibr) continue ;; esac
-		. "$f"
+		sv_read "$f"
 	done
 	for d in "${SV_DIRS[@]}"; do
 		for f in "$d"/*.hibr; do
-			[ -r "$f" ] && . "$f"
+			[ -r "$f" ] && sv_read "$f"
 		done
 	done
+	SV_LIST=()
+	for n in "${!SV[@]}"; do
+		s=${SV[$n]["src"]}
+		if [ -z "$s" ] || [ -r "$s" ]; then
+			SV[$n]["gone"]=
+			SV_LIST+=("$n")
+		else
+			SV[$n]["gone"]=1
+		fi
+	done
+	return 0
+}
+
+# Read one saver's file, unless it has been read, and remember which file
+# named the saver.
+fn sv_read(f) {
+	[ -n "${SV_READ["$f"]-}" ] && return 0
+	SV_READ["$f"]=1
+	SV_LAST=
+	. "$f"
+	[ -n "$SV_LAST" ] && SV[$SV_LAST]["src"]=$f
 	return 0
 }
 
@@ -95,7 +120,8 @@ fn sv_begin(name = "random") {
 	local n=${#SV_LIST[@]}
 
 	[ "$n" -gt 0 ] || return 1
-	if [ "$name" = random ] || [ -z "${SV[$name]["ms"]}" ]; then
+	if [ "$name" = random ] || [ -z "${SV[$name]["ms"]}" ] ||
+	   [ -n "${SV[$name]["gone"]}" ]; then
 		name=${SV_LIST[$((RANDOM % n))]}
 	fi
 	SV_NAME=$name

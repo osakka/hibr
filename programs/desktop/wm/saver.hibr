@@ -30,11 +30,16 @@ SV_NAME="${SV_NAME-}"
 # The framework is part of the desktop, but a desktop is still expected to
 # start without it -- and then simply has no saver, rather than calling
 # sv_load and sv_begin, which do not exist, on every idle (Gitea #262).
+# DT_SAVERREADY says the list is current; a rescan empties it, and the
+# next saver wanted reads only what is new -- the framework is read once
+# a desktop, and sv_load reads each saver's file once (Gitea #556).
 dt_saverload() {
 	[ -n "$DT_SAVERREADY" ] && return 0
-	[ -r "$DT_HERE/savers/saver.hibr" ] || return 1
-	. "$DT_HERE/savers/saver.hibr"
-	dt_has sv_load || return 1
+	if ! dt_has sv_load; then
+		[ -r "$DT_HERE/savers/saver.hibr" ] || return 1
+		. "$DT_HERE/savers/saver.hibr"
+		dt_has sv_load || return 1
+	fi
 	sv_load
 	DT_SAVERREADY=1
 }

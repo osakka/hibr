@@ -77,3 +77,17 @@ img save /dev/null "$o" 2>&1 | sed 's/.*: //'
 img save tests/img-2x2.png /nonexistent/x.png 2>&1 | sed 's/.*: //'
 ls "$o".hibr-part 2>/dev/null; rm -f "$o"
 img save a 2>&1; echo "usage: $?"
+
+# A file it cannot decode is named for what its first bytes say it is, so a
+# GIF or a WebP called .png reads as one rather than as a broken PNG
+# (Gitea #557); text says only what it is not.
+echo "--- what it is instead"
+o=/tmp/hibr-830-$$
+printf 'GIF89a\1\0\1\0\0\0' > "$o"; img size "$o" 2>&1 | sed 's/.*: //'
+printf 'RIFF\0\0\0\0WEBPVP8 ' > "$o"; img size "$o" 2>&1 | sed 's/.*: //'
+printf '\0\0\0\34ftypavif' > "$o"; img size "$o" 2>&1 | sed 's/.*: //'
+printf 'BM6\0\0\0' > "$o"; img size "$o" 2>&1 | sed 's/.*: //'
+printf '<svg xmlns="x"/>' > "$o"; img size "$o" 2>&1 | sed 's/.*: //'
+printf 'not a real png' > "$o"; img size "$o" 2>&1 | sed 's/.*: //'
+: > "$o"; img size "$o" 2>&1 | sed 's/.*: //'
+rm -f "$o"
