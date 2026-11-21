@@ -209,15 +209,24 @@ More tools sit around it:
 - **`tests/strictvars.py`** -- reads every function in each desktop file that
   says `strict` and fails on any assignment that would create a global:
   what `strict vars` refuses at run time, found on every path rather than
-  only the ones a suite reaches. A suite in `all.py`; it takes under a
-  second.
+  only the ones a suite reaches. It reads the parser's own record of every
+  write (`inspect vars`). A suite in `all.py`; about six seconds.
 - **`tests/deps.py`** -- reads every file of every script kind the
   catalogue installs (taken from its own `CAT_KEXT`) and fails on what would
   break once the file is installed somewhere other than this tree: a path
   built from the file's own location, a sourced library the desktop does
   not load, and a call into another installable with no `dt_has`,
-  `dt_needs` or `command -v` in its function (ADR 0046). A suite in
-  `all.py`; under a second.
+  `dt_needs` or `command -v` in its function (ADR 0046). It reads
+  `inspect` records, the guards' and sources' own arguments among them. A
+  suite in `all.py`; fifteen to twenty seconds.
+- **`tests/inspect_checks.py`** -- the rules an app is held to, each a
+  mode over the files given (several modes at once share one query a file):
+  `duplicates`, `combined`, `arity`, `opens`, `menus`, `strict`, `pens` and
+  `glyphs`. `540-examples.t` runs them over the tree; `app` runs every one
+  an app is held to, and exits 1 on any finding, which is what the
+  catalogue's `addapp` is to run over a bundle before it is indexed
+  (Gitea #541). `glyphs` reads text, since what a string holds is the one
+  thing `inspect` does not disclose.
 - **`tests/inputlat.py`** -- how long the person's input takes to reach
   the screen, per app (ADR 0050's sensitivity requirement,
   `wm/latency.hibr`): an app whose key and the draw after it each stay

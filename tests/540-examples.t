@@ -88,15 +88,16 @@ echo "no local reads a name assigned earlier in the same statement"
 # cs_module calls.
 # A list, not a string: a catalogue folder may have a space in it (Sound &
 # Video, 0.99.548), and an unquoted string splits it in two.
+# This one call also holds the desktop to the window rules and the pen rule
+# described below, so each file is asked about once.
 mapfile -t desk < <(find programs/desktop -name '*.hibr' | sort)
-python3 tests/inspect_checks.py arity "${desk[@]}"
+python3 tests/inspect_checks.py arity,opens,menus,pens "${desk[@]}"
 echo "every callback names what it is called with"
 
 # dt_new calls the new window's <prefix>_open, so a function of that name
 # which opens its own kind of window calls itself until the stack runs out:
 # 0.99.24's mail account dialog had an opener named mlad_open, and the
 # desktop died with a segfault the moment Add Account was chosen.
-python3 tests/inspect_checks.py opens "${desk[@]}"
 echo "no window's _open opens another of itself"
 
 # Every app's bar reads File, Edit, then whatever that app adds, so the two
@@ -106,7 +107,6 @@ echo "no window's _open opens another of itself"
 # the window manager. Ten apps opened with their own menu and had Edit last
 # before this rule, which is the kind of thing nobody notices one app at a
 # time. dt_menus itself is the window manager's bar and is not an app.
-python3 tests/inspect_checks.py menus "${desk[@]}"
 echo "every app's bar begins File, then Edit"
 
 # Every row of the Edit menu works in every app or is dimmed there, since
@@ -248,16 +248,14 @@ echo "every dropdown row has its popup"
 # forgotten local and an expansion that splits are each refused rather than
 # silently wrong. Anything that splits a list does it explicitly, with
 # read -ra into an array.
-for f in programs/desktop/desktop.hibr \
+python3 tests/inspect_checks.py strict programs/desktop/desktop.hibr \
          programs/desktop/wm/*.hibr programs/desktop/widgets/*.hibr \
          programs/desktop/apps/*.hibr programs/desktop/apps/*/*.hibr \
          programs/desktop/system/*.hibr \
          programs/desktop/control-panel/*.hibr \
          programs/desktop/control-strip/*.hibr programs/desktop/menubar/*.hibr \
          programs/desktop/savers/*.hibr programs/desktop/login/*.hibr \
-         programs/desktop/lib/*.hibr; do
-  grep -qx 'strict' "$f" || echo "not under every strict check: $f"
-done
+         programs/desktop/lib/*.hibr
 echo "the desktop is strict"
 
 # A window's own content must never draw at absolute screen coordinates --
@@ -317,21 +315,8 @@ echo "no menu is opened at a literal row"
 # icon, a menu's or a note's own words (an ellipsis, a dash), and lists
 # that are themselves a choice of characters -- the wallpaper's, the
 # bell's.
-for e in programs/desktop/*.hibr programs/desktop/*/*.hibr \
-         programs/desktop/*/*/*.hibr; do
-  case $e in */wm/glyphs.hibr) continue ;; esac
-  sed -e :a -e '/\\$/N; s/\\\n[[:space:]]*/ /; ta' "$e" | LC_ALL=C awk -v f="$e" '
-    /^[[:space:]]*#/ { next }
-    /dt_app |cp_pane |dt_item |dt_dim |dt_sub |dt_mark |dt_menu |dt_note|dt_confirm |dbase_say / { next }
-    /GLYPHS=\(|DT_GLYPH=|icon:-/ { next }
-    f ~ /wm\/bar.hibr$/ && /ret "/ { next }
-    {
-      l = $0
-      gsub(/\342\200\246|\342\200\224/, "", l)
-      if (l ~ /[\200-\377]/) print f ": a glyph written, not named: " $0
-    }
-  '
-done
+python3 tests/inspect_checks.py glyphs programs/desktop/*.hibr programs/desktop/*/*.hibr \
+         programs/desktop/*/*/*.hibr
 echo "every glyph drawn is named"
 
 for e in examples/fetch.hibr examples/ls-report.hibr examples/conf.hibr examples/workers.hibr; do
@@ -352,14 +337,6 @@ rm -rf "$tmp"
 # which nothing defines, and drew dark text on an empty -- black --
 # background. Every $DT_ name a console pen uses must be one settings.hibr
 # gives a default.
-roles=$(grep -oE '^DT_[A-Z_]+="\$\{DT_[A-Z_]+-#' programs/desktop/wm/settings.hibr |
-	sed 's/=.*//' | sort -u)
-grep -rhoE 'console pen( -p [^ ]+)? "\$DT_[A-Z_]+"( "\$DT_[A-Z_]+")?' \
-	--include=*.hibr programs/desktop | grep -oE 'DT_[A-Z_]+' | sort -u |
-	while read -r v; do
-		printf '%s\n' "$roles" | grep -qx "$v" ||
-			echo "a pen uses $v, which no theme defines"
-	done
 echo "every pen names a theme colour"
 
 # The Catalogue window does not keep its own list of kinds -- `apps`

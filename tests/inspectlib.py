@@ -15,7 +15,10 @@ def records(path, request='functions', rules=None, symbols=(), arguments=()):
     digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
     rulepath = str(Path(rules).resolve()) if rules else ''
     ruleid = hashlib.sha256(Path(rulepath).read_bytes()).hexdigest() if rulepath else ''
-    return _records(path, request, digest, rulepath, ruleid, tuple(sorted(symbols)), tuple(sorted(arguments)))
+    result = _records(path, request, digest, rulepath, ruleid, tuple(sorted(symbols)), tuple(sorted(arguments)))
+    if arguments and request == 'calls' and not result['calls'] and records(path, 'calls')['calls']:
+        raise RuntimeError(f'the producer took --arguments for a function name: it is older than call arguments ({path})')
+    return result
 
 
 @functools.lru_cache(maxsize=1024)
