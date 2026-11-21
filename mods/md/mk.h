@@ -2,6 +2,7 @@
 #define MK_H
 
 #include "hibr.h"
+#include "../htmlent.h"
 #include <stddef.h>
 
 enum {
@@ -16,13 +17,10 @@ enum {
 #endif
 
 typedef struct mk_n mk_n;
-typedef struct mk_ent mk_ent;
+
 typedef struct mk_ref mk_ref;
 typedef struct mk_p mk_p;
 
-struct mk_ent {
-	const char *nm, *ch;
-};
 
 struct mk_ref {
 	char *lab, *url, *title;
@@ -60,8 +58,6 @@ struct mk_p {
 	int gfm;
 };
 
-extern const mk_ent mk_ents[];
-extern const size_t mk_nents;
 
 mk_n *mk_new(int t);
 void mk_free(mk_n *n);
@@ -78,7 +74,7 @@ int mk_ispunct(unsigned c);
 int mk_isspace(unsigned c);
 unsigned mk_utf8(const char *p, size_t n, int *len);
 unsigned mk_before(const char *s, size_t i);
-const char *mk_entity(const char *nm, size_t n);
+
 void mk_fold(str *o, const char *p, size_t n);
 void mk_esc(str *o, const char *p, size_t n);
 void mk_eschref(str *o, const char *p, size_t n);

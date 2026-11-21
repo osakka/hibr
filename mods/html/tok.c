@@ -73,26 +73,6 @@ int hl_utf8(const char *s, size_t n, unsigned *cp)
 	return k;
 }
 
-/* A named character reference by its exact name, or none. */
-const hl_ent *hl_entfind(const char *nm, size_t len)
-{
-	size_t lo = 0, hi = hl_nents, mid;
-	int c;
-
-	while (lo < hi) {
-		mid = (lo + hi) / 2;
-		c = strncmp(hl_ents[mid].nm, nm, len);
-		if (!c && hl_ents[mid].nm[len])
-			c = 1;
-		if (c < 0)
-			lo = mid + 1;
-		else if (c > 0)
-			hi = mid;
-		else
-			return &hl_ents[mid];
-	}
-	return 0;
-}
 
 /* The next input character, carriage returns made line feeds, or EOF. */
 int tk_nx(hl_p *p)
@@ -327,9 +307,9 @@ unsigned tk_c1(unsigned c)
 void tk_ref(hl_p *p, int inattr, str *out)
 {
 	size_t st = p->i, j, best = 0;
-	const hl_ent *e, *be = 0;
+	const char *e, *be = 0;
 	unsigned long v = 0;
-	int c, hex = 0, digits = 0, semi = 0;
+	int c, hex = 0, digits = 0, semi = 0, leg = 0;
 
 	c = tk_nx(p);
 	if (c == '#') {
@@ -370,11 +350,11 @@ void tk_ref(hl_p *p, int inattr, str *out)
 	for (j = 0; j < 36 && p->i + j < p->n && tk_alnum(p->src[p->i + j]); j++)
 		;
 	for (; j > 0; j--) {
-		e = hl_entfind(p->src + p->i, j);
+		e = he_find(p->src + p->i, j, &leg);
 		if (!e)
 			continue;
 		semi = p->i + j < p->n && p->src[p->i + j] == ';';
-		if (semi || e->legacy) {
+		if (semi || leg) {
 			be = e;
 			best = j;
 			break;
@@ -394,9 +374,9 @@ void tk_ref(hl_p *p, int inattr, str *out)
 	}
 	p->i += best + (semi ? 1 : 0);
 	if (out)
-		s_cat(out, be->ch);
+		s_cat(out, be);
 	else
-		tk_chars(p, be->ch);
+		tk_chars(p, be);
 }
 
 /* Prepare to tokenize a text. */

@@ -35,7 +35,8 @@ html close "$h"
 That includes the current standard's `select` rules — `select` is no longer
 a mode of its own, and `<selectedcontent>` is filled from the chosen option
 — which older parsers get differently. Named character references come from
-WHATWG's `entities.json`, generated into `ent.c` by `tools/htmlents.py`.
+WHATWG's `entities.json`, generated into `../htmlent.c` by
+`tools/htmlents.py` and shared with the md module.
 
 What it does not do: run scripts, apply style sheets, or fetch anything.
 A document is parsed as the standard says to with scripting off, so what is
@@ -134,5 +135,6 @@ bound, 48,000 lines.
 | `dom.c` | nodes, attributes, text, and the html5lib dump |
 | `query.c` | the CSS selector engine |
 | `lay.c` | `html lines`: blocks, inline runs, lists, quotes, tables, images |
-| `ent.c` | the named character references, generated |
+
 | `hl.h`, `tr.h` | types shared by the files |
+| `../htmlent.c` | the named character references, generated, shared with md |

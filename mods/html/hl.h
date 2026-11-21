@@ -2,6 +2,7 @@
 #define HL_H
 
 #include "hibr.h"
+#include "../htmlent.h"
 #include <stddef.h>
 
 enum { HL_DOC, HL_ELEM, HL_TEXT, HL_COMMENT, HL_DOCTYPE, HL_FRAG };
@@ -15,17 +16,13 @@ enum { HL_FSPECIAL = 1, HL_FSCOPE = 2, HL_FTSCOPE = 4, HL_FLIST = 8, HL_FBUTTON 
 #define HL_DEPTH 512
 #endif
 
-typedef struct hl_ent hl_ent;
+
 typedef struct hl_attr hl_attr;
 typedef struct hl_n hl_n;
 typedef struct hl_tok hl_tok;
 typedef struct hl_doc hl_doc;
 typedef struct hl_p hl_p;
 
-struct hl_ent {
-	const char *nm, *ch;
-	int legacy;
-};
 
 struct hl_attr {
 	char *nm, *val, *pfx;
@@ -76,8 +73,6 @@ struct hl_p {
 	int ignlf;
 };
 
-extern const hl_ent hl_ents[];
-extern const size_t hl_nents;
 
 hl_n *hl_new(hl_doc *d, int t);
 void hl_append(hl_n *up, hl_n *n);
@@ -106,6 +101,5 @@ void hl_emit(hl_p *p, hl_tok *t);
 int hl_foreign(hl_p *p);
 
 int hl_utf8(const char *s, size_t n, unsigned *cp);
-const hl_ent *hl_entfind(const char *nm, size_t len);
 
 #endif

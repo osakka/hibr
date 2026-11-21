@@ -93,5 +93,5 @@ Write uses a bullet, a box, a bar and rules.
 | `inl.c` | inlines: code spans, autolinks, raw HTML, entities, emphasis and strikethrough, links and images, GFM's extended autolinks |
 | `out.c` | HTML as cmark-gfm writes it, and the style letters |
 | `util.c` | Unicode classes, entities, escapes, link destinations, titles and labels, HTML tags |
-| `ent.c` | the HTML5 named entities, sorted, from the WHATWG list |
+| `../htmlent.c` | the HTML5 named entities, generated from the WHATWG list, shared with the html module |
 | `md.c` | the `md` builtin |

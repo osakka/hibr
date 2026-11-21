@@ -274,9 +274,11 @@ EMAIL_SRC = $(wildcard mods/email/*.c) mods/b64.c
 $(B)/mods/email.so: $(EMAIL_SRC) include/hibr.h mods/b64.h mods/email/ml.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(EMAIL_SRC) $(DLLIB)
 
-HTML_SRC = $(wildcard mods/html/*.c)
+# The named character references are one generated table, mods/htmlent.c,
+# compiled into both html and md (Gitea #355).
+HTML_SRC = $(wildcard mods/html/*.c) mods/htmlent.c
 
-$(B)/mods/html.so: $(HTML_SRC) include/hibr.h mods/html/hl.h mods/html/tr.h | $(B)/mods
+$(B)/mods/html.so: $(HTML_SRC) include/hibr.h mods/html/hl.h mods/html/tr.h mods/htmlent.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HTML_SRC)
 
 PIM_SRC = $(wildcard mods/pim/*.c)
@@ -289,9 +291,9 @@ UNI_SRC = $(wildcard mods/uni/*.c)
 $(B)/mods/uni.so: $(UNI_SRC) include/hibr.h mods/uni/un.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(UNI_SRC)
 
-MD_SRC = $(wildcard mods/md/*.c)
+MD_SRC = $(wildcard mods/md/*.c) mods/htmlent.c
 
-$(B)/mods/md.so: $(MD_SRC) include/hibr.h mods/md/mk.h | $(B)/mods
+$(B)/mods/md.so: $(MD_SRC) include/hibr.h mods/md/mk.h mods/htmlent.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(MD_SRC)
 
 # PDF through Poppler, every library dlopen'd (Gitea #348).

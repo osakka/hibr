@@ -216,13 +216,15 @@ and right to left.
 
 ## htmlents.py
 
-Writes `mods/html/ent.c` from WHATWG's `entities.json`: each name once,
-without `&` and `;`, sorted for a binary search, with whether it is also
-recognised without its semicolon.
+Writes `mods/htmlent.c`, compiled into both the html and the md module,
+from WHATWG's `entities.json`: each name once, without `&` and `;`, sorted
+for a binary search, in one blob of name and characters with an offset
+each, the offset's top bit saying whether the name is also recognised
+without its semicolon; and `he_find`, the lookup both modules call.
 
 ```text
 curl -sO https://html.spec.whatwg.org/entities.json
-python3 tools/htmlents.py entities.json > mods/html/ent.c
+python3 tools/htmlents.py entities.json > mods/htmlent.c
 ```
 
 ## hcalgen.py

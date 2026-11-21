@@ -237,24 +237,6 @@ void mk_fold(str *o, const char *p, size_t n)
 
 /* --- entities, escapes, and escaping for HTML ---------------------------- */
 
-static int mk_entcmp(const void *k, const void *e)
-{
-	return strcmp((const char *)k, ((const mk_ent *)e)->nm);
-}
-
-/* The characters a named entity stands for, or 0. */
-const char *mk_entity(const char *nm, size_t n)
-{
-	char b[40];
-	const mk_ent *e;
-
-	if (n == 0 || n >= sizeof b)
-		return 0;
-	memcpy(b, nm, n);
-	b[n] = 0;
-	e = bsearch(b, mk_ents, mk_nents, sizeof *mk_ents, mk_entcmp);
-	return e ? e->ch : 0;
-}
 
 /* An entity or numeric reference at p: how long it is, its characters
    appended to o; 0 when it is not one. */
@@ -296,7 +278,7 @@ size_t mk_entref(const char *p, size_t n, str *o)
 		;
 	if (i == 1 || i >= n || p[i] != ';')
 		return 0;
-	e = mk_entity(p + 1, i - 1);
+	e = he_find(p + 1, i - 1, 0);
 	if (!e)
 		return 0;
 	s_cat(o, e);
