@@ -252,7 +252,7 @@ fn dt_rvdrop(int c, who = "", pid = "", why = "") {
 		dt_rvreopen "$who"
 	fi
 	if [ -n "$pid" ]; then
-		DT_RTENDPID["$pid"]=$((EPOCHSECONDS + DT_RTENDSECS))
+		DT_RTENDPID["$pid"]=$((${EPOCHREALTIME/./} / 1000 + DT_RTENDSECS * 1000))
 		DT_RTENDAPP["$pid"]=$who
 		DT_RTENDWHY["$pid"]=$why
 		DT_RTENDOWE["$pid"]=$how

@@ -39,7 +39,7 @@ GOOD = scratch("hostfail-good.hibr")
 # with status 3. The hanger spins 3 s on h and 1 s on escape, then writes
 # down each key it ran. Good is in the desktop's own process and shows the
 # last key it was given.
-open(VICTIM, "w").write(r'''command -v dt_app > /dev/null && dt_app victim "Victim" 6 26
+open(VICTIM, "w").write(r'''command -v dt_app > /dev/null && dt_app victim "Victim" 6 40
 declare -gA VC
 fn victim_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "alive ${VC[$id]:-0}"
@@ -51,7 +51,7 @@ fn victim_key(int id, key) {
 	return 0
 }
 ''' % SAID)
-open(HANGER, "w").write(r'''command -v dt_app > /dev/null && dt_app hanger "Hanger" 6 26
+open(HANGER, "w").write(r'''command -v dt_app > /dev/null && dt_app hanger "Hanger" 6 40
 fn hanger_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "hanger"
 	echo "$$" > %s.hpid
@@ -82,8 +82,8 @@ dt_app gd "Good" 6 26
 SESSION = r'''%s. %s
 dt_open
 DT_NOTEMS=60000
-DT_LOADING=%s dt_app victim "Victim" 6 26
-DT_LOADING=%s dt_app hanger "Hanger" 6 26
+DT_LOADING=%s dt_app victim "Victim" 6 40
+DT_LOADING=%s dt_app hanger "Hanger" 6 40
 DT_LOADING=%s . %s
 DT_LOADING=
 tst_go() {
@@ -145,6 +145,11 @@ def log(t):
     return open(t.log, errors="replace").read() if os.path.exists(t.log) else ""
 
 
+def said(t, *words):
+    """The log's lines holding any of words, for a failure to show."""
+    return [l for l in log(t).splitlines() if any(w in l for w in words)][-12:]
+
+
 def logwait(t, text, secs=10):
     deadline = time.time() + secs
     while time.time() < deadline:
@@ -164,6 +169,15 @@ def readpid(name, secs=5, old=None):
                 return p
         time.sleep(0.05)
     return ""
+
+
+def kill(pid, sig):
+    """Signal a process the suite read the pid of; nothing when it read none."""
+    if pid:
+        try:
+            os.kill(int(pid), sig)
+        except OSError:
+            pass
 
 
 def gone(pid):
@@ -190,7 +204,7 @@ def notes(t, text):
 def hosted(t, app, var, r, c, old=None, pidfile=".vpid", text="alive 0"):
     do(t, "dt_rthost %s" % app)
     waitfor(t, '[ -n "${DT_RTHOST[%s]-}" ]' % app)
-    do(t, "%s := dt_new %s 6 26 %d %d %s" % (var, app.capitalize(), r, c, app))
+    do(t, "%s := dt_new %s 6 40 %d %d %s" % (var, app.capitalize(), r, c, app))
     t.until(text, tries=60, step=0.1)
     return readpid(pidfile, old=old)
 
@@ -207,7 +221,7 @@ vpid = hosted(t, "victim", "V", 2, 2)
 t.send(b"a", settle=0.3, collect=0.3)
 t.until("alive 1", tries=40, step=0.1)
 vid = result(t, 'echo "$V"')
-os.kill(int(vpid), signal.SIGKILL)
+kill(vpid, signal.SIGKILL)
 check("a hosted app killed: the log says it was ended by signal KILL",
       logwait(t, "victim (process %s) was ended by signal KILL (status 137)" % vpid),
       log(t)[-800:])
@@ -240,7 +254,7 @@ check("and the kept picture's channel is let go",
 # -- reopen at once: the app is started again in the same place, said once;
 # and one that dies again straight away is kept, not started for ever.
 do(t, "DT_APPGONE=reopen")
-os.kill(int(v2), signal.SIGTERM)
+kill(v2, signal.SIGTERM)
 v3 = readpid(".vpid", secs=8, old=v2)
 check("reopen: the app ended by TERM is started again at once, in the same place",
       v3 and logwait(t, "victim (process %s) was ended by signal TERM (status 143)" % v2)
@@ -248,7 +262,7 @@ check("reopen: the app ended by TERM is started again at once, in the same place
       (v3, log(t)[-600:]))
 check("with one note saying so",
       notes(t, "Victim quit unexpectedly and was opened again") == "1")
-os.kill(int(v3), signal.SIGKILL)
+kill(v3, signal.SIGKILL)
 check("and one that ends again within seconds is kept, not started again",
       logwait(t, "victim ended again within 10 s of being reopened; its windows are kept instead")
       and waitfor(t, 'id := dt_appwin victim && [ "${DT_RVC[$id]-}" = - ]', 3)
@@ -270,7 +284,7 @@ do(t, "DT_APPGONE=keep")
 
 # -- a hang: marked, never paused; another window answers at once; the stall
 # is logged; the mark goes when the app answers.
-do(t, "G := dt_new Good 6 26 12 50 gd")
+do(t, "G := dt_new Good 6 26 12 60 gd")
 hpid = hosted(t, "hanger", "H", 12, 2, pidfile=".hpid", text="hanger")
 hid = result(t, 'echo "$H"')
 t.send(b"h", settle=0.05, collect=0.05)
@@ -306,8 +320,8 @@ check("escape to an app taking a second over it: the menu bar opens anyway, "
       "well before the app answers", opened and took < 0.9, round(took, 2))
 check("and the key is revoked, which the app's process says had run",
       logwait(t, "had run (ADR 0050, a declined key)", 4)
-      and open(SAID + ".keys").read().split() == ["escape"] if os.path.exists(SAID + ".keys") else False,
-      log(t)[-600:])
+      and os.path.exists(SAID + ".keys") and open(SAID + ".keys").read().split() == ["escape"],
+      (said(t, "revoke", "runtime", "hosted:"), open(SAID + ".keys").read() if os.path.exists(SAID + ".keys") else None))
 do(t, "dt_mclose")
 if os.path.exists(SAID + ".keys"):
     os.unlink(SAID + ".keys")
@@ -322,7 +336,7 @@ check("escape behind a key the app is still spinning on: the menu opens within a
 check("and the revoked key is dropped by the app's process, never run",
       logwait(t, "before it ran; dropped", 6)
       and os.path.exists(SAID + ".keys") and open(SAID + ".keys").read().split() == ["h"],
-      (log(t)[-600:], open(SAID + ".keys").read() if os.path.exists(SAID + ".keys") else None))
+      (said(t, "revoke", "runtime", "hosted:"), open(SAID + ".keys").read() if os.path.exists(SAID + ".keys") else None))
 do(t, "dt_mclose")
 
 # -- Restart Desktop: the app's process ends with the socket it spoke on,
@@ -346,4 +360,4 @@ for f in (VICTIM, HANGER, GOOD, t.mark, scratch("hostfail.hibr")):
 for f in (".pend", ".vpid", ".hpid", ".keys"):
     if os.path.exists(SAID + f):
         os.unlink(SAID + f)
-report(23)
+report(24)

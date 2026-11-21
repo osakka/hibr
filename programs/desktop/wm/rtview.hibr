@@ -28,7 +28,8 @@ declare -gA DT_RVGEN DT_RVARGS DT_RVDIRTY DT_RVUNC DT_RVOPEN DT_RVCLOSE
 # request connection that draws for it; the asks waiting for a `took`, by
 # number ("KIND ID DEADLINE", and for the person's input its time and its
 # app's processor time too: dt_rvinput); what has been said once; and an app process
-# with no window left, by pid, with when it is ended if still there.
+# with no window left, by pid, with when it is ended if still there (in
+# milliseconds, so DT_RTENDSECS is that long and not up to a second less).
 declare -gA DT_RTHAS DT_RTHOST DT_RVASK DT_RVSAID DT_RTENDPID
 DT_RVSEQ=0
 DT_RTENDSECS="${DT_RTENDSECS-5}"
@@ -311,7 +312,7 @@ fn dt_rvforget(int id) {
 		[ "${DT_RVC[$i]}" = "$c" ] && return 0
 	done
 	p=${DT_RTCPID["$c"]-}
-	[ -z "$p" ] || DT_RTENDPID["$p"]=$((EPOCHSECONDS + DT_RTENDSECS))
+	[ -z "$p" ] || DT_RTENDPID["$p"]=$((${EPOCHREALTIME/./} / 1000 + DT_RTENDSECS * 1000))
 	return 0
 }
 
@@ -490,7 +491,7 @@ dt_rvtick() {
 				dt_rvended "$p" "$?"
 			fi
 			unset DT_RTENDPID["$p"] DT_RTENDAPP["$p"] DT_RTENDWHY["$p"] DT_RTENDOWE["$p"] DT_RTENDHIT["$p"]
-		elif [ "$EPOCHSECONDS" -ge "${DT_RTENDPID["$p"]}" ]; then
+		elif [ "$now" -ge "${DT_RTENDPID["$p"]}" ]; then
 			# Still there: ended, then watched until it has gone, and
 			# killed outright once more time has passed.
 			if [ -z "${DT_RTENDHIT["$p"]-}" ]; then
@@ -505,7 +506,7 @@ dt_rvtick() {
 				dt_log "app runtime: process $p did not end when asked; killed"
 				kill -9 "$p" 2> /dev/null
 			fi
-			DT_RTENDPID["$p"]=$((EPOCHSECONDS + DT_RTENDSECS))
+			DT_RTENDPID["$p"]=$((now + DT_RTENDSECS * 1000))
 		fi
 	done
 	for id in "${!DT_RVLATE[@]}"; do
