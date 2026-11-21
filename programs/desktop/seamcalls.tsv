@@ -49,8 +49,9 @@ wm/bus.hibr	65	dt_busgive	dt_hookfn	"$f"	hook:DT_BUS	none	-	tell
 wm/confirm.hibr	127	dt_confirm_key	dt_appfn	$cmd	handed	none	-	ask
 wm/context.hibr	65	dt_ctxbuild	dt_appfn	"${who}_context"	_context	none	-	push
 wm/copying.hibr	224	dt_copylocated	dt_prefixfn	_ok	location_ok	status	tested	ask
-wm/filepick.hibr	527	fp_done	dt_appfn	"$cb"	handed	status	tail	ask
-wm/filepick.hibr	729	fpick_close	dt_appfn	"$oc"	handed	none	-	ask
+wm/filepick.hibr	247	fp_feed	dt_appfn	"${FP[$id]["listed"]}"	handed	none	-	ask
+wm/filepick.hibr	671	fp_done	dt_appfn	"$cb"	handed	status	tail	ask
+wm/filepick.hibr	891	fpick_close	dt_appfn	"$oc"	handed	none	-	ask
 wm/files.hibr	110	dt_ondrop	dt_wincall	"$ap"	_drop	none	-	tell
 wm/files.hibr	287	dt_changed	dt_wincall	"$cb"	_refresh	none	-	tell
 wm/files.hibr	430	dt_fieldundo	dt_wincall	"$cb"	_key	none	|| true	ask

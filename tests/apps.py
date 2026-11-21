@@ -50,6 +50,31 @@ def appdir(a):
     return APPS
 
 
+class Wait:
+    """In a feed: the keys after it wait until cond holds -- text, or a
+    function given the screen -- within tries tenths of a second. A key is
+    never early, since Term.keys waits for the desktop's idle marker, but
+    what it causes can be later than that marker: a folder read in a job,
+    a shell's prompt. A fixed pause in its place holds only while the box
+    is quiet (Gitea #593, #606)."""
+
+    def __init__(self, cond, tries=40):
+        self.cond, self.tries = cond, tries
+
+
+def drive(t, feed):
+    """Send a feed, waiting at each Wait in it."""
+    part = []
+    for k in feed:
+        if isinstance(k, Wait):
+            t.keys(part)
+            part = []
+            t.until(k.cond, k.tries)
+        else:
+            part.append(k)
+    t.keys(part)
+
+
 def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
         env=None, until=None, tries=40, ready=None, rows=None, cell=(0, 0),
         caps=None):
@@ -116,7 +141,7 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     # what a key *causes* can be.
     if ready is not None:
         t.until(ready, tries)
-    t.keys(feed)
+    drive(t, feed)
     if until is not None:
         # `tries` because `until`'s own four seconds is a budget, not a
         # promise: a window that forks a child and polls for its answer
@@ -129,6 +154,10 @@ def run(app, win, feed=(), pre="", wait=1.0, also=(), end=b"qy", extra=(),
     t.quit(end, wait)
     sc = t.screen()
     sc.out = t.out
+    try:
+        sc.log = open(t.log, "rb").read().decode("utf8", "replace")
+    except OSError:
+        sc.log = ""
     return sc
 
 
@@ -1427,6 +1456,11 @@ os.mkdir(os.path.join(AWHOME, "sub"))
 shutil.copy(os.path.abspath("tests/img-2x2.png"),
             os.path.join(AWHOME, "sub", "deep.png"))
 DOWN_WP = reach("wallset", "Image")
+# The picker reads a folder in a job (Gitea #606) and says "1 of N" once it
+# has landed, with an ellipsis there until then; what is pressed meanwhile
+# is kept for then. A check reading the list waits for it.
+WPLISTED = Wait(lambda s: re.search(r"\b1 of \d+", s.text()) is not None)
+WPOPEN = DOWN_WP + [b"\r", WPLISTED]
 
 sc = cprun(DOWN_WP)
 check("Control Panel > Wallpaper offers the image picker as a row of its own",
@@ -1447,7 +1481,7 @@ sc = cprun(reach("wallset", "Picture") + [b"\x1b[C"])
 check("which steps to half blocks",
       "half" in brow(sc, "Picture") and brow(sc, "Drawn Now") == "", sc)
 
-sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME})
+sc = cprun(WPOPEN, env={"HOME": AWHOME})
 check("with no Files app installed, it lists the home directory's folders "
       "and images, and leaves out what is not an image",
       sc.find("wall.png") is not None and sc.find("sub/") is not None
@@ -1460,11 +1494,11 @@ check("it is a window of its own, with Apply and Close buttons",
 
 # fp_go lists the folder above, then folders, then the images -- here
 # 0 "..", 1 "sub/", 2 "wall.png".
-sc = cprun(DOWN_WP + [b"\r", b"\x1b[B"], env={"HOME": AWHOME})
+sc = cprun(WPOPEN + [b"\x1b[B"], env={"HOME": AWHOME})
 check("selecting a folder leaves the preview cleared",
       sc.find("Select an image") is not None, sc)
 
-sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B"],
+sc = cprun(WPOPEN + [b"\x1b[B", b"\x1b[B"],
            env={"HOME": AWHOME})
 check("selecting the .png shows a preview instead",
       sc.find("Select an image") is None, sc)
@@ -1473,7 +1507,7 @@ check("selecting the .png shows a preview instead",
 # choosing it draws it. Named to sort last, so the rows above keep their
 # places.
 shutil.copy(os.path.abspath("tests/img-quad.jpg"), os.path.join(AWHOME, "zz.jpg"))
-sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\x1b[B"],
+sc = cprun(WPOPEN + [b"\x1b[B", b"\x1b[B", b"\x1b[B"],
            env={"HOME": AWHOME}, pre=load("img"))
 check("a JPEG is offered too, and choosing it shows a preview",
       sc.find("zz.jpg") is not None and sc.find("Select an image") is None, sc)
@@ -1495,7 +1529,7 @@ check("a JPEG is offered too, and choosing it shows a preview",
 WIDEHOME = tempfile.mkdtemp(prefix="hibr-wp-wide-")
 shutil.copy(os.path.abspath("tests/img-wide.png"),
             os.path.join(WIDEHOME, "wide.png"))
-sc = cprun(DOWN_WP + [b"\r", b"\x1b[B"], env={"HOME": WIDEHOME},
+sc = cprun(WPOPEN + [b"\x1b[B"], env={"HOME": WIDEHOME},
            pre=load("img"))
 filledrows = [r for r in range(sc.rows) if "-" in sc.row(r)]
 check("a very wide image is fitted, not stretched to fill the box",
@@ -1568,14 +1602,15 @@ check("and dbase's table by the same",
 # Panel it was asked from (Gitea #293), not in the middle of the screen,
 # so its first entry -- the row under `../` -- is read rather than
 # assumed.
-sc = cprun(DOWN_WP + [b"\r"], env={"HOME": AWHOME})
+sc = cprun(WPOPEN, env={"HOME": AWHOME})
 wpt = sc.find("┤ Wallpaper ├") or (2, 10)
 WPROW, WPCOL = wpt[0] + 3, wpt[1]
-sc = cprun(DOWN_WP + [b"\r", press(WPROW, WPCOL)],
+sc = cprun(WPOPEN + [press(WPROW, WPCOL)],
            env={"HOME": AWHOME})
 check("a single click on a directory only selects it, not enters it",
       sc.find("wall.png") is not None, sc)
-sc = cprun(DOWN_WP + [b"\r", press(WPROW, WPCOL), press(WPROW, WPCOL)],
+sc = cprun(WPOPEN + [press(WPROW, WPCOL), press(WPROW, WPCOL),
+                    Wait("deep.png")],
            env={"HOME": AWHOME})
 check("a second click on the same row enters the directory",
       sc.find("deep.png") is not None and sc.find("wall.png") is None, sc)
@@ -1584,10 +1619,32 @@ check("a second click on the same row enters the directory",
 # /home -- it reaches the root. fp_go was handed the empty name that
 # `${dir%/*}` makes of such a folder, said it could not open it, and
 # stayed: in Open and Save As too, which share it.
-sc = cprun(DOWN_WP + [b"\r"] + [b"\x7f"] * AWHOME.count("/"),
+sc = cprun(WPOPEN + [b"\x7f"] * AWHOME.count("/") + [Wait("etc/", 100)],
            env={"HOME": AWHOME})
 check("going up a folder at a time reaches the root",
       sc.find("etc/") is not None and sc.find("Cannot open") is None, sc)
+
+# A folder of thousands is read in a job and taken in a slice a pass, so
+# opening it holds nothing up: listed in the callback that opened it,
+# /tmp's 6,900 entries held the desktop 310-370 ms in every gate (Gitea
+# #606). A folder of its own, so the check measures the picker and not the
+# machine's /tmp: 7,000 entries, of which 500 folders and 500 pictures are
+# listed. The two keys go in while it is read and are kept for when it
+# has landed.
+WPBIG = tempfile.mkdtemp(prefix="hibr-wp-big-")
+for _i in range(500):
+    os.mkdir(os.path.join(WPBIG, "d%03d" % _i))
+    open(os.path.join(WPBIG, "p%04d.png" % _i), "w").close()
+for _i in range(6000):
+    open(os.path.join(WPBIG, "t%04d.txt" % _i), "w").close()
+sc = cprun(DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", Wait("3 of 1001", 100)],
+           env={"HOME": WPBIG})
+check("a folder of 7,000 entries opens without holding the desktop, "
+      "and keys pressed while it is read are kept",
+      sc.find("3 of 1001") is not None and sc.find("d001/") is not None and
+      re.search(r"desktop: (held|late):", sc.log) is None,
+      (re.findall(r"desktop: (?:held|late):[^\n]*", sc.log), sc))
+shutil.rmtree(WPBIG, True)
 
 # Applying is keyboard-reachable, not only a mouse click on the button --
 # enter on an already-previewed file, the same as everywhere else in
@@ -1601,7 +1658,7 @@ check("going up a folder at a time reaches the root",
 # screen changing in one frame. The saved config is the real, reliable
 # proof this worked.
 AWCONF = tempfile.mkdtemp(prefix="hibr-wp-conf-")
-run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\x1b[B", b"\r"],
+run(*PANEL, feed=WPOPEN + [b"\x1b[B", b"\x1b[B", b"\r"],
     env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF}, pre=CPANES)
 saved = os.path.join(AWCONF, "hibr", "desktop.json")
 text = sx.conftext(saved)
@@ -1614,13 +1671,13 @@ shutil.rmtree(AWCONF, True)
 # recorded yet, it starts at the currently-applied wallpaper's own
 # directory rather than $HOME -- a bogus $HOME here proves that, since a
 # wrong fallback to it would find nothing.
-sc = run(*PANEL, feed=DOWN_WP + [b"\r"],
+sc = run(*PANEL, feed=WPOPEN,
          env={"HOME": "/nonexistent-for-this-check"},
          pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME)
 check("with no directory remembered yet, it starts at the wallpaper's own",
       sc.find("wall.png") is not None, sc)
 cl = sc.find(" Close ")
-sc = run(*PANEL, feed=DOWN_WP + [b"\r"] +
+sc = run(*PANEL, feed=WPOPEN +
          ([press(cl[0], cl[1] + 1)] if cl else []),
          env={"HOME": "/nonexistent-for-this-check"},
          pre=CPANES + "\nDT_WALLIMG=%s/wall.png" % AWHOME)
@@ -1761,9 +1818,9 @@ check("the Control Panel's divider drags: the list wider, the pane narrower",
 # point -- a directory distinct from both $HOME and the wallpaper's own,
 # so this is not just the check above by coincidence.
 AWCONF2 = tempfile.mkdtemp(prefix="hibr-wp-conf2-")
-run(*PANEL, feed=DOWN_WP + [b"\r", b"\x1b[B", b"\r"],
+run(*PANEL, feed=WPOPEN + [b"\x1b[B", b"\r", Wait("deep.png")],
     env={"HOME": AWHOME, "XDG_CONFIG_HOME": AWCONF2}, pre=CPANES)
-sc = run(*PANEL, feed=DOWN_WP + [b"\r"],
+sc = run(*PANEL, feed=WPOPEN,
          env={"HOME": "/nonexistent-for-this-check",
               "XDG_CONFIG_HOME": AWCONF2},
          pre=CPANES)
@@ -3391,8 +3448,14 @@ check("set to never, even one that succeeded stays to say so",
 # A shell's window closes when the shell ends, whatever its last command
 # returned: ctrl-d after a command that failed used to leave "exited 127"
 # on a window closed on purpose, since a shell exits with its last status.
-sc = run(*TERM, feed=[1.2] + [c.encode() for c in "nosuchcommand"] + [b"\r", 0.6, b"\x04", 1.5],
-         pre="TW_CMD=(/bin/sh)", end=None)
+# Each key waits for the prompt it is meant for, and the window's going is
+# waited for, not a pause after it (Gitea #593).
+SHPROMPTS = (lambda k: lambda s: s.find("┤ Term ├") is not None and
+             len(re.findall(r"\$\s", s.text())) >= k)
+sc = run(*TERM, feed=[Wait(SHPROMPTS(1), 80)] + [c.encode() for c in "nosuchcommand"]
+         + [b"\r", Wait(SHPROMPTS(2)), b"\x04"],
+         pre="TW_CMD=(/bin/sh)", end=None,
+         until=lambda s: s.find("┤ Term ├") is None)
 check("ctrl-d closes a shell's window even after a command that failed",
       sc.find("┤ Term ├") is None and sc.find("exited") is None, sc)
 
@@ -5354,13 +5417,30 @@ sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0]
          pre=OWPRE, extra=OWX, end=None)
 check("Open Terminal Here starts a shell in the folder",
       sc.find(OWD) is not None and sc.find("┤ Terminal") is not None, sc)
-sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0,
-                                b"\x04", 1.5], pre=OWPRE, extra=OWX, end=None)
+# Ctrl-d is sent once the shell shows its prompt, never after a fixed
+# pause: sent before the shell is reading, it ends nothing and the window
+# stays -- which a loaded gate did to a two-second pause (Gitea #593).
+# The shell here takes 2.5 s to start, so a pause would fail every
+# run rather than one in a gate, and reads no ~/.hibrc, so its prompt is
+# the one waited for.
+SLOWSH = os.path.join(OWD, "slowsh")
+open(SLOWSH, "w").write("#!/bin/sh\nsleep 2.5\nHIBR_RC=/dev/null PS1='$ ' exec %s\n"
+                        % sx.HIBR)
+os.chmod(SLOWSH, 0o755)
+OWSLOW = OWPRE + "\nDT_TERMHERE=%s" % SLOWSH
+PROMPTS = (lambda k: lambda s: s.find("┤ Terminal") is not None and
+           len(re.findall(r"\$\s", s.text())) >= k)
+TERMGONE = (lambda s: s.find("┤ Terminal") is None)
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), Wait("Terminal Here"),
+                                b"h", Wait(PROMPTS(1), 80), b"\x04"],
+         pre=OWSLOW, extra=OWX, end=None, until=TERMGONE)
 check("and ctrl-d closes its window, as any terminal's, not left showing 0",
       sc.find("┤ Terminal") is None and sc.find("exited 0") is None, sc)
-sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), 0.3, b"h", 2.0]
-         + [c.encode() for c in "nosuchcommand"] + [b"\r", 0.8, b"\x04", 1.5],
-         pre=OWPRE, extra=OWX, end=None)
+sc = run("files", "16 50 2 2", [b"\x1b[B", press(5, 6, 2), Wait("Terminal Here"),
+                                b"h", Wait(PROMPTS(1), 80)]
+         + [c.encode() for c in "nosuchcommand"]
+         + [b"\r", Wait(PROMPTS(2)), b"\x04"],
+         pre=OWSLOW, extra=OWX, end=None, until=TERMGONE)
 check("even after a command that failed",
       sc.find("┤ Terminal") is None and sc.find("exited") is None, sc)
 shutil.rmtree(OWD, True)
@@ -6625,4 +6705,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(830)
+report(831)

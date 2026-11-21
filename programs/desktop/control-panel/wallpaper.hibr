@@ -98,12 +98,30 @@ fn wp_init(int id) {
 	fi
 	[ "$d" = . ] && d=$PWD
 	[ -d "$d" ] && [ -r "$d" ] || d=${HOME:-/}
-	fp_set "$id" types "$WPK_TYPES" ti 0
+	fp_set "$id" types "$WPK_TYPES" ti 0 listed wp_listed
 	dt_dblclear
 	fp_go "$id" "$d" || fp_go "$id" /
 	WPK[$id]["sel"]=0
 	WPK[$id]["top"]=0
 	WPK[$id]["previewfor"]=
+}
+
+# A folder has been read (fp_go lists in a job): the preview follows the
+# selection again, and what was pressed meanwhile is done, in order.
+fn wp_listed(int id) {
+	local k
+	local -a q
+
+	[ -n "${WPK[$id]["focus"]+x}" ] || return 0
+	wp_refresh "$id"
+	[ -n "${WPK[$id]["q"]-}" ] || return 0
+	mapfile -t q <<< "${WPK[$id]["q"]}"
+	WPK[$id]["q"]=
+	for k in "${q[@]}"; do
+		[ -n "${WPK[$id]["focus"]+x}" ] || break
+		wallpick_key "$id" "$k"
+	done
+	return 0
 }
 
 # Whether an entry is a folder, the one above included.
@@ -294,6 +312,7 @@ fn wallpick_draw(int id, int h, int w, int row, int col) {
 	done
 	console pen "$DT_IDLE" "$DT_FACE"
 	t="$((sel + 1)) of $n"
+	[ -n "${FP[$id]["job"]-}" ] && t=${GL[ellipsis]}
 	t := str pad "$t" "$listw"
 	console put -p "w$id" $((h - 1)) "$bx" "$t"
 
@@ -330,6 +349,17 @@ fn wallpick_key(int id, key) {
 	local n vis top sel f=${WPK[$id]["focus"]} d onb=1
 
 	[ "$f" = list ] && onb=0
+	# What acts on the list waits while the folder is read (wp_listed),
+	# and nothing but escape overtakes what is waiting.
+	if [ -n "${FP[$id]["job"]-}" ] && [ "$key" != escape ] &&
+	   { [ -n "${WPK[$id]["q"]-}" ] || [ "$f" = list ]; }; then
+		case $key in
+		up | down | m | backspace | enter | tab | shift-tab | btab) ;;
+		*) [ -n "${WPK[$id]["q"]-}" ] || return 1 ;;
+		esac
+		WPK[$id]["q"]=${WPK[$id]["q"]:+${WPK[$id]["q"]}$'\n'}$key
+		return 0
+	fi
 	if d := dt_focuskey "$key" "$onb"; then
 		WPK[$id]["focus"] := dt_focus "$f" "$d" list ok cancel
 		return 0
@@ -368,8 +398,8 @@ fn wallpick_key(int id, key) {
 		;;
 	*) return 1 ;;
 	esac
-	[ "$sel" -lt 0 ] && sel=0
 	[ "$sel" -ge "$n" ] && sel=$((n - 1))
+	[ "$sel" -lt 0 ] && sel=0
 	vis=${WPK[$id]["vis"]}
 	[ "$sel" -lt "$top" ] && top=$sel
 	[ "$sel" -ge $((top + vis)) ] && top=$((sel - vis + 1))

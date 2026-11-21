@@ -86,25 +86,16 @@ fn fp_labels(int id) {
 	ret "${out#|}"
 }
 
-# Whether a file's name has one of the extensions chosen.
-fn fp_match(int id, nm) {
-	local e
-	local -a ex
-
-	e := fp_exts "$id"
-	[ "$e" = "*" ] && return 0
-	read -ra ex <<< "$e"
-	for e in "${ex[@]}"; do
-		case ${nm,,} in *."$e") return 0 ;; esac
-	done
-	return 1
-}
-
-# Read a folder: its folders, then its files of the type chosen. An empty
-# name is the root: it is what `${dir%/*}` makes of a folder like /home,
-# and going up from one used to say "Cannot open the folder" and stay put.
+# Go to a folder: said at once whether it can be opened, and read in a job
+# (fp_ls), so a folder of thousands holds nothing up -- /tmp's 6,900 held
+# the desktop 357 ms when it was read here (Gitea #606). Until all of it
+# has landed ["job"] names the job and the list holds what has; a listing
+# asked for meanwhile supersedes it, and one that lands late is dropped
+# there. An empty name is the root: it is what `${dir%/*}` makes of a
+# folder like /home, and going up from one used to say "Cannot open the
+# folder" and stay put.
 fn fp_go(int id, d) {
-	local f n=0 nm
+	local e job pre
 
 	fp_own "$id"
 	[ -n "$d" ] || d=/
@@ -113,36 +104,175 @@ fn fp_go(int id, d) {
 		dt_notep high "Cannot open the folder %s" "$d"
 		return 1
 	fi
+	dt_jobdir || return 1
+	fp_unfeed "$id"
+	FP_LSN=$((FP_LSN + 1))
+	pre=$DTJ_DIR/fpls$FP_LSN
+	e := fp_exts "$id"
+	job := dt_job fpick "$id" fp_landed fp_ls "$d" "$e" "$pre" || return 1
+	DTJ[$job]["pre"]=$pre
 	FP[$id]["dir"]=$d
+	FP[$id]["job"]=$job
+	FP[$id]["pre"]=$pre
+	FP[$id]["n"]=0
+	FP[$id]["sel"]=0
+	FP[$id]["top"]=0
+	FP[$id]["pv"]=
+	FP[$id]["pc"]=
+	return 0
+}
+
+# Every listing's files are named by this count, never by a window, whose
+# number a new window may take while an old listing is still being read.
+FP_LSN=0
+# How many records a file of a listing holds, and so how many are taken
+# into the list in one pass of the loop: about 4 ms of it.
+FP_CHUNK=512
+# How many windows are taking a listing in, for fp_feedtick.
+FP_FEEDS=0
+
+# The job's side: a folder's folders, then its files with one of the
+# extensions (or * for any), as kind TAB name records ended by NULs, since a
+# name may hold a newline, FP_CHUNK of them to a file pre.0, pre.1 ...; what
+# it prints is how many files. Nothing here reads FP: it is a child's copy.
+fn fp_ls(d, exts, pre) {
+	local f nm e ok c=0
+	local -a ex rec
+
+	read -ra ex <<< "$exts"
 	if [ "$d" = / ]; then
 		d=
 	else
-		FP[$id]["e$n"]=".."
-		FP[$id]["k$n"]=up
-		n=$((n + 1))
+		rec=(up ..)
 	fi
 	for f in "$d"/*/; do
 		[ -d "$f" ] || continue
 		nm=${f%/}
-		nm=${nm##*/}
-		FP[$id]["e$n"]=$nm
-		FP[$id]["k$n"]=dir
-		n=$((n + 1))
+		rec+=(dir "${nm##*/}")
+		[ "${#rec[@]}" -lt $((FP_CHUNK * 2)) ] && continue
+		printf '%s\t%s\0' "${rec[@]}" > "$pre.$c"
+		c=$((c + 1))
+		rec=()
 	done
 	for f in "$d"/*; do
-		[ -f "$f" ] || continue
 		nm=${f##*/}
-		fp_match "$id" "$nm" || continue
-		FP[$id]["e$n"]=$nm
-		FP[$id]["k$n"]=file
-		n=$((n + 1))
+		if [ "$exts" != "*" ]; then
+			ok=
+			for e in "${ex[@]}"; do
+				case ${nm,,} in *."$e") ok=1; break ;; esac
+			done
+			[ -n "$ok" ] || continue
+		fi
+		[ -f "$f" ] || continue
+		rec+=(file "$nm")
+		[ "${#rec[@]}" -lt $((FP_CHUNK * 2)) ] && continue
+		printf '%s\t%s\0' "${rec[@]}" > "$pre.$c"
+		c=$((c + 1))
+		rec=()
 	done
-	FP[$id]["n"]=$n
-	FP[$id]["sel"]=0
-	FP[$id]["top"]=0
-	[ "${FP[$id]["mode"]}" = open ] && fp_takesel "$id"
-	FP[$id]["pv"]=
-	FP[$id]["pc"]=
+	if [ "${#rec[@]}" -gt 0 ]; then
+		printf '%s\t%s\0' "${rec[@]}" > "$pre.$c"
+		c=$((c + 1))
+	fi
+	printf '%s\n' "$c"
+	return 0
+}
+
+# A listing's files from number from on, gone.
+fn fp_rmls(pre, int from, int to) {
+	[ -n "$pre" ] || return 0
+	while [ "$from" -lt "$to" ]; do
+		rm -f "$pre.$from"
+		from=$((from + 1))
+	done
+	return 0
+}
+
+# The job has ended: its listing is fed to the window from now on, one file
+# a pass, unless the window has gone or asked for another folder since,
+# when its files go.
+fn fp_landed(int n, int st) {
+	local id=${DTJ[$n]["tag"]} pre=${DTJ[$n]["pre"]-} f c=
+
+	f := dt_jobfile "$n"
+	read -r c 2> /dev/null < "$f"
+	[[ $c =~ ^[0-9]+$ ]] || c=0
+	if [ "${FP[$id]["job"]-}" != "$n" ]; then
+		fp_rmls "$pre" 0 "$c"
+		return 0
+	fi
+	FP[$id]["nch"]=$c
+	FP[$id]["ch"]=0
+	FP[$id]["feed"]=1
+	FP_FEEDS=$((FP_FEEDS + 1))
+	fp_feed "$id"
+	[ "$FP_FEEDS" -gt 0 ] && command -v dt_want > /dev/null && dt_want 1
+	return 0
+}
+
+# One file of a window's listing into its list; after the last, what was
+# pressed while it was read, in order, and the window's own word that it
+# has landed, when it asked for one (fp_set listed).
+fn fp_feed(int id) {
+	local pre=${FP[$id]["pre"]} j=${FP[$id]["ch"]} i=${FP[$id]["n"]} r k own
+	local -a a q
+
+	if [ "$j" -lt "${FP[$id]["nch"]}" ]; then
+		mapfile -d '' -t a 2> /dev/null < "$pre.$j"
+		rm -f "$pre.$j"
+		for r in "${a[@]}"; do
+			FP[$id]["k$i"]=${r%%$'\t'*}
+			FP[$id]["e$i"]=${r#*$'\t'}
+			i=$((i + 1))
+		done
+		j=$((j + 1))
+		FP[$id]["n"]=$i
+		FP[$id]["ch"]=$j
+	fi
+	[ "$j" -lt "${FP[$id]["nch"]}" ] && return 0
+	FP[$id]["feed"]=
+	FP[$id]["job"]=
+	FP[$id]["pre"]=
+	FP_FEEDS=$((FP_FEEDS - 1))
+	[ "${FP[$id]["mode"]-}" = open ] && fp_takesel "$id"
+	if [ -n "${FP[$id]["q"]-}" ]; then
+		mapfile -t q <<< "${FP[$id]["q"]}"
+		FP[$id]["q"]=
+		for k in "${q[@]}"; do
+			[ -n "${FP[$id]["dir"]+x}" ] || break
+			fpick_key "$id" "$k"
+		done
+	fi
+	own=${FP[$id]["owner"]-}
+	[ -n "${FP[$id]["listed"]-}" ] && dt_appfn "$own" "${FP[$id]["listed"]}" "$id"
+	return 0
+}
+
+# Each pass: the next file of every listing being taken in, and a frame
+# asked for while any is. One comparison while none is.
+fp_feedtick() {
+	local id c=0
+
+	[ "$FP_FEEDS" -gt 0 ] || return 0
+	for id in "${!FP[@]}"; do
+		[ -n "${FP[$id]["feed"]-}" ] || continue
+		fp_feed "$id"
+		[ -n "${FP[$id]["feed"]-}" ] && c=$((c + 1))
+	done
+	FP_FEEDS=$c
+	[ "$c" -gt 0 ] && command -v dt_want > /dev/null && dt_want 1
+	return 0
+}
+
+command -v dt_ticker > /dev/null && dt_ticker fp_feedtick
+
+# A window's listing being taken in, given up: its files that are left, gone.
+fn fp_unfeed(int id) {
+	[ -n "${FP[$id]["feed"]-}" ] || return 0
+	fp_rmls "${FP[$id]["pre"]}" "${FP[$id]["ch"]}" "${FP[$id]["nch"]}"
+	FP[$id]["feed"]=
+	FP_FEEDS=$((FP_FEEDS - 1))
+	return 0
 }
 
 # A record not yet anybody's is its window's app's.
@@ -152,9 +282,10 @@ fn fp_own(int id) {
 }
 
 # A window that draws a folder of its own (the wallpaper picker) sets the
-# two of its record fp_go reads here, and nothing else: types, and ti, the
-# one of them chosen. Its selection and scroll are its own. Every pair is
-# checked before any is set.
+# fields of its record fp_go reads here, and nothing else: types, ti, the
+# one of them chosen, and listed, its own function called as `listed id`
+# once a folder has landed. Its selection and scroll are its own. Every
+# pair is checked before any is set.
 fn fp_set(int id, ...pairs) {
 	local i k v
 
@@ -167,6 +298,12 @@ fn fp_set(int id, ...pairs) {
 		v=${pairs[$((i + 1))]}
 		case $k in
 		types) ;;
+		listed)
+			if [[ ! $v =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+				dt_log "refused: fp_set: $k is not a function's name: $v"
+				return 1
+			fi
+			;;
 		ti)
 			if [[ ! $v =~ ^[0-9]+$ ]]; then
 				dt_log "refused: fp_set: $k is not a number: $v"
@@ -190,6 +327,7 @@ fn fp_set(int id, ...pairs) {
 # fpick_close's to forget.
 fn fp_drop(int id) {
 	[ -n "${FP[$id]["mode"]+x}" ] && return 0
+	fp_unfeed "$id"
 	unset FP["$id"]
 	return 0
 }
@@ -267,6 +405,8 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 			t="$glyph ${FP[$id]["e$i"]}"
 			[ "${FP[$id]["k$i"]}" = dir ] && t="$t/"
 			[ "$m" = 1 ] && t="${t#"$glyph "} $glyph"
+		elif [ "$i" = "$n" ] && [ -n "${FP[$id]["job"]-}" ]; then
+			t=${GL[ellipsis]}
 		fi
 		if [ "$m" = 1 ]; then
 			t := dt_rpad "${t:0:$((lw - 2))}" $((lw - 2))
@@ -279,10 +419,13 @@ fn fpick_draw(int id, int h, int w, int row, int col) {
 			else
 				console pen "$DT_INK" "$DT_WELL"
 			fi
-		elif [ "${FP[$id]["k$i"]}" = dir ] || [ "${FP[$id]["k$i"]}" = up ]; then
+		elif [ "$i" -lt "$n" ] && { [ "${FP[$id]["k$i"]}" = dir ] ||
+		     [ "${FP[$id]["k$i"]}" = up ]; }; then
 			console pen "$DT_WARN" "$DT_FACE"
-		else
+		elif [ "$i" -lt "$n" ]; then
 			console pen "$DT_INK" "$DT_FACE"
+		else
+			console pen "$DT_DIM" "$DT_FACE"
 		fi
 		if [ "$m" = 1 ]; then
 			console put -p "w$id" $((r + 2)) "$lx" "$t "
@@ -452,7 +595,8 @@ fn fp_choose(int id) {
 	local i=${FP[$id]["sel"]} k p b=${FP[$id]["buf"]} e
 	local -a ex
 
-	k=${FP[$id]["k$i"]}
+	k=
+	[ "$i" -lt "${FP[$id]["n"]:-0}" ] && k=${FP[$id]["k$i"]}
 	if [ "${FP[$id]["focus"]}" = list ] && { [ "$k" = dir ] || [ "$k" = up ]; }; then
 		if [ "$k" = up ]; then
 			fp_go "$id" "${FP[$id]["dir"]%/*}"
@@ -527,10 +671,27 @@ fn fp_done(int id, p) {
 	dt_appfn "$own" "$cb" "$for" "$p" "$lab"
 }
 
+# A key pressed while the folder is still being read is kept for when it
+# lands, in order: arrows, enter, tab and anything typed act on the list or
+# after it. Escape acts now, and so does a chord the dialog leaves to the
+# desktop -- unless something is kept already, which it must not overtake.
+fn fp_early(int id, key) {
+	[ -n "${FP[$id]["job"]-}" ] || return 1
+	case $key in
+	escape) return 1 ;;
+	up | down | left | right | pageup | pagedown | home | end | enter | \
+	tab | shift-tab | btab | backspace | delete) ;;
+	*) [ "${#key}" = 1 ] || [ -n "${FP[$id]["q"]-}" ] || return 1 ;;
+	esac
+	FP[$id]["q"]=${FP[$id]["q"]:+${FP[$id]["q"]}$'\n'}$key
+	return 0
+}
+
 fn fpick_key(int id, key) {
 	local f=${FP[$id]["focus"]} sel=${FP[$id]["sel"]} n=${FP[$id]["n"]} d res
 	local vis=${FP[$id]["vis"]:-10} i k
 
+	fp_early "$id" "$key" && return 0
 	case $key in
 	escape) dt_del "$id"; return 0 ;;
 	tab | shift-tab | btab)
@@ -725,6 +886,7 @@ fn fpick_copy(int id) {
 fn fpick_close(int id) {
 	local oc=${FP[$id]["oncancel"]} for=${FP[$id]["for"]} own=${FP[$id]["owner"]-}
 
+	fp_unfeed "$id"
 	unset FP["$id"]
 	[ -n "$oc" ] && dt_appfn "$own" "$oc" "$for"
 	return 0
