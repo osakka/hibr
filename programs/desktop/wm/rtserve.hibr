@@ -377,11 +377,19 @@ dt_rttick() {
 
 # A launch: a token no one can guess from outside, recorded as app's until
 # a hello spends it. Answered with ret.
+# A one-time token: sixteen random bytes as hex, for a launch or a cells
+# channel. Answered with ret.
+fn dt_rttoken() {
+	local t
+
+	read -r t < <(od -An -tx1 -N16 /dev/urandom) # fork: once an app process starts or connects, never a frame
+	ret "${t// /}"
+}
+
 fn dt_rtissue(app, file = "") {
 	local t
 
-	read -r t < <(od -An -tx1 -N16 /dev/urandom)
-	t=${t// /}
+	t := dt_rttoken
 	DT_RTLAUNCH["$t"]=$app
 	DT_RTLFILE["$t"]=$file
 	DT_RTLTIME["$t"]=$EPOCHSECONDS
@@ -719,8 +727,7 @@ fn dt_rtmsg(int c, line) {
 		# And a one-time token for its cells channel, should it draw: given
 		# here, on a connection already proved this launch's, never in any
 		# environment (wm/rtview.hibr).
-		read -r t < <(od -An -tx1 -N16 /dev/urandom)
-		t=${t// /}
+		t := dt_rttoken
 		DT_RTCELLTOK["$t"]=$c
 		dt_rtsay "$c" "ok $DT_RTPROTO $t" || return 1
 		return 0
