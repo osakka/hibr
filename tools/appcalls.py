@@ -13,7 +13,7 @@ and every one shipped in programs/desktop. A function is classed by the file
 that defines it, unless OVERRIDE names it; --write puts the table at
 programs/desktop/interface.tsv, which the ADR points at.
 """
-import collections, glob, os, re, sys
+import collections, glob, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
@@ -390,6 +390,60 @@ def sigs():
     return out
 
 
+# The release the contract table first shipped in: a function that shipped
+# before it is `-`, as old as the contract itself.
+CONTRACT0 = "0.99.553"
+
+
+def verkey(v):
+    """A release as numbers, for comparing."""
+    return tuple(int(x) for x in v.split("."))
+
+
+_FIRST = {}
+
+
+def firstship(name, nv):
+    """The release a platform function first shipped in, read from git: the
+    first tag holding the commit that defined it, `-` if that is before the
+    contract, nv if no tag holds it yet. A row new to the table is not a
+    function new to hibr -- dt_textfit shipped in 0.99.233 and was stamped
+    0.99.556 the day a catalogue entry first called it."""
+    if name in _FIRST:
+        return _FIRST[name]
+    got = nv
+    first = None
+    for pat in ("fn %s(" % name, "%s() {" % name, "%s()\n{" % name):
+        out = subprocess.run(["git", "log", "-S", pat, "--format=%H", "--reverse", "--",
+                              "programs/desktop"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+        if out and (first is None or out[0] != first):
+            c = out[0]
+            t = subprocess.run(["git", "describe", "--contains", "--match", "v*", c], cwd=ROOT,
+                               capture_output=True, text=True).stdout.strip()
+            m = re.match(r"v([0-9.]+)", t)
+            if m and (first is None or verkey(m.group(1)) < verkey(first)):
+                first = m.group(1)
+    if first:
+        got = "-" if verkey(first) < verkey(CONTRACT0) else first
+    _FIRST[name] = got
+    return got
+
+
+def since(name, old, nv):
+    """A row's since: the one it was given, unless git says its function
+    shipped earlier than that -- a stamp is a fact, and a later one than the
+    truth is a floor no installable needs."""
+    if name not in old:
+        return firstship(name, nv) if old else "-"
+    was = old[name][2]
+    if was == "-":
+        return was
+    first = firstship(name, nv)
+    if first == "-" or (first != nv and verkey(first) < verkey(was)):
+        return first
+    return was
+
+
 def nextver():
     """The release a row added now first ships in: the one after HIBR_VER."""
     v = re.search(r'#define HIBR_VER "([^"]+)"', open(os.path.join(ROOT, "include/hibr.h")).read()).group(1)
@@ -403,10 +457,7 @@ def nextver():
 # since that tag is admitted. It goes at the next release, and an entry that
 # names another tag, or a row that did not change, fails as stale -- an
 # exception never outlives the break it admits (ADR 0050).
-_ISO = ("v0.99.555", "the ADR 0050 prototype's own hooks, removed with it (#605): an "
-        "installable reached them only behind TW[..][\"iso\"], which only the prototype's "
-        "dt_isonew ever set, so no call is left that can run")
-BREAKS = {n: _ISO for n in "dt_isosent dt_isomsg dt_isodrop dt_isosend dt_isomenus".split()}
+BREAKS = {}
 
 
 def params(sig):
@@ -872,7 +923,7 @@ def main():
     old = readtable(open(OUT).read()) if os.path.exists(OUT) else {}
     nv = nextver()
     rows = [r + (far.get(r[1], "-"), sig.get(r[1], "-"),
-                 old[r[1]][2] if r[1] in old else (nv if old else "-")) for r in rows]
+                 since(r[1], old, nv)) for r in rows]
     rows = [r + (argsfield(r[1], r[7], nv),) for r in rows]
     kinds = collections.Counter(r[0] for r in rows)
     print("installables read: %d, unreadable: %d" % (len(installables()), len(bad)))
@@ -1001,6 +1052,21 @@ def main():
             print("FAIL %s is %s in interface.tsv and %s now: %s -- read why, then take it with "
                   "tools/appcalls.py --write" % (n, old, new, "; ".join(sites) or "no site wants an answer now"))
             fails += 1
+        # A since is a fact about when a function shipped, and it is the floor
+        # mkindex derives: one later than git says is a floor no installable
+        # needs, and a published floor never drops (Gitea #627).
+        tab = readtable(open(OUT).read()) if os.path.exists(OUT) else {}
+        nv = nextver()
+        for n in sorted(tab):
+            was = tab[n][2]
+            if was == "-":
+                continue
+            first = firstship(n, nv)
+            if first == "-" or (first != nv and verkey(first) < verkey(was)):
+                print("FAIL %s is since %s in interface.tsv, and its function first shipped in %s: "
+                      "run tools/appcalls.py --write" % (n, was, "the release before the contract (-)"
+                                                          if first == "-" else first))
+                fails += 1
         for x in binders(tablerows()):
             print("FAIL %s:%s binds %s, which answers with no value (it never calls ret): "
                   "test its status, or have it ret what it means" % x)
