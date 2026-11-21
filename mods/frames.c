@@ -549,6 +549,11 @@ int fl_hello(fl_srv *f, const unsigned char *m, size_t k)
 	   CLIP dragout, and the program's window was left deaf to the mouse. */
 	if (f->win)
 		s_cat(&o, " drag=1");
+	/* And a program's request to keep the screen awake (Blit #171) only
+	   to one that says it honours one: WINDOW inhibit ID on|off, which
+	   the desktop's saver asks about at the moment it would start. */
+	if (f->win)
+		s_cat(&o, " inhibit=1");
 	s_ch(&o, '\n');
 	fl_say(f, o.p);
 	lg(HIBR_LDBG, "frames %u: hello at version %lu, %s", f->n, ver, o.p);
@@ -827,11 +832,12 @@ int fl_window(fl_srv *f, const char *m, size_t k)
 		   !strcmp(v.p, "cursor") || !strcmp(v.p, "lock") ||
 		   !strcmp(v.p, "move") || !strcmp(v.p, "resize") ||
 		   !strcmp(v.p, "menu") || !strcmp(v.p, "activate") ||
-		   !strcmp(v.p, "teach")) {
+		   !strcmp(v.p, "teach") || !strcmp(v.p, "inhibit")) {
 		/* teach: the compositor's input method asking what a word reads
 		   as, the word held until the desktop answers (hibr-ime #1). */
 		/* activate: a program asking for the focus (Blit 0.3.86), which
-		   the desktop grants or not (Gitea #507). */
+		   the desktop grants or not (Gitea #507). inhibit: a program
+		   asking that the screen stay awake, on or off (Blit #171). */
 		fl_ev(f, v.p, t->n, r.p);
 	} else {
 		lg(HIBR_LDBG, "frames %u: WINDOW %s not known here", f->n, v.p);
@@ -1743,14 +1749,15 @@ void fl_out(sh *s, str *o)
 
 /* frames: serve, place, info, stop, list. */
 /* The displays and the primary, told to the compositor (Gitea #514):
- * WINDOW layout NAME X Y W H MHZ a display, WINDOW layout end, WINDOW
+ * WINDOW layout NAME X Y W H MHZ [PCT] a display, PCT its programs' scale
+ * (Blit #170, said only to 0.3.130 and later), WINDOW layout end, WINDOW
  * primary NAME. No window id: they are about the screens, not a window. */
 int fl_layout(fl_srv *f, int ac, char **av, str *o)
 {
 	int a, want = 4;
 
 	if (f->par || ac < want) {
-		lg(HIBR_LERR, "usage: frames layout N NAME X Y W H MHZ | end; frames primary N NAME");
+		lg(HIBR_LERR, "usage: frames layout N NAME X Y W H MHZ [PCT] | end; frames primary N NAME");
 		s_free(o);
 		return 2;
 	}

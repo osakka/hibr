@@ -22,7 +22,7 @@
 strict
 
 
-app displays "Control Panel's own picture of a multi-monitor arrangement" 1.2.4
+app displays "Control Panel's own picture of a multi-monitor arrangement" 1.2.5
 command -v cp_pane > /dev/null && cp_pane displays "Displays" "▦" hardware
 
 declare -gA DPY
@@ -106,6 +106,23 @@ fn displays_setnew(int? id = "", value = "") {
 	return 0
 }
 
+# Program Scale (Blit #170): the scale programs draw at on each display, set
+# by hand -- never worked out from the cell size -- and kept by the display's
+# name in DT_PROGSCALE (wm/native.hibr), which the compositor is told as each
+# display's layout. The first list chooses the display, the second its
+# scale; the display chosen is where this window is looking, not a setting.
+fn displays_scalename(v) {
+	ret "$v%"
+}
+fn displays_setscdisp(int id, value) {
+	DPY[$id]["scd"]=$value
+	return 0
+}
+fn displays_setscale(int id, value) {
+	[ -n "${DPY[$id]["scd"]-}" ] || return 0
+	dt_progscaleset "${DPY[$id]["scd"]}" "$value"
+}
+
 # Right-click on a rectangle: detach it, or flash its own name where it
 # actually is.
 fn displays_context(nm) {
@@ -157,7 +174,7 @@ fn displays_identify(nm) {
 fn displays_draw(int id, int h, int w, int bx) {
 	local sess lst nm row col rows cols pri i n s dropw pname v
 	local br bc bh bw namew t r mr mc dragi prow pcol
-	local rr rc minr minc urows ucols
+	local rr rc minr minc urows ucols scd sw
 
 	sess := displays_sess
 	if [ -z "$sess" ]; then
@@ -230,6 +247,21 @@ fn displays_draw(int id, int h, int w, int bx) {
 	dt_wdrop "$id" 2 $((bx + ${#t} + 1)) "$dropw" "$v" fullon
 	v := displays_newname
 	dt_wdrop "$id" 3 $((bx + ${#t} + 1)) "$dropw" "$v" newon
+	# Program Scale: which display, then its scale -- the primary until
+	# another is chosen, and the primary again once the one chosen goes.
+	scd=${DPY[$id]["scd"]-}
+	i=0
+	while [ -n "$scd" ] && [ "$i" -lt "$n" ]; do
+		[ "${DPY[$id][$i]["name"]}" = "$scd" ] && break
+		i=$((i + 1))
+	done
+	[ -n "$scd" ] && [ "$i" -lt "$n" ] || scd=$pname
+	DPY[$id]["scd"]=$scd
+	sw=7
+	console put -p "w$id" 4 "$bx" "Program Scale:"
+	dt_wdrop "$id" 4 $((bx + ${#t} + 1)) $((dropw - sw - 1)) "$scd" scdisp
+	v := dt_progscale "$scd"
+	dt_wdrop "$id" 4 $((bx + ${#t} + 1 + dropw - sw)) "$sw" "$v%" scale
 
 	# Every display's own row/col relative to the primary's, which can
 	# be negative (a display positioned "before" the primary in hold's
@@ -267,7 +299,7 @@ fn displays_draw(int id, int h, int w, int bx) {
 	done
 	[ "$urows" -lt 1 ] && urows=1
 	[ "$ucols" -lt 1 ] && ucols=1
-	s := displays_scale $((h - 6)) "$w" "$urows" "$ucols"
+	s := displays_scale $((h - 7)) "$w" "$urows" "$ucols"
 	DPY[$id]["s"]=$s
 
 	i=0
@@ -278,7 +310,7 @@ fn displays_draw(int id, int h, int w, int bx) {
 		cols=${DPY[$id][$i]["cols"]}
 		nm=${DPY[$id][$i]["name"]}
 		pri=${DPY[$id][$i]["primary"]}
-		br=$((rr * s / 100 + 5))
+		br=$((rr * s / 100 + 6))
 		bc=$((rc * s / 100 + bx))
 		# One cell shaved off each box's own scaled size, a gap between
 		# two adjacent displays rather than their borders sharing (and
@@ -399,6 +431,25 @@ fn displays_mouse(int id, act, button, int r, int c) {
 			done
 			DT_POPCURNEXT := displays_fullname
 			dt_droplist "$id" "$r" "$wc" displays_setfull "${vals[@]}"
+			return 0
+		fi
+		if [ "$tag" = scdisp ]; then
+			wc := dt_wcol "$id" "$r" scdisp
+			vals=()
+			i=0
+			while [ "$i" -lt "$n" ]; do
+				vals+=("${DPY[$id][$i]["name"]}")
+				i=$((i + 1))
+			done
+			DT_POPCURNEXT=${DPY[$id]["scd"]-}
+			dt_droplist "$id" "$r" "$wc" displays_setscdisp "${vals[@]}"
+			return 0
+		fi
+		if [ "$tag" = scale ]; then
+			wc := dt_wcol "$id" "$r" scale
+			DT_POPCURNEXT := dt_progscale "${DPY[$id]["scd"]-}"
+			DT_POPNAMENEXT=displays_scalename
+			dt_droplist "$id" "$r" "$wc" displays_setscale "${DT_PROGSCALES[@]}"
 			return 0
 		fi
 		if [ "$tag" = newon ]; then

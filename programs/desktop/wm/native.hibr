@@ -62,6 +62,19 @@ declare -gx DT_NATCX11="${DT_NATCX11-}"
 declare -gx DT_NATCVER="${DT_NATCVER-}"
 DT_NATLAYOUT=
 DT_NATLCELL=
+# The scale programs draw at on each display (Blit #170), set by hand in
+# Control Panel > Displays > Program Scale and never worked out from the
+# cell size: NAME=PERCENT for each display not at 100, by the display's
+# full name, 100 to 400 in steps of 25. It goes to the compositor as the
+# seventh word of the display's layout line, only where the compositor
+# takes one (0.3.130, which converts sizes itself: pixels on the wire stay
+# the desktop's); an older one would read a seven-word line as a display
+# it does not know.
+# The steps and the reader, dt_progscale, are wm/winfacts.hibr's, since
+# the Displays pane asks them too.
+DT_PROGSCALE="${DT_PROGSCALE-}"
+command -v dt_keep > /dev/null && dt_keep DT_PROGSCALE
+dt_onset DT_PROGSCALE dt_natset
 # Whether a program's window opens where and as large as the person last
 # left it, by its app id (Gitea #508): Control Panel > Windows > Remember
 # Program Windows. What is remembered is data (ADR 0054), in the state
@@ -356,7 +369,7 @@ dt_natprimary() {
 # and whenever a display joins, leaves or moves; a compositor before 0.3.88
 # is told nothing, since it would not know the lines.
 dt_natlayout() {
-	local i dr dc drows dcols dgx nm pri= hz out=
+	local i dr dc drows dcols dgx nm pri= hz sc out=
 	local -a lines=() a
 
 	[ -n "$DT_NATSRV" ] && [ "${DT_NATCVER:-0}" -ge 3088 ] || return 0
@@ -369,7 +382,10 @@ dt_natlayout() {
 		[ -n "$nm" ] || continue
 		IFS=' ' read -r dr dc drows dcols dgx <<< "${DT_DISPLAYS[$i]}"
 		hz := dt_nathz "$dr" "$dc"
-		lines+=("$nm $((dc * DT_NATCW)) $((dr * DT_NATCH)) $((dcols * DT_NATCW)) $((drows * DT_NATCH)) $hz")
+		sc=
+		[ "${DT_NATCVER:-0}" -ge 3130 ] && sc := dt_progscale "$nm"
+		[ "$sc" = 100 ] && sc=
+		lines+=("$nm $((dc * DT_NATCW)) $((dr * DT_NATCH)) $((dcols * DT_NATCW)) $((drows * DT_NATCH)) $hz${sc:+ $sc}")
 	done
 	[ "${#lines[@]}" -gt 0 ] || return 0
 	pri := dt_natpri
@@ -386,6 +402,7 @@ dt_natlayout() {
 	dt_log "programs' windows: told the compositor ${#lines[@]} displays, primary ${pri:-none}"
 	return 0
 }
+
 
 # Say the layout again, the same or not: Full Screen On or New Programs Open
 # On was set (dt_onset), and the primary the compositor is told follows them.
@@ -499,6 +516,12 @@ fn dt_natevent(verb, n, rest = "") {
 		export WAYLAND_DISPLAY=$n
 		dt_natx "$rest"
 		dt_natwho
+		# A compositor connecting says again which windows keep the
+		# screen awake (Blit #171): one a program let go of meanwhile is
+		# not said, so none is kept from before.
+		for id in "${!NW[@]}"; do
+			[ -n "${NW[$id]["inhibit"]-}" ] && NW[$id]["inhibit"]=
+		done
 		# A compositor connecting has been told nothing yet.
 		DT_NATLAYOUT=
 		dt_natlayout
@@ -567,12 +590,34 @@ fn dt_natevent(verb, n, rest = "") {
 		[ "$DT_FOCUS" = "$id" ] && DT_MENUIN=
 		;;
 	parent | hide) NW[$id]["$verb"]=$rest ;;
+	# A program asking that the screen stay awake, on or off (Blit #171):
+	# the saver asks dt_natawake at the moment it would start.
+	inhibit) NW[$id]["inhibit"]=$rest ;;
 	# A program asking for the focus (Blit 0.3.86): x-focus, x-active
 	# or xdg-activation; granted by raising it, refused by saying
 	# nothing, which Blit answers by keeping X's focus where it is.
 	activate) dt_natask "$id" "$DT_FOCUS" "$rest" ;;
 	esac
 	return 0
+}
+
+# A program window asking that the screen stay awake (WINDOW inhibit, Blit
+# #171) and shown: its id, for the saver. Shown is not minimised and on the
+# workspace in view -- one covered by another window still counts, since
+# only the compositor could tell that and a film under a note is still being
+# watched. A window gone has left NWN, so its request went with it.
+dt_natawake() {
+	local n id
+
+	for n in "${!NWN[@]}"; do
+		id=${NWN["$n"]}
+		[ "${NW[$id]["inhibit"]-}" = on ] || continue
+		dt_hidden "$id" && continue
+		dt_away "$id" && continue
+		ret "$id"
+		return 0
+	done
+	return 1
 }
 
 # You started something just now: from the menu, Files, a file or a link,

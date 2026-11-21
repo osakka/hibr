@@ -6192,8 +6192,10 @@ sc = t1.screen()
 # The dropdown's own displayed value also carries the primary's name, so
 # every check below that cares about *where* a name is drawn (not just
 # whether it appears at all) looks only below it, or it would just be
-# reading the dropdown back to itself.
-canvas0 = sc.find("Primary:")[0] + 3
+# reading the dropdown back to itself -- and so does Program Scale's
+# (Blit #170), the last row of choices, whose display is the primary's
+# until another is chosen.
+canvas0 = sc.find("Program Scale:")[0] + 1
 
 # The primary display always draws at this pane's own fixed anchor,
 # whatever its real row/col is -- dragging a *different* display must

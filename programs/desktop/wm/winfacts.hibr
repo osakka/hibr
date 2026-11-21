@@ -86,3 +86,39 @@ fn dt_capped(int id) {
 fn dt_isblank(nm) {
 	[[ " $DT_BLANK " == *" $nm "* ]]
 }
+
+# The steps Program Scale takes (Blit #170), in percent.
+DT_PROGSCALES=(100 125 150 175 200 225 250 275 300 325 350 375 400)
+dt_share DT_PROGSCALES
+
+# The scale programs draw at on the display called nm, in percent: what
+# Program Scale (DT_PROGSCALE, wm/native.hibr) says for it, or 100 where it
+# says nothing or a word that is not one of the steps -- one the compositor
+# would refuse costs the display.
+fn dt_progscale(nm) {
+	local e v
+	local -a ps
+
+	read -ra ps <<< "${DT_PROGSCALE-}"
+	for e in "${ps[@]}"; do
+		[ "${e%=*}" = "$nm" ] || continue
+		v=${e##*=}
+		case " ${DT_PROGSCALES[*]} " in *" $v "*) ret "$v"; return 0 ;; esac
+	done
+	ret 100
+}
+
+# Program Scale for the display called nm set, every other display's kept:
+# the whole list said again through dt_set, and 100 by leaving it out.
+fn dt_progscaleset(nm, pct) {
+	local e out=
+	local -a ps
+
+	case " ${DT_PROGSCALES[*]} " in *" $pct "*) ;; *) return 1 ;; esac
+	read -ra ps <<< "${DT_PROGSCALE-}"
+	for e in "${ps[@]}"; do
+		[ "${e%=*}" = "$nm" ] || out+="${out:+ }$e"
+	done
+	[ "$pct" = 100 ] || out+="${out:+ }$nm=$pct"
+	dt_set DT_PROGSCALE "$out"
+}

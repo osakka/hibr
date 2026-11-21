@@ -900,6 +900,7 @@ Process Details
 Program
 Program Notifications
 Programs
+Programs May Keep It Awake
 Programs Set Clipboard
 Programs Take Focus
 Programs in Windows

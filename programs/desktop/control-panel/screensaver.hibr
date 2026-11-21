@@ -3,12 +3,13 @@
 # screensaver -- the Control Panel pane for the screen saver
 # (wm/saver.hibr): which one, or one at random, how many idle minutes
 # before it starts, whether it locks the screen (wm/lock.hibr) once it has
-# run a while, and a look at it now.
+# run a while, whether programs may keep the screen awake (Blit #171), and
+# a look at it now.
 
 strict
 
 
-app screensaver "The Control Panel pane for the screen saver" 1.1.2
+app screensaver "The Control Panel pane for the screen saver" 1.1.3
 command -v cp_pane > /dev/null && cp_pane screensaver "Screen Saver" "◌"
 
 SS_IDLES=(0 1 2 5 10 15 30 60)
@@ -61,6 +62,13 @@ fn screensaver_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Password Box On"; CP[$w][$n]["key"]=lockwhere
 	cp_choice "$w" "$n" "${DT_LOCKWHERE:-primary}" cp_set_lockwhere "${SS_LOCKWHERE[@]}"
 	n=$((n + 1))
+	# A program's request to keep the screen awake -- its window's, through
+	# Blit's compositor, or any program's on the session bus -- holds the
+	# saver off while on (DT_SAVERHONOUR); a lock you ask for still comes.
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Programs May Keep It Awake"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_SAVERHONOUR:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_SAVERHONOUR; n=$((n + 1))
 	CP[$w][$n]["kind"]=action; CP[$w][$n]["text"]="Preview"
 	CP[$w][$n]["val"]=""; CP[$w][$n]["key"]=preview; n=$((n + 1))
 	ret "$n"
@@ -69,6 +77,7 @@ fn screensaver_rows(int w) {
 fn screensaver_do(int? w = "", k = "", int? dir = "") {
 	case $k in
 	preview) dt_saverstart preview ;;
+	DT_SAVERHONOUR) cp_toggle DT_SAVERHONOUR ;;
 	esac
 }
 

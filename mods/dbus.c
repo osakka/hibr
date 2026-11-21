@@ -24,6 +24,12 @@
  * shared one, so a bus that goes away is an event and not the end of the
  * process, and SIGPIPE is left as it was.
  *
+ * It is also the session's org.freedesktop.ScreenSaver once the desktop
+ * asks (`awake on`, Blit #171): a program's Inhibit is answered with a
+ * cookie and kept until UnInhibit or until the program leaves the bus, and
+ * the desktop's saver asks how many are held (`awakes`) at the moment it
+ * would start.
+ *
  * Nothing here waits on the bus. Every exchange with the daemon -- Hello,
  * RequestName, AddMatch, every property read and every menu -- is a
  * message sent and its reply taken up later, matched by serial, by `dbus
@@ -145,7 +151,7 @@ typedef struct {
 
 int bu_pnga(bu_item *t, const char *path);
 
-enum { K_HELLO = 1, K_WATCH, K_HOST, K_IGNORE, K_GETALL, K_OWNER, K_LAYOUT, K_WITEMS, K_ACTIVATE, K_NOTES };
+enum { K_HELLO = 1, K_WATCH, K_HOST, K_IGNORE, K_GETALL, K_OWNER, K_LAYOUT, K_WITEMS, K_ACTIVATE, K_NOTES, K_AWAKE };
 
 typedef struct {
 	unsigned int serial;
@@ -182,6 +188,27 @@ typedef struct {
 static vec bu_notes;
 static unsigned bu_nextnote;
 static int bu_noterole;
+
+/* Programs asking that the screen stay awake (org.freedesktop.ScreenSaver's
+   Inhibit, Blit #171), once the desktop has asked for the name: each kept
+   by its cookie and the bus name that asked, until UnInhibit or that name
+   leaves the bus, at most BU_MAXINH of them -- one more is refused, never
+   one taken away. */
+typedef struct {
+	unsigned cookie;
+	char *sender, *app, *why;
+} bu_inh;
+
+#ifndef BU_MAXINH
+#define BU_MAXINH 256
+#endif
+#define BU_SNAME "org.freedesktop.ScreenSaver"
+#define BU_SPATH "/org/freedesktop/ScreenSaver"
+#define BU_SPATH2 "/ScreenSaver"
+
+static vec bu_inhs;
+static unsigned bu_nextinh;
+static int bu_inhrole;
 /* Whether the desktop has asked to be the tray (`tray on`): the names are
    taken only then, so a desktop without the tray installed is no tray a
    program could register with and hide in. */
@@ -873,6 +900,17 @@ void bu_reply(bu_msg *m)
 		if (t && err)
 			bu_ev("noactivate", t->n);
 		break;
+	case K_AWAKE:
+		if (!err && bu.iinit(m, &it) && bu_getn(&it, 0) == 1) {
+			bu_inhrole = 2;
+			bu_ev("awake on", -1);
+			lg(HIBR_LDBG, "dbus: this desktop is the session's screen saver");
+		} else {
+			bu_inhrole = 0;
+			bu_ev("awake taken", -1);
+			lg(HIBR_LDBG, "dbus: another program is the session's screen saver");
+		}
+		break;
 	case K_NOTES:
 		if (!err && bu.iinit(m, &it) && bu_getn(&it, 0) == 1) {
 			bu_noterole = 2;
@@ -1182,6 +1220,90 @@ int bu_notecall(bu_msg *m, const char *ifc, const char *mem)
 	return 0;
 }
 
+/* Free one request to stay awake. */
+void bu_inhfree(bu_inh *h)
+{
+	free(h->sender);
+	free(h->app);
+	free(h->why);
+	free(h);
+}
+
+/* Forget the requests to stay awake that match: by cookie, or every one a
+   bus name made when cookie is 0. How many went. */
+size_t bu_inhdrop(unsigned cookie, const char *sender)
+{
+	size_t i, gone = 0;
+	bu_inh *h;
+
+	for (i = bu_inhs.n; i > 0; i--) {
+		h = bu_inhs.p[i - 1];
+		if (cookie ? h->cookie != cookie : !sender || strcmp(h->sender, sender))
+			continue;
+		memmove(bu_inhs.p + i - 1, bu_inhs.p + i, (bu_inhs.n - i) * sizeof *bu_inhs.p);
+		bu_inhs.n--;
+		bu_inhfree(h);
+		gone++;
+	}
+	if (gone)
+		bu_ev("awake", (int)bu_inhs.n);
+	return gone;
+}
+
+/* A call to the screen saver's name: 1 when it was one. Inhibit answers a
+   cookie, UnInhibit takes one back; anything else is not here. */
+int bu_inhcall(bu_msg *m, const char *ifc, const char *mem)
+{
+	bu_msg *r;
+	bu_it it;
+	bu_inh *h;
+	const char *app = 0, *why = 0;
+	unsigned cookie;
+
+	if (!ifc || strcmp(ifc, BU_SNAME))
+		return 0;
+	if (!strcmp(mem, "Inhibit")) {
+		if (bu_inhs.n >= BU_MAXINH) {
+			bu_sendw(bu.merror(m, "org.freedesktop.DBus.Error.LimitsExceeded",
+					   "too many requests to stay awake"), K_IGNORE, 0);
+			return 1;
+		}
+		if (bu.iinit(m, &it)) {
+			app = bu_gets(&it);
+			if (bu.inext(&it))
+				why = bu_gets(&it);
+		}
+		cookie = ++bu_nextinh;
+		if (!cookie)
+			cookie = ++bu_nextinh;
+		h = xm(sizeof *h);
+		memset(h, 0, sizeof *h);
+		h->cookie = cookie;
+		h->sender = bu_clean(bu.msender(m));
+		h->app = bu_clean(app);
+		h->why = bu_clean(why);
+		v_add(&bu_inhs, h);
+		if ((r = bu.mreturn(m))) {
+			bu.iappinit(r, &it);
+			bu.iappend(&it, 'u', &cookie);
+			bu_sendw(r, K_IGNORE, 0);
+		}
+		lg(HIBR_LDBG, "dbus: %s asks the screen to stay awake (%u): %s", h->app, cookie, h->why);
+		bu_ev("awake", (int)bu_inhs.n);
+		return 1;
+	}
+	if (!strcmp(mem, "UnInhibit")) {
+		cookie = 0;
+		if (bu.iinit(m, &it))
+			cookie = (unsigned)bu_getn(&it, 0);
+		if (cookie)
+			bu_inhdrop(cookie, 0);
+		bu_answer(m, 1);
+		return 1;
+	}
+	return 0;
+}
+
 /* A method call to this desktop. */
 void bu_call(bu_msg *m)
 {
@@ -1196,6 +1318,9 @@ void bu_call(bu_msg *m)
 		return;
 	}
 	if (bu_noterole == 2 && path && !strcmp(path, BU_NPATH) && bu_notecall(m, ifc, mem))
+		return;
+	if (bu_inhrole == 2 && path && (!strcmp(path, BU_SPATH) || !strcmp(path, BU_SPATH2)) &&
+	    bu_inhcall(m, ifc, mem))
 		return;
 	if (bu.iinit(m, &it)) {
 		a = bu_gets(&it);
@@ -1281,6 +1406,7 @@ void bu_signal(bu_msg *m)
 		}
 	}
 	if (!strcmp(ifc, BU_BUS) && !strcmp(mem, "NameOwnerChanged") && a && c && !*c) {
+		bu_inhdrop(0, a);
 		for (i = bu_items.n; i > 0; i--) {
 			t = bu_items.p[i - 1];
 			if (!strcmp(t->name, a) || (t->owner && !strcmp(t->owner, a)))
@@ -1417,6 +1543,10 @@ void bu_shut(void)
 		bu_notefree(bu_notes.p[i]);
 	bu_notes.n = 0;
 	bu_noterole = 0;
+	for (i = 0; i < bu_inhs.n; i++)
+		bu_inhfree(bu_inhs.p[i]);
+	bu_inhs.n = 0;
+	bu_inhrole = 0;
 	bu_trayon = 0;
 	if (bu_c) {
 		bu.close(bu_c);
@@ -1877,6 +2007,52 @@ int bu_bi(sh *s, int ac, char **av)
 		}
 		return bu_say(s, bu_noterole == 2 ? "on" : bu_noterole == 1 ? "asking" : "off");
 	}
+	if (!strcmp(sub, "awake")) {
+		if (ac < 3)
+			return bu_say(s, bu_inhrole == 2 ? "on" : bu_inhrole == 1 ? "asking" : "off");
+		if (!bu_c)
+			return HIBR_FAIL;
+		if (!strcmp(av[2], "on")) {
+			if (!bu_inhrole) {
+				bu_inhrole = 1;
+				bu_request(BU_SNAME, K_AWAKE);
+				bu.rw(bu_c, 0);
+			}
+			return HIBR_OK;
+		}
+		if (!strcmp(av[2], "off")) {
+			if (bu_inhrole)
+				bu_callw(BU_BUS, BU_BUSPATH, BU_BUS, "ReleaseName", K_IGNORE, 0, BU_SNAME, 0);
+			while (bu_inhs.n)
+				bu_inhdrop(((bu_inh *)bu_inhs.p[0])->cookie, 0);
+			bu_inhrole = 0;
+			bu.rw(bu_c, 0);
+			return HIBR_OK;
+		}
+		lg(HIBR_LERR, "usage: dbus awake [on|off]");
+		return 2;
+	}
+	if (!strcmp(sub, "awakes")) {
+		memset(&v, 0, sizeof v);
+		for (i = 0; i < bu_inhs.n; i++) {
+			bu_inh *h = bu_inhs.p[i];
+
+			s_init(&o);
+			s_num(&o, (long)h->cookie);
+			s_ch(&o, ' ');
+			s_cat(&o, *h->app ? h->app : "?");
+			if (*h->why) {
+				s_cat(&o, ": ");
+				s_cat(&o, h->why);
+			}
+			v_add(&v, o.p);
+		}
+		r = bu_list(s, &v);
+		for (i = 0; i < v.n; i++)
+			free(v.p[i]);
+		free(v.p);
+		return r;
+	}
 	if (!strcmp(sub, "note") || !strcmp(sub, "noteact") || !strcmp(sub, "noteclose")) {
 		bu_note *nt = ac > 2 ? bu_notefind((unsigned)strtoul(av[2], 0, 10), 0) : 0;
 		int i;
@@ -1928,7 +2104,7 @@ int bu_bi(sh *s, int ac, char **av)
 		return HIBR_OK;
 	}
 	if (ac < 3) {
-		lg(HIBR_LERR, "usage: dbus open|fd|pump|role|items|close | item|menu|activate|secondary|context N [X Y] | scroll N DELTA vertical|horizontal | click N ID | pixmap N FILE [#rrggbb] | tray on|off | notes on|off | note|noteact|noteclose N [KEY|REASON]");
+		lg(HIBR_LERR, "usage: dbus open|fd|pump|role|items|close | item|menu|activate|secondary|context N [X Y] | scroll N DELTA vertical|horizontal | click N ID | pixmap N FILE [#rrggbb] | tray on|off | notes on|off | note|noteact|noteclose N [KEY|REASON] | awake [on|off] | awakes");
 		return 2;
 	}
 	if (!(t = bu_arg(av[2])))
@@ -2028,6 +2204,8 @@ void bu_fini(sh *s)
 	free(bu_waits.p);
 	free(bu_notes.p);
 	memset(&bu_notes, 0, sizeof bu_notes);
+	free(bu_inhs.p);
+	memset(&bu_inhs, 0, sizeof bu_inhs);
 	memset(&bu_evs, 0, sizeof bu_evs);
 	memset(&bu_items, 0, sizeof bu_items);
 	memset(&bu_waits, 0, sizeof bu_waits);

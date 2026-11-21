@@ -6,8 +6,8 @@ a bare desktop runs 16 tickers a pass:
   dt_shadownote
   dt_movednote
   fp_feedtick
-  dt_notetick
   dt_bustick
+  dt_notetick
   dt_ctlpoll
   dt_hudtick
   dt_ptick
@@ -23,8 +23,8 @@ with this tree loaded, 25:
   dt_shadownote
   dt_movednote
   fp_feedtick
-  dt_notetick
   dt_bustick
+  dt_notetick
   dt_ctlpoll
   dt_hudtick
   dt_ptick

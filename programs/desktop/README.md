@@ -1495,6 +1495,19 @@ Control Panel > Screen Saver > Lock After locks on its own a number of
 minutes after the saver starts -- "at once", or never, which is the
 default. Preview never locks.
 
+A program may ask that the screen stay awake -- a film playing, a
+presentation -- and while Control Panel > Screen Saver > Programs May Keep
+It Awake is on, the default, the saver does not start on idle while one
+asks (Blit #171): a program's own window through Blit's compositor (`WINDOW
+inhibit`), while the window is not minimised and is on the workspace in
+view -- covered by another window still counts -- or any program on the
+session bus, which the desktop answers as org.freedesktop.ScreenSaver
+(Inhibit and UnInhibit) unless another program already is. A program that
+leaves the bus, or a window that goes, lets go with it. Since the lock's
+own time starts with the saver, an idle lock waits too; Lock Screen, the
+hibr menu's Screen Saver and Preview are never held. The desktop's log says
+what held it each time.
+
 The password is checked through PAM by the `auth` module, as you, with no
 privilege: checking your own password is what PAM's own helper is for,
 and hibr is never setuid. The Debian package installs `/etc/pam.d/hibr`
@@ -2040,6 +2053,15 @@ Main Display**, the one Full Screen On names, or else the desktop's own
 primary, as before. A game opened on one display and moved to another
 before its first frame never drew; opening where you are means it is born
 at the right size there.
+
+**Program Scale:** the fourth row is the scale programs draw at on one
+display (Blit #170): the display in the first list -- the primary until
+you choose another -- and its scale in the second, 100% to 400% in steps
+of 25. It is set by hand, never worked out from the cell size, and kept by
+the display's name. Where Blit's compositor is 0.3.130 or later it is told
+at once, as the seventh word of that display's layout line, and converts
+the sizes itself -- the pixels the desktop and the compositor speak in stay
+the desktop's; an older compositor is told nothing of it.
 
 ## Keys that would be signals
 

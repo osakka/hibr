@@ -33,7 +33,10 @@ LOG.vsub gives 7 two subsurfaces drawn through views (VSUBS): 17 at half
 its buffer's size, as mpv's video is, and 18 a cropped part of its buffer
 at its own scale hanging past 7's top left; LOG.vsubdrop says 17's view
 dropped alone, its buffer then shown at its own pixels (WINDOW view 17 -),
-and LOG.vsubgone ends them. When the desktop goes it dials again for sixty seconds and announces every
+and LOG.vsubgone ends them. LOG.inhibit (on or off) has 7 ask that the screen
+stay awake or no longer (WINDOW inhibit, Blit #171) -- said only to a desktop
+whose hello answer carries inhibit=1, as blit-compositor does, and an on said
+again on every reconnect. When the desktop goes it dials again for sixty seconds and announces every
 window again under the same ids, as blit-compositor does across a Restart
 Desktop. Everything it is told is a JSON line in LOG.
 """
@@ -131,6 +134,9 @@ def announce():
     if vsubs and 7 in size:
         for l in VSUBS:
             say(l)
+    # A window still asking the screen to stay awake says so again.
+    if inh == "on" and "inhibit=1" in (ANS or "").split():
+        say("WINDOW inhibit 7 on")
 
 
 # Two subsurfaces of 7 (Gitea #496), bottom to top: 11 under the window's
@@ -148,7 +154,8 @@ VSUBS = ("WINDOW sub 17 7 40 8 64 32 above", "WINDOW view 17 0 0 128 64 64 32",
 
 full = child = popup = csd = lock = subs = geom = scale7 = vsubs = False
 fs7 = False
-ans = dial()
+inh = None
+ans = ANS = dial()
 note(kind="hello", answer=ans)
 if not ans or "window=1" not in ans.split():
     note(kind="refused")
@@ -161,7 +168,7 @@ def reconnect():
     """The desktop has gone (a Restart Desktop execs it): dial again, 50 ms
     then doubling to a second, for at most sixty seconds -- Blit's own
     rule -- and announce every window again; or end."""
-    global s
+    global s, ANS
     note(kind="lost")
     s.close()
     end = time.time() + 60
@@ -171,6 +178,7 @@ def reconnect():
         gap = min(gap * 2, 1.0)
         a = dial()
         if a and "window=1" in a.split():
+            ANS = a
             note(kind="hello", answer=a, again=True)
             announce()
             s.setblocking(False)
@@ -463,6 +471,14 @@ while True:
             say(l)
         size[17] = (128, 64)
         size[18] = (100, 60)
+    if os.path.exists(LOG + ".inhibit"):
+        v = open(LOG + ".inhibit").read().strip() or "on"
+        os.unlink(LOG + ".inhibit")
+        inh = v
+        told = "inhibit=1" in (ANS or "").split()
+        if told:
+            say("WINDOW inhibit 7 %s" % v)
+        note(kind="inhibit", value=v, said=told)
     if vsubs and os.path.exists(LOG + ".vsubdrop"):
         os.unlink(LOG + ".vsubdrop")
         say("WINDOW view 17 -")

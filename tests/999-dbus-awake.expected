@@ -1,0 +1,29 @@
+0
+--- nobody asked for the name yet
+state off
+--- asked, the desktop is the session's screen saver
+event: awake on
+state on
+--- a program keeps the screen awake, and is given a cookie
+event: awake 1
+its cookie: 1
+held: 1 player: video
+--- one that asks at the other path and leaves at once lets go as it leaves
+event: awake 2
+event: awake 1
+(uint32 2,)
+held: 1 player: video
+--- UnInhibit takes the cookie back
+event: awake 0
+held: 0
+--- asked again and killed without a word, it is let go
+event: awake 1
+its second cookie: 3
+event: awake 0
+--- a method the saver does not keep is refused, not left waiting
+status 1
+answered UnknownMethod
+--- let go, the name is nobody's
+state off
+status 1
+nobody has org.freedesktop.ScreenSaver
