@@ -98,10 +98,14 @@ fn cp_colourread(n, f) {
 # A role the settings file has never held -- one a release added after the
 # file was written -- is the scheme in force's, not the default every
 # scheme shares, so a new role arrives in the colours already chosen
-# (Gitea #603). Run once, as the settings are read; a role the file holds
-# is the person's and is left alone, and nothing is written until the next
-# save. With no settings at all the defaults are the default scheme's
-# already; a scheme not read here (none, or one gone) changes nothing.
+# (Gitea #603). Run as the settings are read, and again whenever a rescan
+# reads the schemes again: most schemes come from the catalogue, so after
+# an upgrade the installed copy of the scheme in force is the one from
+# before the roles until the catalogue updates it, in this same session,
+# and its new roles then arrive. Only roles the file did not hold when it
+# was read (DT_CONFJ is that reading); a role it held is the person's.
+# With no settings at all the defaults are the default scheme's already;
+# a scheme not read here (none, or one gone) changes nothing.
 cp_rolefill() {
 	local t=${CP_COLOURS-} k v c
 

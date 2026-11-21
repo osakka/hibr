@@ -7,9 +7,16 @@ strict
 
 # The colours a slider's and a fader's parts are drawn in, "track fill
 # knob": the scheme's track, trackfill and knob where it gives them (Gitea
-# #604), and otherwise its dim colour, its accent and its ink.
+# #604), and otherwise its dim colour, its accent and its ink -- but where
+# the track is Blit's own piece, which Blit draws at 38% of the cell's
+# colour so that a slider is one colour, lighter ahead of its knob (ADR
+# 0237), the track left out is the filled part's colour: the dim colour
+# drawn that faint all but vanished (1.5:1 against Pewter Dark's face).
 dt_trackcolours() {
-	ret "${DT_TRACK:-$DT_DIM} ${DT_TRACKFILL:-$DT_ACTIVE} ${DT_KNOB:-$DT_INK}"
+	local fi=${DT_TRACKFILL:-$DT_ACTIVE} tr=$DT_DIM
+
+	[ "${GL[slidertrack]}" != "${GL[hline]}" ] && tr=$fi
+	ret "${DT_TRACK:-$tr} $fi ${DT_KNOB:-$DT_INK}"
 }
 
 # Draw a slider over w columns: its left end, the track filled up to the

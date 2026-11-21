@@ -42,4 +42,16 @@ DT_CONFJ["settings"]["DT_LCD"]="#202020"
 DT_LCD="#202020"
 cp_rolefill
 echo "written before the roles: $DT_LCD $DT_LCDINK [$DT_TRACK]"
+# The scheme in force installed from the catalogue before the roles, then
+# updated by it in the same session: the next reading of the schemes (a
+# rescan) gives the roles the file never held, and still not DT_LCD.
+DT_CONFJ["settings"]["CP_COLOURS"]=ember
+CP_COLOURS=ember
+grep -v '"lcd' "$root/programs/desktop/colours/ember.json" > "$d/ember.json"
+cp_colourread ember "$d/ember.json"
+cp_rolefill
+echo "an old installed scheme: $DT_LCD $DT_LCDINK"
+cp_colourread ember "$root/programs/desktop/colours/ember.json"
+cp_rolefill
+echo "the same scheme updated: $DT_LCD $DT_LCDINK"
 rm -rf "$d"

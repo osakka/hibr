@@ -168,6 +168,15 @@ check("pressed, its pressed ends and the icon framed 51:7, its face its own; "
       sc.style(k, c + 10)["bg"] == "#63b3ed",
       (p[c + 5], p[c + 6], p[c + 10]))
 
+# Left out on Blit's pieces, the track is the filled part's colour: Blit
+# draws it at 38% itself, and the dim colour drawn that faint all but went.
+sc = run({"DT_GLYPHSET": "blit"})
+at = sc.find("@")
+r, c = at if at else (0, 0)
+fg = [sc.style(r, c + 1 + i)["fg"] for i in range(10)]
+check("left out on Blit's pieces, the track ahead is the accent too, which "
+      "Blit draws faint", fg == ["#63b3ed"] * 4 + ["#cbd5e0"] + ["#63b3ed"] * 5, fg)
+
 # A settings file written before the LCD roles takes them from its scheme.
 conf = scratch("widgetroles.json")
 json.dump({"settings": {"CP_COLOURS": "amber", "DT_FACE": "#0f0900"}}, open(conf, "w"))
@@ -182,4 +191,4 @@ try:
     os.unlink(conf)
 except OSError:
     pass
-report(15)
+report(16)

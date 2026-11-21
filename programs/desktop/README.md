@@ -472,7 +472,9 @@ out, they are midnight's, and a settings file written before them takes
 them from the scheme it names rather than from midnight. Six more are
 the controls' (Gitea #604): `track`, `trackfill` and `knob`, a slider's
 and a fader's track, its filled part and its knob -- left out, the dim
-colour, the accent and the ink -- and `buttonface`, `buttonlight` and
+colour, the accent and the ink, though on Blit's own pieces, which Blit
+draws faint ahead of the knob, the track is the accent too -- and
+`buttonface`, `buttonlight` and
 `buttondark`, an icon button's face, its light edge (the icon is drawn in
 it, as Blit draws a key) and its dark edge -- left out, the well lit by
 the ink on a dark scheme, the face deepened to a grey on a light one, and
