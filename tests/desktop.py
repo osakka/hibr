@@ -3749,8 +3749,11 @@ def shadowcheck():
               rows=ROWS, cols=COLS, settle=0.8)
     sc = st.until("calc 0.9")
     st.quit(b"qy", 1.0)
+    # The note says where the copy is, so where it wraps moves with the
+    # length of TMPDIR: "newer" may end one row and "1.0" begin the next,
+    # with the window's border and the wallpaper between them.
     check("an older copy of an app running in place of a newer one is named, with where it is",
-          "calc 0.9" in sc.text() and "newer 1.0" in sc.text(), sc)
+          "calc 0.9" in sc.text() and re.search(r"newer[\s\u2502\u00b7]+1\.0", sc.text()) is not None, sc)
     shutil.rmtree(SHADOW, True)
 
 
