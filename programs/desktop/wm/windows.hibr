@@ -71,6 +71,21 @@ fn dt_hooks(int id, ap = "") {
 	done
 }
 
+# Whether a window's app has callback kind -- its menus, a context menu, a
+# title menu -- that the window manager asks for by name: what its own
+# process said it has when it draws there (wm/rtview.hibr), what this one
+# defines otherwise, as dt_hooks decides for the rest.
+fn dt_winhas(id, kind) {
+	local ap=${DT[$id]["app"]-}
+
+	[ -n "$ap" ] || return 1
+	if [ -n "${DT_RVC[$id]+x}" ]; then
+		dt_rvhas "$ap" "$kind"
+		return
+	fi
+	dt_has "${ap}_$kind"
+}
+
 # Whether id is a window: a record with a size, which dt_new and a restart
 # give every window and nothing else may (Gitea #552). The one question --
 # a title, an app or a row each answered it somewhere once, and a record a

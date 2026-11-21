@@ -24,15 +24,28 @@ strict
 # be told with, and its close asked and not yet answered (the ask's number,
 # or done). DT_RVC itself is the seam's (wm/seam.hibr).
 declare -gA DT_RVGEN DT_RVARGS DT_RVDIRTY DT_RVUNC DT_RVOPEN DT_RVCLOSE
-# What a hosted app's process said it has, by prefix (`has`), and the
-# request connection that draws for it; the asks waiting for a `took`, by
-# number ("KIND ID DEADLINE", and for the person's input its time and its
-# app's processor time too: dt_rvinput); what has been said once; and an app process
-# with no window left, by pid, with when it is ended if still there (in
-# milliseconds, so DT_RTENDSECS is that long and not up to a second less).
-declare -gA DT_RTHAS DT_RTHOST DT_RVASK DT_RVSAID DT_RTENDPID
+# What a hosted app's process said it has, by prefix (`has`) -- the request
+# connection that draws for it is the seam's DT_RTHOST; the asks waiting for
+# a `took`, by number ("KIND ID DEADLINE", and for the person's input its
+# time and its app's processor time too: dt_rvinput; "handed FN DEADLINE"
+# for a callback handed back to its app: dt_rvappfn); what has been said
+# once; and an app process with no window left, by pid, with when it is
+# ended if still there (in milliseconds, so DT_RTENDSECS is that long and not
+# up to a second less).
+declare -gA DT_RTHAS DT_RVASK DT_RVSAID DT_RTENDPID
 DT_RVSEQ=0
 DT_RTENDSECS="${DT_RTENDSECS-5}"
+# What a hosted app's process last built of its menus (menus:APP), of a
+# window's context menu (context:APP) and of a list of choices it opened
+# (list:CONNECTION), parsed once as it arrives and kept beside the line it
+# came in, so a push that says nothing new is one comparison; the row a
+# list opens on, taken by its first build; when a context menu asked of a
+# hosted window and not yet built is given up on; and what each handed
+# callback asked of an app's process runs once it answers yes, by ask, with
+# the connection it was asked on -- kept past DT_HOLDMS, since a late yes is
+# still the app's answer and the dialog waits for it, never the desktop.
+declare -gA DT_RVMENU DT_RVMTEXT DT_RVLSEL DT_RVTHENQ DT_RVTHENC
+DT_RVCTXT=
 
 # Start an installed app in a process of its own: the runtime, run with the
 # app and its file (runtime.hibr, run rather than sourced). A test session's
@@ -130,6 +143,9 @@ fn dt_rvbind(int id) {
 	DT_RVDIRTY[$id]=1
 	DT_RVUNC[$id]=1
 	[ -z "$new" ] || dt_hooks "$id" "$ap"
+	# Its menus are built in its process once it can be asked: a window
+	# focused before that is built again now (dt_rvmenus).
+	[ -z "$new" ] || [ "$DT_FOCUS" != "$id" ] || DT_MENUIN=
 	dt_rtpass force
 	x := dt_rtline view "w$id" "${DT_RVGEN[$id]}" "$h" "$w" win "$id" "$dh" "$dw" "$or" "$oc"
 	dt_rtsay "$c" "$x"
@@ -322,17 +338,31 @@ fn dt_rvforget(int id) {
 
 # An app's answer to an ask: a close answered lets its window go; an
 # input's is the app answering, which takes back the not-responding mark
-# once nothing older of that window's is left unanswered; one not awaited is
-# dropped and said.
+# once nothing older of that window's is left unanswered; a handed
+# callback's yes runs what waits on it, however late (dt_rvappfn); one not
+# awaited is dropped and said.
 fn dt_rvtook(int c, seq, st = "") {
-	local kind id end
+	local kind id end x
+	local -a w
 
-	if [ -z "${DT_RVASK["$seq"]+x}" ]; then
+	if [ -n "${DT_RVTHENQ["$seq"]+x}" ] && [ "${DT_RVTHENC["$seq"]-}" = "$c" ]; then
+		kind=handed
+		unset DT_RVASK["$seq"]
+	elif [ -z "${DT_RVASK["$seq"]+x}" ]; then
 		dt_log "app runtime: ${DT_RTC["$c"]-an app} answered ask $seq, which was not awaited; dropped"
 		return 0
+	else
+		read -r kind id end _ <<< "${DT_RVASK["$seq"]}"
+		unset DT_RVASK["$seq"]
 	fi
-	read -r kind id end _ <<< "${DT_RVASK["$seq"]}"
-	unset DT_RVASK["$seq"]
+	if [ "$kind" = handed ]; then
+		x=${DT_RVTHENQ["$seq"]-}
+		unset DT_RVTHENQ["$seq"] DT_RVTHENC["$seq"]
+		[ "$st" = 0 ] && [ -n "$x" ] || return 0
+		read -ra w <<< "$x"
+		"${w[@]}"
+		return 0
+	fi
 	[ "${DT_RVC[$id]-}" = "$c" ] || return 0
 	if [ "$kind" != close ]; then
 		[ "$DT_RVHOLD" != "$seq" ] || dt_rvunhold "$seq" "$st"
@@ -461,6 +491,14 @@ dt_rvtick() {
 	for s in "${!DT_RVASK[@]}"; do
 		read -r kind id end _ _ _ fl <<< "${DT_RVASK["$s"]}"
 		[ "$now" -ge "$end" ] || continue
+		# A callback handed back to its app (dt_rvappfn) names a function,
+		# not a window: past its time it is said once, and its answer still
+		# runs what waits on it when it comes (DT_RVTHENQ).
+		if [ "$kind" = handed ]; then
+			unset DT_RVASK["$s"]
+			dt_log "app runtime: $id did not answer in $DT_HOLDMS ms; what asked it waits for its answer"
+			continue
+		fi
 		if [ -z "${DT_RVC[$id]+x}" ]; then
 			unset DT_RVASK["$s"]
 			[ "$DT_RVHOLD" != "$s" ] || dt_rvunhold "$s" 1
@@ -524,3 +562,196 @@ dt_rvtick() {
 	return 0
 }
 
+# A call through the seam (dt_appfn) whose owner, DT_CALLER as the seam
+# set it, is an app its own process draws for: a function of the desktop's
+# -- File > Close on its menu, a
+# request a dialog's callback names, the seam's own dt_appcall -- runs here
+# as that app's, guarded as the same request from its process would be;
+# any other is the app's own, and goes to its process by name (`call SEQ -
+# FN WORDS`), never waited for. A caller that reads the answer (dt_askok)
+# keeps what then follows in a local DT_RVTHEN: taken here, the call goes
+# as an ask and that runs when the app's `took` says yes. Status 0 once
+# sent, whatever the app will answer, as a told request's is.
+fn dt_rvappfn(f = "", ...args) {
+	local own=$DT_CALLER c seq x
+
+	c=${DT_RTHOST["$own"]}
+	if [ -z "$f" ] || dt_has "$f"; then
+		if { [ -n "${DT_RTALLOW["$f"]+x}" ] || [ -n "${DT_RTASK["$f"]+x}" ]; } &&
+			[ -z "${DT_RTMAY["$own $f"]+x}" ]; then
+			dt_log "app runtime: $own asked for $f, which its own file never asks for; refused"
+			return 1
+		fi
+		# A request runs as one from that app's process, which is what it
+		# checks before trusting DT_CALLER (dt_rtmine, dt_set's allowlist).
+		local DT_RTFROM=
+		[ -z "${DT_RTALLOW["$f"]+x}${DT_RTASK["$f"]+x}" ] || DT_RTFROM=$c
+		"$f" "${args[@]}" && ret -k
+		return
+	fi
+	seq=0
+	if [ -n "${DT_RVTHEN-}" ]; then
+		DT_RVSEQ=$((DT_RVSEQ + 1))
+		seq=$DT_RVSEQ
+		DT_RVASK[$seq]="handed $f $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
+		DT_RVTHENQ[$seq]=$DT_RVTHEN
+		DT_RVTHENC[$seq]=$c
+		DT_RVTHEN=
+		dt_want "$DT_HOLDMS"
+	fi
+	dt_rtpass force
+	x := dt_rtline call "$seq" - "$f" "${args[@]}"
+	dt_rtsay "$c" "$x"
+}
+
+# `menus APP JSON` or `context APP JSON` from connection c: what an app of
+# its file built with the same builders the desktop has (wm/menubuild.hibr)
+# -- its menus or a window's context menu, or, marked "list", a list of
+# choices it is about to open -- kept until it says something different,
+# and the menus built again on the next frame. Only an app its own file
+# registers.
+fn dt_rvpush_in(int c, verb, ap = "", j = "") {
+	local who=${DT_RTC["$c"]} key
+	local -A g
+
+	if [ -z "$ap" ] || [ -z "${DT_APPS["$ap"]["src"]-}" ] ||
+		[ "${DT_APPS["$ap"]["src"]}" != "${DT_APPS["$who"]["src"]-}" ]; then
+		dt_log "app runtime: $who sent $verb of ${ap:-nothing}, which its file does not register; refused"
+		return 0
+	fi
+	if ! json parse g <<< "$j" 2> /dev/null; then
+		dt_log "app runtime: $who sent $verb of $ap as JSON the desktop could not read"
+		return 0
+	fi
+	key="$verb:$ap"
+	if [ -n "${g["list"]-}" ]; then
+		key="list:$c"
+		DT_RVLSEL["$c"]=${g["sel"]-}
+	elif [ "${DT_RVMTEXT["$key"]-}" = "$j" ]; then
+		return 0
+	fi
+	DT_RVMTEXT["$key"]=$j
+	unset DT_RVMENU["$key"]
+	json parse DT_RVMENU["$key"] "$j"
+	DT_RVMENU["$key"]["from"]=$c
+	DT_RVMENU["$key"]["app"]=$ap
+	[ "$verb" = menus ] && DT_MENUIN=
+	DT_MENUEV=1
+	dt_want 0
+	return 0
+}
+
+# Build what an app's process pushed under key, through the builders, as
+# that app's: its rows' commands, its submenus where they hang, its tick
+# marks, a row's shortcut. Its words are already translated, so nothing is
+# looked up twice; where it called dt_editmenu the desktop's own Edit goes,
+# built here as the desktop's, as in every bar. Only what was built for
+# window id, when one is given. Status 1 when there is nothing to build.
+fn dt_rvreplay(key, ap, id = "") {
+	local n i t lang=$DT_LANG
+
+	n=${DT_RVMENU["$key"]["n"]-}
+	[ -n "$n" ] || return 1
+	[ -z "$id" ] || [ "${DT_RVMENU["$key"]["id"]-}" = "$id" ] || return 1
+	local DT_CALLER=$ap DT_LANG=
+	for ((i = 0; i < n; i++)); do
+		[ -z "${DT_RVMENU["$key"]["mb"]["$i"]["par"]-}" ] || continue
+		if [ -n "${DT_RVMENU["$key"]["mb"]["$i"]["edit"]-}" ]; then
+			DT_LANG=$lang
+			DT_CALLER=
+			dt_editmenu
+			DT_LANG=
+			DT_CALLER=$ap
+			continue
+		fi
+		t=${DT_RVMENU["$key"]["mb"]["$i"]["title"]-}
+		dt_menu "$t"
+		dt_rvrows "$key" "$i"
+	done
+	return 0
+}
+
+# The rows of menu m of what key holds, a submenu's built where its row is.
+fn dt_rvrows(key, int m) {
+	local r=0 n j argc s lb k tick dim acc
+	local -a a
+
+	n=${DT_RVMENU["$key"]["mb"]["$m"]["n"]:-0}
+	while [ "$r" -lt "$n" ]; do
+		s=${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["sub"]-}
+		lb=${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["label"]-}
+		k=${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["key"]-}
+		if [ "${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["sep"]-}" = 1 ]; then
+			dt_sep
+		elif [ -n "$s" ]; then
+			dt_sub "$lb" "$k"
+			dt_rvrows "$key" "$s"
+			dt_end
+		else
+			a=()
+			argc=${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["argc"]:-0}
+			for ((j = 0; j < argc; j++)); do
+				a+=("${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["a$j"]-}")
+			done
+			tick=${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["tick"]-}
+			dim=${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["dim"]:-0}
+			acc=${DT_RVMENU["$key"]["mi"]["$m"]["$r"]["accel"]-}
+			dt_row "$tick" "$dim" "$lb" "$k" "${a[@]}"
+			[ -z "$acc" ] || dt_rowaccel "$acc"
+		fi
+		r=$((r + 1))
+	done
+	return 0
+}
+
+# A hosted window's menus, for dt_menus: the last its app's process built
+# for this window, built again here, and the process asked to build them
+# afresh (`call 0 ID menus`), so a change comes back pushed and the bar is
+# built again with it. Status 1 while it has none for this window -- its
+# app has no _menus, or nothing has come yet -- so the bar keeps File >
+# Close meanwhile, which every window has.
+fn dt_rvmenus(int id) {
+	local ap=${DT[$id]["app"]-}
+
+	dt_rvhas "$ap" menus || return 1
+	[ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 menus
+	dt_rvreplay "menus:$ap" "$ap" "$id"
+}
+
+# A hosted window's context menu, for dt_ctxbuild: the same, from its
+# app's _context. Status 2 while it is asked for and not yet built --
+# nothing is drawn and the menu stays open for it -- and 1 once DT_HOLDMS
+# has passed with nothing, said in the log, so dt_ctxbuild closes it.
+fn dt_rvcontext(ap, int id) {
+	local now
+
+	[ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 context
+	if dt_rvreplay "context:$ap" "$ap" "$id"; then
+		DT_RVCTXT=
+		return 0
+	fi
+	now=$((${EPOCHREALTIME/./} / 1000))
+	[ -n "$DT_RVCTXT" ] || DT_RVCTXT=$((now + DT_HOLDMS))
+	if [ "$now" -ge "$DT_RVCTXT" ]; then
+		dt_log "app runtime: $ap did not build the context menu of window $id in $DT_HOLDMS ms; it does not open"
+		DT_RVCTXT=
+		return 1
+	fi
+	dt_want $((DT_RVCTXT - now))
+	return 2
+}
+
+# A list of choices an app's process opened (dt_context_open widget, which
+# its own dt_dropat sends): the rows it pushed just before, with the words
+# its namer gave each value, built here as its own, starting on the row it
+# chose the first time. Status 1 when it pushed none.
+fn dt_rvlist(int c) {
+	local key="list:$c"
+
+	dt_rvreplay "$key" "${DT_RVMENU["$key"]["app"]-}" || return 1
+	if [ -n "${DT_RVLSEL["$c"]-}" ]; then
+		MB_SEL=${DT_RVLSEL["$c"]}
+		unset DT_RVLSEL["$c"]
+	fi
+	return 0
+}

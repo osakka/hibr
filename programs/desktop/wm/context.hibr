@@ -24,7 +24,7 @@ fn dt_ctxkey(what) {
 	r=${DT[$id]["row"]}
 	c=$((${DT[$id]["col"]} + 2))
 	ap=${DT[$id]["app"]-}
-	if [ "$what" = context ] && [ -n "$ap" ] && dt_has "${ap}_context"; then
+	if [ "$what" = context ] && dt_winhas "$id" context; then
 		dt_context_open "$ap" "$id" $((r + 1)) "$c"
 		return 0
 	fi
@@ -36,6 +36,10 @@ fn dt_context_open(who, id, int r, int c) {
 	dt_mscrollreset
 	MB_CTXWHO=$who
 	MB_CTXID=$id
+	# Which app process asked, when one did: a list of choices it opens
+	# was built there and pushed just before (wm/rtview.hibr).
+	MB_CTXFROM=${DT_RTFROM-}
+	DT_RVCTXT=
 	MB_CY=$r
 	MB_CX=$c
 	MB_PAR=
@@ -55,14 +59,35 @@ dt_ctxbuild() {
 	desktop) before=$MB_N; dt_deskcontext ;;
 	titlebar) before=$MB_N; dt_titlecontext "$MB_CTXID" ;;
 	bar) before=$MB_N; dt_barcontext ;;
-	widget) before=$MB_N; dt_dropcontext ;;
+	widget)
+		before=$MB_N
+		if [ -n "$MB_CTXFROM" ]; then
+			dt_rvlist "$MB_CTXFROM" || { dt_mclose; return 0; }
+		else
+			dt_dropcontext
+			if [ -n "$DT_POPSELONCE" ]; then
+				MB_SEL=$DT_POPSELONCE
+				DT_POPSELONCE=
+			fi
+		fi
+		;;
 	*)
-		if ! dt_has "${who}_context"; then
+		before=$MB_N
+		# A window its app's own process draws has its context menu built
+		# there (wm/rtview.hibr): held open, with nothing drawn, until it
+		# comes, and closed if it does not.
+		if [ -n "$MB_CTXID" ] && [ -n "${DT_RVC[$MB_CTXID]+x}" ]; then
+			dt_rvcontext "$who" "$MB_CTXID"
+			case $? in
+			1) dt_mclose; return 0 ;;
+			2) return 0 ;;
+			esac
+		elif ! dt_has "${who}_context"; then
 			dt_mclose
 			return 0
+		else
+			dt_appfn "$who" "${who}_context" "$MB_CTXID"
 		fi
-		before=$MB_N
-		dt_appfn "$who" "${who}_context" "$MB_CTXID"
 		k=$before
 		while [ "$k" -lt "$MB_N" ]; do
 			MB[$k]["own"]=$MB_CTXID

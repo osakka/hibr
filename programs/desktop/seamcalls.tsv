@@ -1,4 +1,6 @@
 # file	line	function	seam	callback	kind	use	how	met -- tools/seamcalls.py --write (ADR 0050)
+runtime.hibr	434	dt_rtbuild	dt_appfn	"${ap}_menus"	_menus	none	-	push
+runtime.hibr	436	dt_rtbuild	dt_appfn	"${ap}_context"	_context	none	-	push
 savers/saver.hibr	131	sv_begin	sv_call	_start	saver_start	none	-	push
 savers/saver.hibr	157	sv_frame	sv_call	_frame	saver_frame	none	-	push
 system/panel.hibr	290	panel_filter	dt_prefixfn	_rows	pane_rows	value	:=	push
@@ -19,7 +21,7 @@ system/panel.hibr	1437	cp_slide	dt_prefixfn	_slide	pane_slide	none	-	tell
 system/panel.hibr	1476	panel_mouse	dt_prefixfn	_mouse	pane_mouse	status	tested	ask
 system/panel.hibr	1496	panel_mouse	dt_prefixfn	_mouse	pane_mouse	none	-	ask
 system/panel.hibr	1513	panel_wheel	dt_prefixfn	_wheel	pane_wheel	none	-	tell
-widgets/dropdown.hibr	122	dt_dropcontext	dt_appfn	"$DT_POPNAME"	list:namer	value	:=	push
+widgets/dropdown.hibr	124	dt_dropcontext	dt_appfn	"$DT_POPNAME"	list:namer	value	:=	push
 widgets/scrollbar.hibr	204	dt_sbto	dt_wincall	"${DT[$id]["app"]}_scroll"	_scroll	none	-	tell
 widgets/text.hibr	544	dt_fdtype	dt_wincall	"$cb"	_key	none	|| true	ask
 widgets/text.hibr	813	dt_fieldedit	dt_wincall	"$cb"	_key	none	|| true	ask
@@ -31,11 +33,11 @@ wm/apps.hibr	33	dt_runatstart	dt_hookfn	"$f"	hook:DT_ATSTART	none	-	tell
 wm/apps.hibr	499	dt_unload	dt_hookfn	"${DT_UNLOADFN["$f"]}"	hook:DT_UNLOADFN	none	-	ask
 wm/apps.hibr	517	dt_reinstate	dt_hookfn	"${DT_RELOADFN["$f"]}"	hook:DT_RELOADFN	none	-	tell
 wm/apps.hibr	607	dt_rescan	dt_hookfn	"${DT_RESCANFN["$f"]}"	hook:dt_rescan	none	-	tell
-wm/apps.hibr	814	dt_launch	dt_appfn	"${DT_APPS[$n]["via"]}_launch"	_launch	none	-	tell
-wm/apps.hibr	828	dt_launch	dt_appfn	"${n}_launch"	_launch	none	-	tell
-wm/apps.hibr	838	dt_launch	dt_appfn	"${n}_size"	_size	value	:=	push
-wm/ask.hibr	93	dt_askok	dt_appfn	"${DTA[$id]["then"]}"	handed	status	tested	ask
-wm/ask.hibr	143	dtask_close	dt_appfn	"$c"	handed	none	-	ask
+wm/apps.hibr	815	dt_launch	dt_appfn	"${DT_APPS[$n]["via"]}_launch"	_launch	none	-	tell
+wm/apps.hibr	829	dt_launch	dt_appfn	"${n}_launch"	_launch	none	-	tell
+wm/apps.hibr	839	dt_launch	dt_appfn	"${n}_size"	_size	value	:=	push
+wm/ask.hibr	97	dt_askok	dt_appfn	"${DTA[$id]["then"]}"	handed	status	tested	ask
+wm/ask.hibr	153	dtask_close	dt_appfn	"$c"	handed	none	-	ask
 wm/bar.hibr	105	dt_barrescan	dt_appfn	"$h"	bar:stop	none	-	tell
 wm/bar.hibr	296	dt_baritoggle	dt_appfn	"$f"	bar:sfn	none	-	tell
 wm/bar.hibr	439	dt_barikey	dt_appfn	"$b"	bar:press	status	tested	ask
@@ -47,7 +49,7 @@ wm/bar.hibr	776	dt_bar	dt_hookfn	"$hk"	hook:DT_BARHOOKS	none	-	push
 wm/bar.hibr	941	dt_appname	dt_appfn	"${MB_APP}_appname"	_appname	value	:=	push
 wm/bus.hibr	65	dt_busgive	dt_hookfn	"$f"	hook:DT_BUS	none	-	tell
 wm/confirm.hibr	127	dt_confirm_key	dt_appfn	$cmd	handed	none	-	ask
-wm/context.hibr	65	dt_ctxbuild	dt_appfn	"${who}_context"	_context	none	-	push
+wm/context.hibr	89	dt_ctxbuild	dt_appfn	"${who}_context"	_context	none	-	push
 wm/copying.hibr	224	dt_copylocated	dt_prefixfn	_ok	location_ok	status	tested	ask
 wm/filepick.hibr	247	fp_feed	dt_appfn	"${FP[$id]["listed"]}"	handed	none	-	ask
 wm/filepick.hibr	671	fp_done	dt_appfn	"$cb"	handed	status	tail	ask
@@ -78,21 +80,21 @@ wm/input.hibr	44	dt_altclick	dt_wincall	"$ap"	_click	none	-	tell
 wm/input.hibr	101	dt_mouse	dt_appfn	"$b"	bar:press	status	tested	ask
 wm/input.hibr	194	dt_mouse	dt_wincall	"$ap"	_click	none	-	tell
 wm/input.hibr	241	dt_mouse	dt_wincall	"$mo"	_mouse	none	-	tell
-wm/input.hibr	254	dt_mouse	dt_wincall	"${DT[$id]["key"]}"	_key	none	-	ask
-wm/input.hibr	257	dt_mouse	dt_wincall	"$ap"	_click	none	-	tell
-wm/input.hibr	265	dt_mouse	dt_appfn	"${DT[$id]["app"]}_titlemenu"	_titlemenu	none	-	push
-wm/input.hibr	397	dt_mouse	dt_wincall	"$mo"	_mouse	none	-	tell
-wm/input.hibr	561	dt_mouse	dt_appfn	"${DT_BARI["$bi"]["wheel"]}"	bar:wheel	none	-	tell
-wm/input.hibr	585	dt_mouse	dt_wincall	"$ap"	_wheel	none	-	tell
-wm/input.hibr	705	dt_hoverleave	dt_appfn	$ap	_hover	none	-	tell
-wm/input.hibr	794	dt_ptrunlock	dt_wincall	"$mo"	_mouse	none	-	tell
-wm/input.hibr	822	dt_ptrrel	dt_wincall	"$mo"	_mouse	none	-	tell
-wm/input.hibr	1072	dt_hover	dt_appfn	${DT[$id]["hover"]}	_hover	none	-	tell
-wm/input.hibr	1142	dt_mbtnev	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
-wm/input.hibr	1205	dt_event	dt_wincall	"${DT[$DT_KEYSWIN]["key"]}"	_key	none	-	ask
-wm/input.hibr	1410	dt_event	dt_appfn	"${DT_POP}_popkey"	bar:popkey	status	tested	ask
-wm/input.hibr	1456	dt_event	dt_appfn	${DT[$DT_FOCUS]["savefile"]}	_savefile	none	-	tell
-wm/input.hibr	1511	dt_event	dt_wincall	"${DT[$DT_FOCUS]["key"]}"	_key	status	tested	ask
+wm/input.hibr	253	dt_mouse	dt_wincall	"${DT[$id]["key"]}"	_key	none	-	ask
+wm/input.hibr	256	dt_mouse	dt_wincall	"$ap"	_click	none	-	tell
+wm/input.hibr	263	dt_mouse	dt_appfn	"${DT[$id]["app"]}_titlemenu"	_titlemenu	none	-	tell
+wm/input.hibr	395	dt_mouse	dt_wincall	"$mo"	_mouse	none	-	tell
+wm/input.hibr	559	dt_mouse	dt_appfn	"${DT_BARI["$bi"]["wheel"]}"	bar:wheel	none	-	tell
+wm/input.hibr	583	dt_mouse	dt_wincall	"$ap"	_wheel	none	-	tell
+wm/input.hibr	703	dt_hoverleave	dt_appfn	$ap	_hover	none	-	tell
+wm/input.hibr	792	dt_ptrunlock	dt_wincall	"$mo"	_mouse	none	-	tell
+wm/input.hibr	820	dt_ptrrel	dt_wincall	"$mo"	_mouse	none	-	tell
+wm/input.hibr	1070	dt_hover	dt_appfn	${DT[$id]["hover"]}	_hover	none	-	tell
+wm/input.hibr	1140	dt_mbtnev	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
+wm/input.hibr	1203	dt_event	dt_wincall	"${DT[$DT_KEYSWIN]["key"]}"	_key	none	-	ask
+wm/input.hibr	1408	dt_event	dt_appfn	"${DT_POP}_popkey"	bar:popkey	status	tested	ask
+wm/input.hibr	1454	dt_event	dt_appfn	${DT[$DT_FOCUS]["savefile"]}	_savefile	none	-	tell
+wm/input.hibr	1509	dt_event	dt_wincall	"${DT[$DT_FOCUS]["key"]}"	_key	status	tested	ask
 wm/keyphase.hibr	65	dt_keyletgo	dt_wincall	"$fn"	_key	none	-	ask
 wm/keyphase.hibr	74	dt_keyletgo	dt_wincall	"${DT[$id]["mouse"]}"	_mouse	none	-	tell
 wm/keyphase.hibr	150	dt_focuscheck	dt_wincall	"${DT[$old]["focus"]}"	_focus	none	-	tell
@@ -100,11 +102,11 @@ wm/keyphase.hibr	152	dt_focuscheck	dt_wincall	"${DT[$w]["focus"]}"	_focus	none	-
 wm/keyphase.hibr	177	dt_keyphase	dt_wincall	"${DT[$id]["key"]}"	_key	none	-	ask
 wm/locations.hibr	91	dt_loccan	dt_prefixfn	_can	location_can	status	tail	ask
 wm/loop.hibr	153	dt_tickers	dt_appfn	"$f"	hook:DT_TICKERS	none	-	tell
-wm/menus.hibr	381	dt_menus	dt_appfn	"${ap}_menus"	_menus	none	-	push
-wm/menus.hibr	698	dt_aboutapp	dt_appfn	"${own}_about"	_about	none	-	tell
-wm/menus.hibr	856	dt_editmenu	dt_appfn	"${DT[$who]["signin"]}"	_signin	value	:=	ask
-wm/menus.hibr	883	dt_editdo	dt_wincall	"$cb"	_edit	status	tested	ask
-wm/menus.hibr	1741	dt_mdo	dt_appfn	"${argv[@]}"	handed	none	-	ask
+wm/menus.hibr	162	dt_menus	dt_appfn	"${ap}_menus"	_menus	none	-	push
+wm/menus.hibr	482	dt_aboutapp	dt_appfn	"${own}_about"	_about	none	-	tell
+wm/menus.hibr	640	dt_editmenu	dt_appfn	"${DT[$who]["signin"]}"	_signin	value	:=	ask
+wm/menus.hibr	667	dt_editdo	dt_wincall	"$cb"	_edit	status	tested	ask
+wm/menus.hibr	1525	dt_mdo	dt_appfn	"${argv[@]}"	handed	none	-	ask
 wm/notify.hibr	634	dt_note_act	dt_appfn	"${args[@]}"	handed	none	tail-unread	ask
 wm/notify.hibr	667	dt_notehist_run	dt_appfn	"${args[@]}"	handed	none	-	ask
 wm/remote.hibr	165	dt_davdone	dt_appfn	"${DTJ[$n]["dthen"]}"	handed	status	tail	ask
@@ -112,7 +114,7 @@ wm/restart.hibr	192	dt_rswrite	dt_appfn	"${ap}_stash"	_stash	none	-	ask
 wm/restart.hibr	293	dt_restore	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
 wm/restart.hibr	301	dt_restore	dt_appfn	"${ap}_resume"	_resume	none	-	tell
 wm/restart.hibr	303	dt_restore	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
-wm/saver.hibr	173	dt_saverawake	dt_appfn	"${ap}_awake"	_awake	status	tested	push
+wm/saver.hibr	182	dt_saverawake	dt_appfn	"${ap}_awake"	_awake	status	tested	push
 wm/session.hibr	499	dt_answer	dt_appfn	"${ap}_idle"	_idle	none	-	tell
 wm/session.hibr	501	dt_answer	dt_appfn	"${ap}_dirty"	_dirty	status	tail	push
 wm/session.hibr	888	dt_idlecall	dt_appfn	${DT[$id]["idle"]}	_idle	none	-	tell
@@ -125,8 +127,8 @@ wm/vault.hibr	509	vwp_choose	dt_appfn	"$cb"	handed	status	tail	ask
 wm/vault.hibr	526	dt_vwfill	dt_appfn	"$cb"	_signin	value	:=	ask
 wm/vault.hibr	553	dt_vwfilled	dt_appfn	"$cb"	_signfill	none	-	tell
 wm/windows.hibr	41	dt_new	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
-wm/windows.hibr	137	dt_del	dt_appfn	${DT[$id]["close"]}	_close	none	-	ask
-wm/windows.hibr	1175	dt_closereq	dt_wincall	"$cb"	_canclose	status	tested	ask
+wm/windows.hibr	152	dt_del	dt_appfn	${DT[$id]["close"]}	_close	none	-	ask
+wm/windows.hibr	1190	dt_closereq	dt_wincall	"$cb"	_canclose	status	tested	ask
 #kind	_about	tell	-
 #kind	_appname	push	its registered name
 #kind	_awake	push	asleep: the saver may start
@@ -156,7 +158,7 @@ wm/windows.hibr	1175	dt_closereq	dt_wincall	"$cb"	_canclose	status	tested	ask
 #kind	_signin	ask	nothing filled, and the window is marked not responding
 #kind	_size	push	its registered size
 #kind	_stash	ask	after DT_HOLDMS the restart goes on and the window reopens fresh
-#kind	_titlemenu	push	the last title menu it declared
+#kind	_titlemenu	tell	-
 #kind	_wheel	tell	-
 #kind	bar:do	tell	-
 #kind	bar:draw	push	its last cells

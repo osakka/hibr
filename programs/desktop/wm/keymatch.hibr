@@ -202,6 +202,16 @@ fn dt_keylabel(what) {
 	esac
 }
 
+# A shortcut as a person presses it: its chords, or, short, the first of
+# them alone, which is what a menu has room for.
+fn dt_keyshow(k, short = "") {
+	local -a cs
+
+	[ -n "$short" ] || { ret "$k"; return 0; }
+	read -ra cs <<< "$k"
+	ret "${cs[0]-}"
+}
+
 # A chord in one canonical modifier order, ctrl then alt then shift,
 # whatever order it named them in -- an alt combination arrives as ESC
 # followed by the plain control byte, and is named "alt-" then whatever

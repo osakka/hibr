@@ -203,6 +203,15 @@ fn dt_rvdrop(int c, who = "", pid = "", why = "") {
 	for p in "${!DT_RTCELLTOK[@]}"; do
 		[ "${DT_RTCELLTOK["$p"]}" = "$c" ] && unset DT_RTCELLTOK["$p"]
 	done
+	# What it pushed of its menus and lists, and what waited on a callback
+	# handed back to it, go with it (wm/rtview.hibr).
+	for p in "${!DT_RVMENU[@]}"; do
+		[ "${DT_RVMENU["$p"]["from"]-}" = "$c" ] && unset DT_RVMENU["$p"] DT_RVMTEXT["$p"]
+	done
+	unset DT_RVLSEL["$c"]
+	for p in "${!DT_RVTHENC[@]}"; do
+		[ "${DT_RVTHENC["$p"]}" = "$c" ] && unset DT_RVTHENQ["$p"] DT_RVTHENC["$p"]
+	done
 	# What it was asked and never answered goes with it; a held key is
 	# declined, so the desktop's own action runs.
 	for p in "${!DT_RVASK[@]}"; do

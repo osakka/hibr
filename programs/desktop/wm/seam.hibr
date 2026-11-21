@@ -22,6 +22,15 @@ strict
 # The app whose code is running now, through dt_appfn; empty for the
 # desktop's own.
 DT_CALLER=
+# The apps whose own process draws for them, each with its request
+# connection (`has`): filled only by the desktop's wm/rtview.hibr, and only
+# in a session that listens for app processes, so everywhere else a call
+# through dt_appfn pays one empty lookup for it. And what a caller that
+# reads a handed callback's answer runs once it is yes, kept by a local of
+# that caller's name (dt_askok): taken, and so emptied, when the call goes
+# to the app's own process, whose answer runs it later.
+declare -gA DT_RTHOST
+DT_RVTHEN=
 # Every call the desktop makes into an app's own code goes through here --
 # a window's _draw, _dirty, _open, _menus and the rest, an app's _launch --
 # named with the app it belongs to, so that when an app runs in a process of
@@ -32,8 +41,13 @@ DT_CALLER=
 # answer, a menu command, a note's action -- is recorded as its own and
 # called back through here with it. One line on purpose: a few calls a
 # window a frame, about 2.5 us each over a direct call where a body with
-# locals cost 5 (measured 2026-11-18).
-dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
+# locals cost 5 (measured 2026-11-18). An app whose own process draws for
+# it (DT_RTHOST) is the one owner it does not simply call: the call goes
+# through dt_rvappfn, which sends that process the call when the function
+# is the app's own. Chosen in the command's own words, so every other call
+# pays one expansion: 2,854 instructions a call, where a test of its own
+# cost 7,060 (callgrind, 20,000 calls, 2026-11-21).
+dt_appfn() { local DT_CALLER=$1; ${DT_RTHOST[$1]+dt_rvappfn} "${@:2}" && ret -k; }
 
 # A window's own input handler (_key, _click, _mouse, _wheel, _focus, a
 # paste or a drop) called by the desktop: through the seam, by the

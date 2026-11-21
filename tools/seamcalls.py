@@ -61,7 +61,9 @@ KINDS = {
     "_paintsall": ("push", "the window is taken not to paint every cell"),
     "_menus": ("push", "the last menus it declared"),
     "_context": ("push", "the last context menu it declared"),
-    "_titlemenu": ("push", "the last title menu it declared"),
+    # A title menu opens a list of choices, which goes up built with the
+    # request that opens it (list:namer), so the call itself is told.
+    "_titlemenu": ("tell", "-"),
     "_appname": ("push", "its registered name"),
     "_size": ("push", "its registered size"),
     "_awake": ("push", "asleep: the saver may start"),

@@ -111,8 +111,10 @@ fn dt_dropat(int r, int c, id, cb, ...rest) {
 }
 
 # Build the popup opened by dt_droplist, one item per value offered, the
-# value chosen now ticked as a menu ticks its choice, and the first build
-# starting on it.
+# value chosen now ticked as a menu ticks its choice; the first build starts
+# on it (DT_POPSELONCE, which dt_ctxbuild takes). In an app's own process
+# the rows are built here and pushed, beside the list's request, so the
+# namer runs where the app is (runtime.hibr).
 dt_dropcontext() {
 	local v l d on
 
@@ -129,8 +131,4 @@ dt_dropcontext() {
 		done
 		dt_mark "$l" "" "$on" "$DT_POPCB" "$DT_POPID" "$v"
 	done
-	if [ -n "$DT_POPSELONCE" ]; then
-		MB_SEL=$DT_POPSELONCE
-		DT_POPSELONCE=
-	fi
 }

@@ -52,16 +52,6 @@ fn dt_keydups() {
 	return 0
 }
 
-# A shortcut as a person presses it: its chords, or, short, the first of
-# them alone, which is what a menu has room for.
-fn dt_keyshow(k, short = "") {
-	local -a cs
-
-	[ -n "$short" ] || { ret "$k"; return 0; }
-	read -ra cs <<< "$k"
-	ret "${cs[0]-}"
-}
-
 DT_AKEYORDER=()
 
 # Declare one: the app, the action, what the pane calls it, and the key it

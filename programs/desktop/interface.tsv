@@ -1,17 +1,9 @@
 # class	function	defined in	calls	files	answer	reaches	signature	since	args -- tools/appcalls.py --write; since is the release a row first shipped in, - before the contract; args is N@release for each optional parameter added since, a call of N words or more needing that release; no field is ever empty, since a tab is IFS whitespace and a shell reading the table would lose one (ADR 0050)
-declare	dt_item	wm/menus.hibr	694	80	told	-	dt_item()	-	-
 declare	dt_app	wm/apps.hibr	242	87	told	-	dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "", bare = "")	-	-
 declare	dt_keep	wm/settings.hibr	209	60	told	-	dt_keep()	-	-
-declare	dt_sep	wm/menus.hibr	198	75	told	-	dt_sep()	-	-
-declare	dt_menu	wm/menus.hibr	186	81	told	-	dt_menu(title)	-	-
-declare	dt_dim	wm/menus.hibr	168	36	told	-	dt_dim(label)	-	-
-declare	dt_mark	wm/menus.hibr	113	36	told	-	dt_mark(lb, k, int on, ...rest)	-	-
 declare	dt_keepstate	wm/restart.hibr	68	34	told	-	dt_keepstate(app, ...maps)	-	-
-declare	dt_rowaccel	wm/menus.hibr	67	11	told	-	dt_rowaccel(text)	-	-
 declare	dt_editmenu	wm/menus.hibr	65	60	told	-	dt_editmenu()	-	-
 declare	dt_baritem	wm/bar.hibr	55	17	told	-	dt_baritem(name, text = "", ...cmd)	-	-
-declare	dt_end	wm/menus.hibr	41	17	told	-	dt_end()	-	-
-declare	dt_sub	wm/menus.hibr	33	13	told	-	dt_sub(label, key = "")	-	-
 declare	cs_module	wm/strip.hibr	32	16	told	-	cs_module(name, title, w = "")	-	-
 declare	dt_barmenu	wm/bar.hibr	19	15	told	-	dt_barmenu(name, who, id = "")	-	-
 declare	dt_barilabel	wm/bar.hibr	17	17	told	-	dt_barilabel(name, label)	-	-
@@ -26,7 +18,6 @@ declare	dt_trashask	wm/menus.hibr	8	2	told	-	dt_trashask()	-	-
 declare	cs_relist	wm/strip.hibr	8	4	told	-	cs_relist()	-	-
 declare	dt_baristop	wm/bar.hibr	8	8	told	-	dt_baristop(name, fn)	-	-
 declare	dt_barput	wm/bar.hibr	8	2	told	-	dt_barput(int col, t)	-	-
-declare	dt_rowtext	wm/menus.hibr	8	2	told	-	dt_rowtext(text)	-	-
 declare	dt_baripop	wm/bar.hibr	7	7	told	-	dt_baripop(name, who, int h, int w)	-	-
 declare	dt_baripress	wm/bar.hibr	5	5	told	-	dt_baripress(name, fn)	-	-
 declare	dt_bariwheel	wm/bar.hibr	5	5	told	-	dt_bariwheel(name, fn)	-	-
@@ -41,17 +32,22 @@ declare	dt_swflip	wm/bar.hibr	2	2	told	-	dt_swflip(var)	-	-
 declare	dt_bellglyph	wm/bar.hibr	2	2	asked	-	dt_bellglyph(style)	-	-
 declare	dt_barishown	wm/bar.hibr	2	2	waited	-	dt_barishown(name)	-	-
 declare	dt_baritoggle	wm/bar.hibr	2	2	told	-	dt_baritoggle(name)	-	-
-declare	dt_subtext	wm/menus.hibr	2	2	told	-	dt_subtext(text)	-	-
 declare	dt_baridraw	wm/bar.hibr	2	2	told	-	dt_baridraw(name, fn)	-	-
+local	dt_item	wm/menubuild.hibr	694	80	told	-	dt_item()	-	-
 local	dt_tr	lib/tr.hibr	541	82	asked	-	dt_tr(key, ...rest)	-	-
 local	dt_has	wm/names.hibr	406	104	waited	-	dt_has(name)	-	-
 local	dt_tput	wm/lang.hibr	321	52	told	-	dt_tput(int id, int r, int c, text, ...rest)	-	-
 local	dt_want	wm/loop.hibr	255	74	waited	-	dt_want(int ms)	-	-
+local	dt_sep	wm/menubuild.hibr	198	75	told	-	dt_sep()	-	-
+local	dt_menu	wm/menubuild.hibr	186	81	told	-	dt_menu(title)	-	-
 local	dt_wreg	widgets/hit.hibr	178	45	told	-	dt_wreg(id, int r, int c, int w, tag, int? h = "")	-	-
+local	dt_dim	wm/menubuild.hibr	168	36	told	-	dt_dim(label)	-	-
+local	dt_mark	wm/menubuild.hibr	113	36	told	-	dt_mark(lb, k, int on, ...rest)	-	-
 local	dt_hit	widgets/hit.hibr	88	54	asked	-	dt_hit(id, int r, int c)	-	-
 local	dt_wclear	widgets/hit.hibr	80	48	told	-	dt_wclear(id)	-	-
 local	dt_dlgbtns	widgets/button.hibr	70	33	told	-	dt_dlgbtns(int id, int h, int w, focus, ...pairs)	-	-
 local	dt_textdraw	widgets/text.hibr	68	42	told	-	dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = "", secret = "")	-	-
+local	dt_rowaccel	wm/menubuild.hibr	67	11	told	-	dt_rowaccel(text)	-	-
 local	dt_button	widgets/button.hibr	59	8	told	-	dt_button(id, int r, int c, label, int on, tag, int? w = "", state = "")	-	7@0.99.556;8@0.99.556
 local	dt_focus	widgets/button.hibr	56	33	asked	-	dt_focus(cur, int dir, ...tags)	-	-
 local	dt_textkey	widgets/text.hibr	56	42	asked	-	dt_textkey(text, int cur, key)	-	-
@@ -64,10 +60,12 @@ local	dt_focuskey	widgets/button.hibr	45	34	asked	-	dt_focuskey(key, int? onbtn 
 local	dt_scrollbar	widgets/scrollbar.hibr	45	31	told	-	dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos, key = "", thumb1 = "")	-	-
 local	dt_searchq	widgets/search.hibr	43	14	asked	-	dt_searchq(int id)	-	-
 local	dt_log	wm/loop.hibr	43	18	told	-	dt_log(text)	-	-
+local	dt_end	wm/menubuild.hibr	41	17	told	-	dt_end()	-	-
 local	dt_scrollfit	widgets/scrollbar.hibr	38	16	asked	-	dt_scrollfit(int top, int total, int vis, int? at = "")	-	-
 local	dt_ms	wm/loop.hibr	37	16	asked	-	dt_ms()	-	-
 local	dt_searchopen	widgets/search.hibr	36	14	told	-	dt_searchopen(int id)	-	-
 local	dt_ticker	wm/loop.hibr	34	21	told	-	dt_ticker(name)	-	-
+local	dt_sub	wm/menubuild.hibr	33	13	told	-	dt_sub(label, key = "")	-	-
 local	dt_wdrop	widgets/dropdown.hibr	33	16	told	-	dt_wdrop(int id, int r, int c, int w, value, tag = "")	-	-
 local	dt_cut	wm/draw.hibr	32	14	asked	-	dt_cut(t, int n)	-	-
 local	dt_scrollmove	widgets/scrollbar.hibr	32	21	asked	-	dt_scrollmove(k, int top, int total, int vis, int? step = "")	-	-
@@ -134,6 +132,7 @@ local	dt_davserver	wm/servers.hibr	8	4	told	dt_davserver > dt_dlgat	dt_davserver
 local	dt_sysdir	wm/state.hibr	8	2	asked	-	dt_sysdir(kind)	-	-
 local	dt_pwlocal	wm/powerlist.hibr	8	6	waited	-	dt_pwlocal()	-	-
 local	dt_watchstart	wm/state.hibr	8	6	told	-	dt_watchstart(...cmd)	-	-
+local	dt_rowtext	wm/menubuild.hibr	8	2	told	-	dt_rowtext(text)	-	-
 local	dt_keyis	wm/keymatch.hibr	7	3	waited	-	dt_keyis(what, key)	-	-
 local	pe_qadd	lib/pim.hibr	7	3	told	-	pe_qadd(dir, ...fields)	0.99.556	-
 local	dt_imgm	wm/picmode.hibr	6	6	told	-	dt_imgm(mode = "")	-	-
@@ -247,6 +246,7 @@ local	dt_davclear	wm/servers.hibr	2	2	told	dt_davclear > dt_notep	dt_davclear()	
 local	dt_keylabel	wm/keymatch.hibr	2	2	asked	-	dt_keylabel(what)	-	-
 local	dt_appnames	wm/namefacts.hibr	2	2	asked	-	dt_appnames()	-	-
 local	dt_kblabel	wm/keymatch.hibr	2	2	asked	-	dt_kblabel(int n)	-	-
+local	dt_subtext	wm/menubuild.hibr	2	2	told	-	dt_subtext(text)	-	-
 local	dt_notehist_what	wm/namefacts.hibr	2	2	asked	-	dt_notehist_what(int hid)	-	-
 local	dt_progscale	wm/winfacts.hibr	2	1	asked	-	dt_progscale(nm)	0.99.556	-
 local	dt_pastefold	widgets/text.hibr	1	1	told	-	dt_pastefold(t, mode = "")	-	-

@@ -1,0 +1,244 @@
+# wm/menubuild -- building a menu: dt_menu, dt_item, dt_sub and the rest an
+# app's <app>_menus and <app>_context call, into MB and MI, the one table
+# wm/menus.hibr draws and moves through.
+#
+# Part of the app interface (ADR 0050): interface.hibr sources it, in the
+# desktop and in every app's own process, so an app's menus are built in
+# whichever process runs its code -- its own, once it has one, which pushes
+# what it built to the desktop (`menus`, `context`) and the desktop builds
+# the same rows again from it through these same functions. It acts on
+# nothing the desktop alone owns, and only defines functions and sets state.
+# interface: shared
+
+strict
+
+# Every menu by index, and every row of each: rebuilt from index 0 whenever
+# the menus are, so a builder sets every field it owns (Gitea #169, #313).
+declare -gA MB MI
+MB_N=0
+MB_CUR=
+MB_EDITED=0
+MB_STACK=
+# A row recording only its letter (DT_KEYCOLLECT set), into DT_KEYSEEN:
+# how dt_menus keeps the hibr menu's own letters from the applications
+# (Gitea #341).
+DT_KEYCOLLECT=
+DT_KEYSEEN=
+
+# Start a menu.  Called from an app's <app>_menus.
+fn dt_menu(title) {
+	case $DT_LANG in ?*) title := dt_tr "$title" ;; esac
+	MB[$MB_N]["title"]="$title"
+	MB[$MB_N]["n"]=0
+	MB[$MB_N]["w"]=0
+	MB[$MB_N]["bar"]=1
+	MB[$MB_N]["own"]=
+	# Cleared because this index has very likely been used before: dt_menus
+	# starts again from 0 every frame, so a menu that was a submenu last
+	# frame leaves its par behind, and dt_drop walks that chain to draw a
+	# submenu's whole path -- so a stale one draws last frame's menus
+	# beside this one (Gitea #169). dt_sub sets it again right after
+	# calling here, so a real submenu is unaffected.
+	#
+	# px and py are stale by the same mechanism and are deliberately *not*
+	# cleared here: dt_mdown sets them while input is read and the rebuild
+	# runs afterwards, so clearing them would make every open submenu snap
+	# back to its bar title's column on the next frame. dt_ctxbuild clears
+	# them for the one entry that must always draw at the pointer, and
+	# dt_mpx ignores them for a bar menu.
+	MB[$MB_N]["par"]=
+	MB_CUR=$MB_N
+	MB_N=$((MB_N + 1))
+}
+
+# Add an item to the menu being declared: label, key, then the command.
+# An empty key means the item has no letter and is reached with the arrows.
+dt_item() {
+	dt_row "" 0 "$@"
+}
+
+# The same, with a tick beside it when the third argument is not 0.
+fn dt_mark(lb, k, int on, ...rest) {
+	shift 3
+	if [ "$on" = 0 ] || [ -z "$on" ]; then
+		dt_row " " 0 "$lb" "$k" "$@"
+	else
+		dt_row "${GL[check]}" 0 "$lb" "$k" "$@"
+	fi
+}
+
+# An item that is there but cannot be chosen, which is how a menu says a
+# thing exists and is not available now -- quieter than hiding it, and it
+# keeps the menu the same shape from one moment to the next.
+fn dt_dim(label) {
+	dt_row "" 1 "$label" "" :
+}
+
+# Start a submenu.  Items until dt_end belong to it.
+#
+# The parent is MB_CUR -- the menu being declared -- and not the last menu
+# created, which after one dt_end is the submenu that just closed. Getting
+# that wrong hangs the second submenu off the first, and it looks almost
+# right until you notice a menu item has gone missing.
+fn dt_sub(label, key = "") {
+	local p=${MB_CUR:-$((MB_N - 1))} n
+
+	case $DT_LANG in ?*) label := dt_tr "$label" ;; esac
+	n=${MB[$p]["n"]}
+	dt_menu "$label"
+	MB[$((MB_N - 1))]["bar"]=0
+	MI[$p][$n]["label"]="$label"
+	# A submenu takes a letter like any other row when its caller has one
+	# to give. It mattered the moment Applications became the one way to
+	# every application: a row with no letter can only be reached by the
+	# arrows, which is fine for a folder among many and not for a door.
+	MI[$p][$n]["key"]="$key"
+	MI[$p][$n]["cmd"]=""
+	MI[$p][$n]["argc"]=0
+	MI[$p][$n]["sep"]=0
+	MI[$p][$n]["dim"]=0
+	MI[$p][$n]["tick"]=""
+	MI[$p][$n]["accel"]=
+	MI[$p][$n]["sub"]=$((MB_N - 1))
+	# Which menu owns this one, kept per menu rather than only in MB_PAR:
+	# MB_PAR is the one level dt_mdown came from, so a submenu inside a
+	# submenu had no way to say who its grandparent was and dt_drop drew
+	# only the last two, losing the top of the chain.
+	MB[$((MB_N - 1))]["par"]=$p
+	MB[$p]["n"]=$((n + 1))
+	dt_wide "$p" $((${#1} + 8))
+	MB_STACK="$p $MB_STACK"
+}
+
+# The letters the menu being declared has handed out so far, joined.
+dt_menukeys() {
+	local m=${MB_CUR:-$((MB_N - 1))} i=0 out=
+
+	while [ "$i" -lt "${MB[$m]["n"]:-0}" ]; do
+		out+=${MI[$m][$i]["key"]}
+		i=$((i + 1))
+	done
+	ret "$out"
+}
+
+# Finish a submenu and go back to the menu that owns it.
+dt_end() {
+	MB_CUR=${MB_STACK%% *}
+	MB_STACK=${MB_STACK#* }
+}
+
+# Remember the widest label a menu has to fit.
+fn dt_wide(int m, int w) {
+	[ "$w" -gt "${MB[$m]["w"]}" ] && MB[$m]["w"]=$w
+}
+
+# One row of a menu.  Everything above goes through here.  The command is
+# kept as its own words, a0..aN-1, not one joined string run split: a
+# dropdown's value is often a label with a space in it ("2:05 PM"), and
+# split it reached its callback as two arguments, the second one lost.
+# An empty word is still dropped, as splitting always dropped it: the
+# Control Strip's dropdowns pass an empty window id and rely on it never
+# reaching their callback.
+fn dt_row(tick, int dim, lb, k, ...rest) {
+	local m n i=0 a
+
+	if [ -n "$DT_KEYCOLLECT" ]; then
+		DT_KEYSEEN+=$k
+		return 0
+	fi
+	shift 4
+	case $DT_LANG in ?*) lb := dt_tr "$lb" ;; esac
+	m=${MB_CUR:-$((MB_N - 1))}
+	n=${MB[$m]["n"]}
+	MI[$m][$n]["label"]="$lb"
+	MI[$m][$n]["key"]="$k"
+	MI[$m][$n]["cmd"]="$*"
+	MI[$m][$n]["owner"]=$DT_CALLER
+	for a in "$@"; do
+		[ -z "$a" ] && continue
+		MI[$m][$n]["a$i"]=$a
+		i=$((i + 1))
+	done
+	MI[$m][$n]["argc"]=$i
+	MI[$m][$n]["sep"]=0
+	MI[$m][$n]["dim"]="$dim"
+	MI[$m][$n]["tick"]="$tick"
+	MI[$m][$n]["sub"]=
+	# Every field a row can carry is set here, accel included: the menus
+	# are rebuilt from index 0 each frame, so a row left with last frame's
+	# shortcut showed it -- "alt-..." stuck to a dropdown's or a context
+	# menu's label in a menu never widened for it (Gitea #313, the
+	# stale-field trap #169 recorded for par).
+	MI[$m][$n]["accel"]=
+	MB[$m]["n"]=$((n + 1))
+	dt_wide "$m" $((${#lb} + 8))
+}
+
+# The keyboard shortcut a row stands for, shown right-aligned and kept out
+# of the label. A label with the shortcut padded into it -- which is how the
+# Edit menu was built -- is a string no catalogue can hold, since it carries
+# the person's own key in it, so every one of those items stayed English in
+# a translated desktop (Gitea #200). It is the same trap as a percentage
+# inside a Control Panel row's own text (0.99.154), and the same answer:
+# beside the label, never inside it.
+#
+# Set on the row just added, so it reads under whichever builder made it --
+# dt_item, dt_dim or dt_mark -- rather than being a fourth builder with the
+# same body.
+fn dt_rowaccel(text) {
+	local m n
+
+	text := dt_keyshow "$text" short
+	m=${MB_CUR:-$((MB_N - 1))}
+	n=$((${MB[$m]["n"]} - 1))
+	[ "$n" -ge 0 ] || return 0
+	MI[$m][$n]["accel"]=$text
+	dt_wide "$m" $((${#MI[$m][$n]["label"]} + ${#text} + 10))
+	return 0
+}
+
+# The row just added, labelled exactly as given: another program's own
+# words -- a tray item's menu -- are never looked up in the desktop's
+# catalogue, where a program's "Quit" would become the desktop's.
+fn dt_rowtext(text) {
+	local m n
+
+	m=${MB_CUR:-$((MB_N - 1))}
+	n=$((${MB[$m]["n"]} - 1))
+	[ "$n" -ge 0 ] || return 0
+	MI[$m][$n]["label"]=$text
+	dt_wide "$m" $((${#text} + 8))
+	return 0
+}
+
+# The submenu just started, titled exactly as given, in its own row of the
+# menu that owns it and at its own top: the same, for dt_sub.
+fn dt_subtext(text) {
+	local p=${MB[$MB_CUR]["par"]-} n
+
+	MB[$MB_CUR]["title"]=$text
+	[ -n "$p" ] || return 0
+	n=$((${MB[$p]["n"]} - 1))
+	[ "$n" -ge 0 ] || return 0
+	MI[$p][$n]["label"]=$text
+	dt_wide "$p" $((${#text} + 8))
+	return 0
+}
+
+# Add a dividing line.
+dt_sep() {
+	local m=${MB_CUR:-$((MB_N - 1))} n
+
+	[ -n "$DT_KEYCOLLECT" ] && return 0
+	n=${MB[$m]["n"]}
+	MI[$m][$n]["sep"]=1
+	MI[$m][$n]["label"]=
+	MI[$m][$n]["key"]=
+	MI[$m][$n]["cmd"]=
+	MI[$m][$n]["argc"]=0
+	MI[$m][$n]["dim"]=0
+	MI[$m][$n]["tick"]=""
+	MI[$m][$n]["sub"]=
+	MI[$m][$n]["accel"]=
+	MB[$m]["n"]=$((n + 1))
+}

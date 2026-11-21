@@ -240,11 +240,6 @@ dt_deskscan() {
 	dt_rtsend tell dt_deskscan "$@"
 }
 
-# Declared to the desktop, wm/menus.hibr.
-fn dt_dim(label) {
-	dt_rtsend declare dt_dim "$label"
-}
-
 # Told to the desktop, wm/windows.hibr.
 fn dt_dlgat(int h, int w, int? m = "") {
 	dt_rtsend tell dt_dlgat "$h" "$w" "$m"
@@ -268,11 +263,6 @@ fn dt_editdo(op) {
 # Declared to the desktop, wm/menus.hibr.
 dt_editmenu() {
 	dt_rtsend declare dt_editmenu "$@"
-}
-
-# Declared to the desktop, wm/menus.hibr.
-dt_end() {
-	dt_rtsend declare dt_end "$@"
 }
 
 # Told to the desktop, wm/copying.hibr.
@@ -313,11 +303,6 @@ fn dt_identify(name, int row, int col, int rows, int cols) {
 # Asked of the desktop, wm/windows.hibr.
 dt_ids() {
 	dt_rtsend ask dt_ids "$@" && ret -k
-}
-
-# Declared to the desktop, wm/menus.hibr.
-dt_item() {
-	dt_rtsend declare dt_item "$@"
 }
 
 # Told to the desktop, wm/kbd.hibr.
@@ -371,18 +356,8 @@ fn dt_locof(p) {
 }
 
 # Declared to the desktop, wm/menus.hibr.
-fn dt_mark(lb, k, int on, ...rest) {
-	dt_rtsend declare dt_mark "$lb" "$k" "$on" "${rest[@]}"
-}
-
-# Declared to the desktop, wm/menus.hibr.
 dt_mclose() {
 	dt_rtsend declare dt_mclose "$@"
-}
-
-# Declared to the desktop, wm/menus.hibr.
-fn dt_menu(title) {
-	dt_rtsend declare dt_menu "$title"
 }
 
 # Told to the desktop, wm/appmode.hibr.
@@ -595,16 +570,6 @@ fn dt_retitle(int id, title) {
 	dt_rtsend ask dt_retitle "$id" "$title"
 }
 
-# Declared to the desktop, wm/menus.hibr.
-fn dt_rowaccel(text) {
-	dt_rtsend declare dt_rowaccel "$text"
-}
-
-# Declared to the desktop, wm/menus.hibr.
-fn dt_rowtext(text) {
-	dt_rtsend declare dt_rowtext "$text"
-}
-
 # Told to the desktop, wm/restart.hibr.
 fn dt_rscarry(int fd, int pid) {
 	dt_rtsend tell dt_rscarry "$fd" "$pid"
@@ -650,11 +615,6 @@ dt_sbscan() {
 	dt_rtsend ask dt_sbscan "$@"
 }
 
-# Declared to the desktop, wm/menus.hibr.
-dt_sep() {
-	dt_rtsend declare dt_sep "$@"
-}
-
 # Told to the desktop, wm/settings.hibr.
 fn dt_set(...pairs) {
 	dt_rtsend tell dt_set "${pairs[@]}"
@@ -678,16 +638,6 @@ fn dt_statadd(key) {
 # Asked of the desktop, wm/workspaces.hibr.
 fn dt_sticky(int id, on = "") {
 	dt_rtsend ask dt_sticky "$id" "$on"
-}
-
-# Declared to the desktop, wm/menus.hibr.
-fn dt_sub(label, key = "") {
-	dt_rtsend declare dt_sub "$label" "$key"
-}
-
-# Declared to the desktop, wm/menus.hibr.
-fn dt_subtext(text) {
-	dt_rtsend declare dt_subtext "$text"
 }
 
 # Declared to the desktop, wm/bar.hibr.

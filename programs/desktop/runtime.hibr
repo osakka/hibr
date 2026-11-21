@@ -182,9 +182,23 @@ fn dt_rtsend(verb, name, ...args) {
 		DT_RTPFX+=("${args[0]-}")
 		return 0
 	fi
+	# The Edit menu is the desktop's, like Window: where an app's _menus
+	# asks for it, a menu marked edit holds its place, and the desktop
+	# builds its own Edit there (wm/rtview.hibr), once a bar as ever.
+	if [ "$verb" = declare ] && [ "$name" = dt_editmenu ]; then
+		[ "$MB_EDITED" = 1 ] && return 0
+		MB_EDITED=1
+		dt_menu "Edit"
+		MB[$((MB_N - 1))]["edit"]=1
+		return 0
+	fi
 	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
 	case $verb in
-	tell) ;;
+	tell)
+		# A list of choices goes up built, with the words its namer gives
+		# each value, just before the request that opens it.
+		[ "$name" != dt_context_open ] || [ "${args[0]-}" != widget ] || dt_rtpoplist "${args[1]-}"
+		;;
 	ask)
 		dt_rtask "$name" "${args[@]}" && ret -k
 		return
@@ -373,6 +387,15 @@ fn dt_rtcall(seq, target, name, ...args) {
 	if [ "$target" = - ]; then
 		fn=$name
 	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ]; then
+		# Its menus or its context menu: built here and pushed when
+		# different from the last, never answered as a call.
+		case $name in
+		menus | context)
+			dt_rtbuild "$name" "$target"
+			[ "$seq" = 0 ] || dt_log "app runtime: the desktop asked for $name, which is pushed; not answered"
+			return 0
+			;;
+		esac
 		fn=${DT[$target]["app"]-}_$name
 	else
 		dt_log "app runtime: the desktop called $name of window $target, which this process does not draw; refused"
@@ -404,6 +427,79 @@ fn dt_rtcall(seq, target, name, ...args) {
 		k := dt_rtline took "$seq" "$st" - "" "$why"
 	fi
 	send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+	return 0
+}
+
+# MB and MI emptied for a build of this process's own.
+dt_rtmbreset() {
+	MB=()
+	MI=()
+	MB_N=0
+	MB_CUR=
+	MB_STACK=
+	MB_EDITED=0
+	DT_KEYCOLLECT=
+}
+
+# What _menus or _context of window id's app builds, with the builders the
+# desktop has (wm/menubuild.hibr), pushed as `menus APP JSON` or `context APP
+# JSON` when it differs from the last this process pushed: the window it was
+# built for, the menus and their rows, and whether Edit has its place. The
+# desktop builds the same rows again from it and uses the last it has; the
+# build is timed as the desktop times a callback.
+declare -gA DT_RTMSENT
+fn dt_rtbuild(kind, int id) {
+	local ap=${DT[$id]["app"]-} t0
+
+	[ -n "$ap" ] && dt_has "${ap}_$kind" || return 0
+	dt_rtmbreset
+	t0=${EPOCHREALTIME/./}
+	if [ "$kind" = menus ]; then
+		dt_appfn "$ap" "${ap}_menus"
+	else
+		dt_appfn "$ap" "${ap}_context" "$id"
+	fi
+	dt_spent "$kind:$ap" "$((${EPOCHREALTIME/./} - t0))" "$ap"
+	dt_rtmbpush "$kind" "$ap" "$id"
+}
+
+# A list of choices this process is opening (dt_dropat, then dt_context_open
+# widget): its rows built here, the namer giving each value its words where
+# the app is, and pushed as `context APP JSON` marked list, with the row it
+# starts on. Pushed every time, since opening a list is an event of its own.
+fn dt_rtpoplist(id = "") {
+	local ap=${DT[$id]["app"]-}
+
+	[ -n "$ap" ] || ap=${DT_RTPFX[0]-}
+	dt_rtmbreset
+	dt_dropcontext
+	dt_rtmbpush context "$ap" "$id" "$DT_POPSELONCE"
+	DT_POPSELONCE=
+}
+
+# Send what MB and MI hold now, as kind of app for window id: a list's
+# (sel set, even empty) always, the rest only when it differs.
+fn dt_rtmbpush(kind, ap, id = "", ...sel) {
+	local mb mi v j l
+
+	mb := json emit MB
+	mi := json emit MI
+	v=$id
+	j='{"id":'
+	v := json emit v
+	j+="$v,\"n\":$MB_N,\"edited\":$MB_EDITED"
+	if [ "${#sel[@]}" -gt 0 ]; then
+		v=${sel[0]}
+		v := json emit v
+		j+=",\"list\":1,\"sel\":$v"
+	elif [ "${DT_RTMSENT["$kind:$ap"]-}" = "$j,$mb,$mi" ]; then
+		return 0
+	else
+		DT_RTMSENT["$kind:$ap"]="$j,$mb,$mi"
+	fi
+	j+=",\"mb\":$mb,\"mi\":$mi}"
+	l := dt_rtline "$kind" "$ap" "$j"
+	send "$DT_RTFD" "$l" 2> /dev/null || dt_log "app runtime: the desktop has gone"
 	return 0
 }
 

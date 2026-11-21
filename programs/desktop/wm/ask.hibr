@@ -88,9 +88,19 @@ fn dtask_draw(int id, int h, int w, int row, int col) {
 	dt_dlgbtns "$id" "$h" "$w" "$f" ok OK cancel Cancel
 }
 
-# OK: hand the answer over, and close unless the callback refused it.
+# OK: hand the answer over, and close unless the callback refused it. Its
+# app's own process answers later (wm/rtview.hibr, which takes DT_RVTHEN):
+# the dialog stays until it says yes.
 fn dt_askok(int id) {
+	local DT_RVTHEN="dt_askdone $id"
+
 	dt_appfn "${DTA[$id]["owner"]-}" "${DTA[$id]["then"]}" "${DTA[$id]["buf"]}" "$id" || return 0
+	[ -z "$DT_RVTHEN" ] || dt_askdone "$id"
+}
+
+# The answer taken: the dialog goes, and its cancel is not run.
+fn dt_askdone(int id) {
+	dt_iswin "$id" || return 0
 	DTA[$id]["answered"]=1
 	dt_del "$id"
 }

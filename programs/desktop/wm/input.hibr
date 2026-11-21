@@ -242,8 +242,7 @@ dt_mouse() {
 					"$mods"
 				return 0
 			fi
-			if [ "$1" = right ] &&
-			   dt_has "${DT[$id]["app"]}_context"; then
+			if [ "$1" = right ] && dt_winhas "$id" context; then
 				dt_context_open "${DT[$id]["app"]}" "$id" \
 					"$mr" "$mc"
 				return 0
@@ -258,8 +257,7 @@ dt_mouse() {
 			return 0
 		fi
 		b := dt_btnat "$id" $((mc - wc))
-		if [ "$1" = left ] && [ -z "$b" ] &&
-		   dt_has "${DT[$id]["app"]}_titlemenu"; then
+		if [ "$1" = left ] && [ -z "$b" ] && dt_winhas "$id" titlemenu; then
 			case "-$mods-" in
 			*"-$DT_TITLEKEY-"*)
 				dt_appfn "${DT[$id]["app"]}" "${DT[$id]["app"]}_titlemenu" "$id" 0 $((mc - wc))

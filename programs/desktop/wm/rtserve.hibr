@@ -55,8 +55,11 @@ DT_RTWATCH=
 declare -gA DT_RTCFILE
 # The told requests interface.tsv names, which alone are carried; those
 # whose first word is a window; and, per app, the requests its own file
-# makes, read once from the file (never run) and kept by its path.
-declare -gA DT_RTALLOW DT_RTWIN DT_RTMAY DT_RTMAYOF
+# makes, read once from the file (never run) and kept by its path. And the
+# request each function of the app interface reaches on the app's behalf
+# (interface.tsv's reaches): a file naming dt_droplist may open a list,
+# which dt_context_open does, though its text never names that.
+declare -gA DT_RTALLOW DT_RTWIN DT_RTMAY DT_RTMAYOF DT_RTREACH
 # The asked and waited requests interface.tsv names: an app waits for each
 # one's answer (dt_rtask in runtime.hibr), which the desktop sends once what
 # the request changed has gone out, so a read after it sees it. `bind` for one
@@ -90,7 +93,8 @@ dt_rtlisten() {
 	fi
 	DT_RTPATH=$p
 	export DT_RTSOCK=$p
-	while IFS=$'\t' read -r c f _ _ _ a _ sg _; do
+	while IFS=$'\t' read -r c f _ _ _ a x sg _; do
+		[ "$c" != local ] || [ "$x" = - ] || DT_RTREACH["$f"]=${x##* }
 		[ "$c" = request ] || continue
 		case $a in
 		told) DT_RTALLOW["$f"]=1 ;;
@@ -634,6 +638,9 @@ fn dt_rtmay(name) {
 	for f in "${!DT_RTALLOW[@]}" "${!DT_RTASK[@]}"; do
 		[[ $t == *"$f"* ]] && DT_RTMAY["$name $f"]=1
 	done
+	for f in "${!DT_RTREACH[@]}"; do
+		[[ $t == *"$f"* ]] && DT_RTMAY["$name ${DT_RTREACH["$f"]}"]=1
+	done
 	# The settings it may change through dt_set: a kept one its own file
 	# names as a word (ADR 0050: accepted only for a setting it declares).
 	for f in "${DT_KEEP[@]}"; do
@@ -762,6 +769,9 @@ fn dt_rtmsg(int c, line) {
 		;;
 	took)
 		dt_rvtook "$c" "${a[1]-}" "${a[2]-}"
+		;;
+	menus | context)
+		dt_rvpush_in "$c" "${a[@]}"
 		;;
 	*)
 		dt_log "app runtime: $who sent ${a[0]-nothing}, which is not carried yet"
