@@ -246,7 +246,7 @@ try:
           "♪ 50%" in bar(sc), bar(sc))
     sc = srun([], env={"DT_GLYPHSET": "blit"})
     check("and with Blit's glyphs it is Blit's two-cell speaker",
-          chr(0x1002E8) + chr(0x1002E9) + " 50%" in bar(sc), bar(sc))
+          chr(0x1012E8) + chr(0x1012E9) + " 50%" in bar(sc), bar(sc))
 
     # The suites' own desktops have no sound layer at all (tests/screen.py),
     # which is what keeps random input off a real machine's volume.

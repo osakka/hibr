@@ -906,7 +906,7 @@ def blitheld(cap2):
 r1, r2, said, s2 = blitheld([])
 check("hold says which displays are Blit: one yes, the other no",
       "one yes" in said and "two no" in said, said)
-check("a Blit display is sent Blit's glyphs and its framed title", b"\xf4\x80\x8a\xae" in r1
+check("a Blit display is sent Blit's glyphs and its framed title", b"\xf4\x81\x8a\xae" in r1
       and b";51" in r1, r1[-300:])
 check("a display that is not Blit is sent none of them", not BLITFONT.search(r2),
       BLITFONT.findall(r2)[:5])

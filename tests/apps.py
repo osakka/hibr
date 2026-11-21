@@ -435,11 +435,11 @@ def folderlook():
     check("a background's text is dark on a light colour and light on a dark one",
           "white=#ffffff #000000" in out and "dark=#2b2b33 #f0f0f0" in out
           and "theme=[]" in out, out)
-    # U+10022D and U+10022E, Blit's PNG icon, as UTF-8.
+    # U+10122D and U+10122E, Blit's PNG icon, as UTF-8.
     check("in the blit set a PNG is Blit's large PNG icon, one look whatever "
           "the colourway, a folder in the colourway chosen, and a drag's label keeps "
           "the small glyph",
-          "big=364200210255364200210256" in out.replace(" ", "")
+          "big=364201210255364201210256" in out.replace(" ", "")
           and "blue-ok" in out and "folder-blue" in out and "small-ok" in out, out)
     check("a window's title is its folder's name by default, and the path when asked",
           "title Files [sub]" in out and "title Files [%s/sub]" % fd in out, out)

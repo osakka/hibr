@@ -632,6 +632,12 @@ os.environ["PULSE_SERVER"] = "unix:/nonexistent/hibr-test"
 os.environ["HIBR_NET"] = "none"
 # Nor its Bluetooth (Gitea #312); tests/bt.py gives its own a stand-in.
 os.environ["HIBR_BT"] = "none"
+# Nor its Blit: the desktop reads Blit's catalogue where one is installed,
+# and this box's may be older or newer than the generated table, with its
+# icons at other code points. Every session draws from wm/blit-glyphs.json,
+# which tests/542-blit-glyphs.t holds to the newest Blit; a check about the
+# catalogue gives DT_BLITCAT itself.
+os.environ["DT_BLITCAT"] = "/nonexistent/hibr-test"
 # Nor its session bus (Gitea #505): a test desktop is the tray's watcher on
 # whatever bus it finds, and on this machine's own that is the name the
 # person's real desktop holds. Empty is "no bus" to the dbus module, which

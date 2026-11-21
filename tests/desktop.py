@@ -768,7 +768,7 @@ check("and nothing of it is left behind",
 # Nerd Font's own for the style chosen, where unicode draws a text symbol.
 sc, _ = run(ONE, pre="DT_GLYPHSET=blit")
 check("with the Blit glyphs the bar wears Blit's pen and a Nerd notification icon",
-      sc.row(0).lstrip().startswith(chr(0x100001)) and chr(0xf024) in sc.row(0)
+      sc.row(0).lstrip().startswith(chr(0x101001)) and chr(0xf024) in sc.row(0)
       and "⚑" not in sc.row(0), sc.row(0))
 sc, _ = run(ONE)
 check("and with the unicode glyphs, the pen and the flag it always had",
@@ -1258,8 +1258,8 @@ GLYPHPARTS = ("stripe stripe-first stripe-last stripe-before-title "
               "default-button-right").split()
 GLYPHNAME = {}
 for _i, _n in enumerate(GLYPHPARTS):
-    GLYPHNAME[0x100231 + _i] = "C:" + _n
-    GLYPHNAME[0x100254 + _i] = "S:" + _n
+    GLYPHNAME[0x101231 + _i] = "C:" + _n
+    GLYPHNAME[0x101254 + _i] = "S:" + _n
 for _i, _n in enumerate(("F:frame-left F:frame-right F:frame-bottom-left F:frame-bottom "
                          "F:frame-bottom-right C:title-end-left C:title-end-right "
                          "S:title-end-left S:title-end-right C:title-end-plain-left "
@@ -1267,7 +1267,7 @@ for _i, _n in enumerate(("F:frame-left F:frame-right F:frame-bottom-left F:frame
                          "S:title-end-plain-right C:close-pressed C:shade-pressed "
                          "C:zoom-pressed C:grow C:grow-pressed S:close-pressed "
                          "S:shade-pressed S:zoom-pressed S:grow S:grow-pressed").split()):
-    GLYPHNAME[0x1002AE + _i] = _n
+    GLYPHNAME[0x1012AE + _i] = _n
 
 
 def glyphrow(sc, r, c0, n):
@@ -1289,7 +1289,7 @@ CHALK = ("DT_GLYPHSET=blit; DT_FRAME=edge; DT_TITLEBAR=chalk; DT_BTNSTYLE=chalk;
          "DT_BTNORDER='close title shade max min'; DT_BTNON='close shade max'\n")
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK.replace("DT_BTNON='close shade max'", "DT_BTNON='close shade max min'"))
 check("and Blit's boxes have a minimise of their own",
-      "\U001002CD" in sc.row(2), sc.row(2))
+      "\U001012CD" in sc.row(2), sc.row(2))
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK)
 row = glyphrow(sc, 2, 2, 24)
 check("a Chalk title bar with Chalk buttons split is Blit's layout, cell for cell",
@@ -1416,8 +1416,8 @@ check("a Frame that is no longer one is drawn single", sc.g[2][2] == "┌" and
 # Blit's glyphs come from its own catalogue where the machine has one, by id,
 # and from the table generated from it where it has not.
 BCAT = scratch("blitcat.json")
-json.dump({"icons": [{"id": "wifi-signal-1", "codepoint": "100003"}], "cell_geometry": [
-    {"id": "frame-left", "codepoint": "1002AF"}, {"id": "chalk-stripe", "codepoint": "100231"}]},
+json.dump({"icons": [{"id": "wifi-signal-1", "codepoint": "101003"}], "cell_geometry": [
+    {"id": "frame-left", "codepoint": "1012AF"}, {"id": "chalk-stripe", "codepoint": "101231"}]},
     open(BCAT, "w"))
 BOUT = scratch("blitout")
 sc, _ = run('printf "%%s" "${GL[wifi1]}" > %s\ndt_new Notes 6 24 2 2\n' % BOUT,
@@ -1425,12 +1425,16 @@ sc, _ = run('printf "%%s" "${GL[wifi1]}" > %s\ndt_new Notes 6 24 2 2\n' % BOUT,
 BWIDE = scratch("blitwide")
 run('printf "%%s" "${GL[phoneoffcw]}" > %s\ndt_new Notes 6 24 2 2\n' % BWIDE, pre="DT_GLYPHSET=blit\n")
 check("a two-cell glyph is its two halves side by side",
-      open(BWIDE, encoding="utf8").read() == "\U001002EC\U001002ED",
+      open(BWIDE, encoding="utf8").read() == "\U001012EC\U001012ED",
       repr(open(BWIDE, encoding="utf8").read()))
 check("this machine's catalogue says which codepoint a glyph is",
-      open(BOUT, encoding="utf8").read() == "\U00100003", repr(open(BOUT, encoding="utf8").read()))
+      open(BOUT, encoding="utf8").read() == "\U00101003", repr(open(BOUT, encoding="utf8").read()))
+# The corner is the grow box, which the scratch catalogue lacks too, so it is
+# the set's own; nothing on the bottom row is one of Blit's.
 check("and a glyph it does not have is not drawn: no bottom corner, no Edge frame's "
-      "bottom, and the nerd set's where there is one", sc.g[7][25] != "\U001002B2", sc.g[7][25])
+      "bottom, and the nerd set's where there is one",
+      sc.g[7][25] == chr(0x25E2) and
+      not any(g and ord(g[0]) >= 0x100000 for g in sc.g[7][2:26]), glyphrow(sc, 7, 2, 24))
 open(BCAT, "w").write("{ not a catalogue")
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=CHALK + "DT_BLITCAT=%s\n" % BCAT)
 check("a catalogue that cannot be read falls to the generated table",
@@ -1458,16 +1462,16 @@ def chkcells(style, blit=True, bar="line"):
 
 sc, on = chkcells("box", bar="chalk")
 check("a box under a Flat title bar is Blit's flat box, the label a cell on",
-      on[0] == 0x10029B and sc.find("On") == (3, 5), [hex(x) for x in on])
+      on[0] == 0x10129B and sc.find("On") == (3, 5), [hex(x) for x in on])
 sc, on = chkcells("box", bar="slate")
 check("and under Embossed its embossed box",
-      on[0] > 0x100000 and on[0] != 0x10029B and sc.find("On") == (3, 5), [hex(x) for x in on])
+      on[0] == 0x10129E and sc.find("On") == (3, 5), [hex(x) for x in on])
 sc, on = chkcells("box")
 check("and under any other title bar a plain box",
       sc.find("[x]") is not None, [hex(x) for x in on])
 sc, on = chkcells("capsule")
 check("and capsule its three-cell switch, side by side, the label after it",
-      on[:3] == [0x1002AB, 0x1002AC, 0x1002AD] and sc.find("On") == (3, 7), [hex(x) for x in on])
+      on[:3] == [0x1012AB, 0x1012AC, 0x1012AD] and sc.find("On") == (3, 7), [hex(x) for x in on])
 sc, on = chkcells("capsule", blit=False)
 check("and away from Blit's glyphs a switch is a knob",
       sc.find("o)") is not None or sc.find("●)") is not None, sc)
@@ -9470,7 +9474,7 @@ check("and a mark while it charges", "\u21af\u2584 62%" in sc.row(0), sc.row(0))
 sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="blit", BLIT_VERSION=None),
             pre=PWPRE)
 check("with the blit glyph set a charging battery is one picture",
-      "\U00100302\U00100303 62%" in sc.row(0) and "\uf0e7" not in sc.row(0), sc.row(0))
+      "\U00101302\U00101303 62%" in sc.row(0) and "\uf0e7" not in sc.row(0), sc.row(0))
 sc, _ = run("", env=dict(PWENV, DT_GLYPHSET="nerd", BLIT_VERSION="0.2.40"),
             pre=PWPRE)
 check("and with nerd it is the bolt and the battery, whatever Blit says",
@@ -9478,11 +9482,11 @@ check("and with nerd it is the bolt and the battery, whatever Blit says",
 sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": None,
                      "DT_MENUMARK": "hui"})
 check("with the blit glyph set Menu Mark hui is the hibr menu's mark",
-      sc.row(0).lstrip().startswith("\U00100018\U00100019"), sc.row(0))
+      sc.row(0).lstrip().startswith("\U00101018\U00101019"), sc.row(0))
 sc, _ = run("", env={"DT_GLYPHSET": "blit", "BLIT_VERSION": None,
                      "DT_MENUMARK": "mark"})
 check("and Menu Mark mark its monogram",
-      sc.row(0).lstrip().startswith("\U001002C5\U001002C6"), sc.row(0))
+      sc.row(0).lstrip().startswith("\U001012C5\U001012C6"), sc.row(0))
 sc, _ = run("", env={"DT_GLYPHSET": "unicode", "DT_MENUMARK": "hui"})
 check("and with another set the mark stays its own",
       sc.row(0).lstrip().startswith("\u270e"), sc.row(0))
@@ -10110,7 +10114,7 @@ check("and so does the menu bar, at its own percentage",
 CURVED = BARAPP.replace("DT_TITLEBAR=solid", "DT_TITLEBAR=curved")
 sc, _ = run(CURVED, env={"DT_GLYPHSET": "blit"})
 check("a curved title bar rounds its top corners with Blit's own cells",
-      sc.g[6][10] == "\U00100007" and sc.g[6][39] == "\U00100008", sc)
+      sc.g[6][10] == "\U00101007" and sc.g[6][39] == "\U00101008", sc)
 sc, _ = run(CURVED)
 check("and where the glyph set has no such cell its ends are square, as a "
       "solid bar's are", sc.g[6][10] == " " and sc.g[6][39] == " " and
@@ -10118,7 +10122,7 @@ check("and where the glyph set has no such cell its ends are square, as a "
 sc, _ = run(CURVED.replace("DT_FRAME=none", "DT_FRAME=single"),
             env={"DT_GLYPHSET": "blit"})
 check("and over a bordered frame too: the corners are curved, the sides lined",
-      sc.g[6][10] == "\U00100007" and sc.g[6][39] == "\U00100008" and
+      sc.g[6][10] == "\U00101007" and sc.g[6][39] == "\U00101008" and
       sc.g[9][10] != " " and sc.g[13][10] != " ", sc)
 # With no border and a line title, the title sits on the window's face: there
 # is no line for it to be in, and nothing filled.
@@ -10325,10 +10329,10 @@ check("the state a crash leaves has the window as it goes back",
 FSBTN = CHALK.replace("DT_BTNON='close shade max'", "DT_BTNON='close full sticky'")
 sc, _ = run('dt_new Notes 6 24 2 2\n', pre=FSBTN)
 check("Full Screen and Sticky are Blit's own boxes on a Flat title bar",
-      chr(0x10030A) in sc.row(2) and chr(0x10030E) in sc.row(2), sc)
+      chr(0x10130A) in sc.row(2) and chr(0x10130E) in sc.row(2), sc)
 sc, _ = run('W := dt_new Notes 6 24 2 2\ndt_sticky "$W"\n', pre=FSBTN)
 check("and a sticky window's box says it is",
-      chr(0x100310) in sc.row(2) and chr(0x10030E) not in sc.row(2), sc)
+      chr(0x101310) in sc.row(2) and chr(0x10130E) not in sc.row(2), sc)
 sc, _ = run('dt_new Notes 6 24 2 2\n', [lambda s: press(*s.find("#")),
                                        lambda s: release(*s.find("#")), 0.5],
             env={"DT_BTNON": "close full"})
@@ -10347,7 +10351,7 @@ if os.path.exists(_pwf):
 run(_pws, env={"DT_GLYPHSET": "blit"})
 _pwl = open(_pwf).read().split("\n") if os.path.exists(_pwf) else []
 check("the bar's battery is Blit's two cells, charging and on mains too",
-      [ord(x[0]) for x in _pwl[:3] if x] == [0x1002F8, 0x100302, 0x100308] and
+      [ord(x[0]) for x in _pwl[:3] if x] == [0x1012F8, 0x101302, 0x101308] and
       all(len(x) == 2 for x in _pwl[:3]), _pwl)
 
 
