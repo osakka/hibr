@@ -36,7 +36,7 @@ b = dbus.SessionBus()
 o = b.get_object("org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver")
 s = dbus.Interface(o, "org.freedesktop.ScreenSaver")
 c = s.Inhibit("player", "video")
-open(d + "/cookie", "w").write("%d\n" % c)
+open(d + "/cookie.tmp", "w").write("%d\n" % c); os.rename(d + "/cookie.tmp", d + "/cookie")
 while not os.path.exists(d + "/release"):
     time.sleep(0.02)
 s.UnInhibit(c)
@@ -44,7 +44,7 @@ open(d + "/released", "w").close()
 while not os.path.exists(d + "/again"):
     time.sleep(0.02)
 c = s.Inhibit("player", "video again")
-open(d + "/cookie2", "w").write("%d\n" % c)
+open(d + "/cookie2.tmp", "w").write("%d\n" % c); os.rename(d + "/cookie2.tmp", d + "/cookie2")
 while True:
     time.sleep(1)
 E
