@@ -206,7 +206,8 @@ begins with a dash.
 .BI \-d " level"
 Log at
 .IR level :
-0 errors, 1 warnings (the default), 2 information, 3 debugging, 4 tracing.
+error, warning (the default), info, debug or trace, or 0 to 4; the same
+setting as HIBR_LOGLEVEL.
 .TP
 .BR \-v ", " \-\-version
 Print the version and the module ABI, and exit.
@@ -319,10 +320,20 @@ for a server signed by your own authority. Unlike OpenSSL's own
 .BR SSL_CERT_FILE ,
 which replaces the default CA file, this adds to it. Empty counts as unset.
 .TP
-.B HIBR_DEBUG
-The log level, as
+.B HIBR_LOGLEVEL
+The log level: what the shell and its modules write to standard error.
+One of error, warning (the default), info, debug or trace, or 0 to 4.
+It is read at startup, as
 .B \-d
-sets it; read once, at startup.
+sets it, and set again at any time, so a prefix
+(\fBHIBR_LOGLEVEL=debug\fR \fIcommand\fR) raises it for one command. A value
+that is not a level is refused and the level is left as it was. In the log
+.B "set \-o logtime"
+keeps, a line below error is tagged with its level after
+.B hibr:
+(so a warning is never read as an error), and a line that repeats from one
+place is written once and then counted. This replaces HIBR_DEBUG, which is
+no longer read.
 .TP
 .B HIBR_BIDI
 Set to

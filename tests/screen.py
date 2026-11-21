@@ -658,7 +658,7 @@ CLIENT = b"\x1b]7777;client\x07"
 # in a newline is never something drawn on screen. Every session is scanned
 # as it closes, and report() fails a suite in which any printed one -- the
 # too-many-arguments or command-not-found that used to scroll past unseen.
-ERROR = re.compile(rb"(?<![\w./-])hibr: ([^\r\n\x1b]*)\r?\n")
+ERROR = re.compile(rb"(?<![\w./-])hibr: (?!(?:warning|info|debug|trace): )([^\r\n\x1b]*)\r?\n")
 ERRS = []
 TERMS = [0]
 EXPECTED = []

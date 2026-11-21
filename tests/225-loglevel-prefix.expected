@@ -1,0 +1,9 @@
+0
+before: warning
+after a prefix: warning
+declare -x HIBR_LOGLEVEL="error"
+after declare: warning
+hibr: HIBR_LOGLEVEL: nonsense is not a level: error, warning, info, debug, trace, or 0 to 4
+after a refused one: warning
+inside: info
+after a function: warning
