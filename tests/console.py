@@ -245,6 +245,16 @@ check("each framing kind is SGR 51 with its own sub-parameter, and line= is SGR 
       re.search(rb"\x1b\[0;51:2;[0-9;]*mc", d) is not None and
       re.search(rb"\x1b\[0;51:5;[0-9;]*mf", d) is not None and
       re.search(rb"\x1b\[0;51;[0-9;]*;58:2::168:168:176me", d) is not None, d[-400:])
+# A key cap's bevel (Blit ADR 0237, Gitea #604): 51:6 raised and 51:7
+# pressed, the light edge the foreground and the dark edge the line colour.
+o, _ = run('console open\nconsole flush\n'
+           'console pen "#cbd5e0" "#2d3748" framed-raised "line=#0a0e14"\nconsole put 1 1 "g"\n'
+           'console pen "#cbd5e0" "#2d3748" framed-pressed "line=#0a0e14"\nconsole put 1 3 "h"\n'
+           'console flush\nconsole close\n')
+d = drawn(o)
+check("a key cap's cells are SGR 51:6 raised and 51:7 pressed, the dark edge SGR 58",
+      re.search(rb"\x1b\[0;51:6;[0-9;]*;58:2::10:14:20mg", d) is not None and
+      re.search(rb"\x1b\[0;51:7;[0-9;]*;58:2::10:14:20mh", d) is not None, d[-400:])
 # A shadow the terminal draws, Blit's SGR 66 (ADR 0211): the cells keep what
 # they hold, and an ordinary write takes it off again.
 o, _ = run('console open\nconsole flush\nconsole pen white blue\nconsole put 1 1 "ab"\n'
@@ -1149,4 +1159,4 @@ for x in FKS:
     if os.path.exists(x):
         os.unlink(x)
 
-report(len(WANT) + len(MWANT) + 138)
+report(len(WANT) + len(MWANT) + 139)

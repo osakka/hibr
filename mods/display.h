@@ -29,7 +29,9 @@
    title's cells are outlined (Blit ADR 0210). It is a kind, not a flag,
    held in three bits of the attributes as SGR 51's own sub-parameter: 1
    thin, 3 thick, 2 a Slate title bar's rows (4 is the same), 5 a rule
-   along the cell's bottom edge alone (a note's strip). Nothing
+   along the cell's bottom edge alone (a note's strip), and 6 and 7 a key
+   cap's bevel across the cell, raised and pressed (Blit ADR 0237): its
+   light edge in the foreground, its dark one in the line colour. Nothing
    asks for it unless a pen names it, so a terminal that has never heard of
    SGR 51 is never sent one. */
 #ifndef DP_FRAME
@@ -40,6 +42,8 @@
 #define DP_FRTHICK (3u << DP_FRSHIFT)
 #define DP_FRSLATEDARK (4u << DP_FRSHIFT)
 #define DP_FRRULE (5u << DP_FRSHIFT)
+#define DP_FRRAISED (6u << DP_FRSHIFT)
+#define DP_FRPRESSED (7u << DP_FRSHIFT)
 #endif
 
 /* A window's shadow as Blit draws it, SGR 66 (Blit ADR 0211): a thin line

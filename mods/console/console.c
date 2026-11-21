@@ -464,6 +464,10 @@ unsigned cn_attr(const char *t)
 		return DP_FRSLATE;
 	if (!strcmp(t, "framed-rule"))
 		return DP_FRRULE;
+	if (!strcmp(t, "framed-raised"))
+		return DP_FRRAISED;
+	if (!strcmp(t, "framed-pressed"))
+		return DP_FRPRESSED;
 	return 0;
 }
 

@@ -1072,6 +1072,10 @@ FRAMED = ('console pen "#000000" "#dddddd" framed-thick "line=#a8a8b0"\n'
           'console put 3 2 "Title"\n'
           'console pen "#000000" "#fff3a0" framed-rule\n'
           'console put 4 2 "Strip"\n'
+          'console pen "#cbd5e0" "#2d3748" framed-raised "line=#0a0e14"\n'
+          'console put 5 2 "Up"\n'
+          'console pen "#cbd5e0" "#2d3748" framed-pressed "line=#0a0e14"\n'
+          'console put 5 6 "Dn"\n'
           "console pen '#ffffff' '#000000'\nconsole put 6 2 HELD\nconsole flush\n")
 fsc, _ = run(FRAMED)
 ok = fsc.find("OK")
@@ -1086,6 +1090,15 @@ check("and a Slate title's cells keep their own kind, a note strip's rule its ow
       "58:" not in fsc.p[ti[0]][ti[1]] and
       ru is not None and "51:5" in fsc.p[ru[0]][ru[1]],
       (ti and fsc.p[ti[0]][ti[1]], ru and fsc.p[ru[0]][ru[1]]))
+up = fsc.find("Up")
+dn = fsc.find("Dn")
+check("and a key cap's cells keep their bevel, raised 51:6 and pressed 51:7, "
+      "with the dark edge's line colour (Blit ADR 0237)",
+      up is not None and "51:6" in fsc.p[up[0]][up[1]] and
+      "58:2::10:14:20" in fsc.p[up[0]][up[1]] and
+      dn is not None and "51:7" in fsc.p[dn[0]][dn[1]] and
+      "58:2::10:14:20" in fsc.p[dn[0]][dn[1]],
+      (up and fsc.p[up[0]][up[1]], dn and fsc.p[dn[0]][dn[1]]))
 
 
 def paired(raw):
@@ -2247,4 +2260,4 @@ check("a window zoomed through a smaller mode and back, un-zoomed, is where it "
       and rgeom(z3, "Wide") == rwas("Wide"), rshow(z1) + "\n" + rshow(z2) + "\n" + rshow(z3))
 
 shutil.rmtree(D, True)
-report(120)
+report(121)
