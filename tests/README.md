@@ -227,6 +227,15 @@ More tools sit around it:
   catalogue's `addapp` is to run over a bundle before it is indexed
   (Gitea #541). `glyphs` reads text, since what a string holds is the one
   thing `inspect` does not disclose.
+- **`tests/idlepass.py`** -- what one idle pass of `dt_run` costs, in
+  instructions under callgrind, never by the clock (ADR 0050, Decision 8:
+  inert prototype code once cost 135 us a pass and nothing noticed). The
+  real loop on a pty with the tree's installables loaded; a ticker counts
+  the passes and ends the desktop at the Nth, and 20 passes subtracted
+  from 60 leave one pass with startup and load cancelled. Held under a
+  bound that fails a 100 us slowdown put in the loop on purpose. Needs
+  valgrind, and fails without it; under the sanitizers, whose build no
+  count describes, it checks only that the passes run.
 - **`tests/inputlat.py`** -- how long the person's input takes to reach
   the screen, per app (ADR 0050's sensitivity requirement,
   `wm/latency.hibr`): an app whose key and the draw after it each stay

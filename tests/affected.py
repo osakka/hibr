@@ -108,7 +108,7 @@ DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_sessio
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt", "archives", "holdrenew", "native",
                                          "traymod", "rtchan", "onset", "stale", "audience", "appseam", "inputlat", "saverload", "superdrag", "hoverwant", "hosted",
-                                         "keepawake", "natscale", "widgetroles")
+                                         "keepawake", "natscale", "widgetroles", "idlepass")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 
@@ -279,6 +279,11 @@ def path_suites(path, req, prov, where, desk=None, since=None):
         return {"appmgr", "upgrade", "run.sh"}, "the application manager"
     if path.startswith(("docs/", "examples/", "programs/")):
         return {"run.sh"}, "documentation, an example or a program (530/540)"
+    # The surveys tests/appcalls.py runs: a change to one is a change to
+    # what that suite checks, not something outside the suites.
+    if path in ("tools/appcalls.py", "tools/appstate.py", "tools/callsites.py",
+                "tools/seamcalls.py", "tools/hostaudit.py"):
+        return {"appcalls"}, "a survey tests/appcalls.py runs"
     if path.startswith(("packaging/", "tools/", ".git")) or path in (
             "LICENSE", "COPYING", "TRADEMARKS", ".gitignore"):
         return set(), "outside what the suites run"
