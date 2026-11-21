@@ -55,9 +55,9 @@ fn dt_appvia(name, title, via, arg = "", dir = "") {
 	dt_rtsend tell dt_appvia "$name" "$title" "$via" "$arg" "$dir"
 }
 
-# Told to the desktop, wm/ask.hibr.
+# Asked of the desktop, wm/ask.hibr.
 fn dt_ask(title, label, value, then, hint = "", masked = "", int width = 54, cancelled = "") {
-	dt_rtsend tell dt_ask "$title" "$label" "$value" "$then" "$hint" "$masked" "$width" "$cancelled"
+	dt_rtsend ask dt_ask "$title" "$label" "$value" "$then" "$hint" "$masked" "$width" "$cancelled" && ret -k
 }
 
 # Declared to the desktop, wm/apps.hibr.
@@ -218,11 +218,6 @@ dt_close_focused() {
 # Told to the desktop, wm/windows.hibr.
 fn dt_closereq(int id) {
 	dt_rtsend tell dt_closereq "$id"
-}
-
-# Told to the desktop, wm/wallpaper.hibr.
-dt_colours() {
-	dt_rtsend tell dt_colours "$@"
 }
 
 # Told to the desktop, wm/confirm.hibr.
@@ -405,11 +400,6 @@ dt_natcell() {
 	dt_rtsend tell dt_natcell "$@"
 }
 
-# Told to the desktop, wm/native.hibr.
-dt_natlayout() {
-	dt_rtsend tell dt_natlayout "$@"
-}
-
 # Asked of the desktop, wm/windows.hibr.
 fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	dt_rtsend ask dt_new "$title" "$h" "$w" "$row" "$col" "$ap" "$arg" && ret -k
@@ -570,11 +560,6 @@ fn dt_progput(key, name, cmd, dir, term, hidden) {
 	dt_rtsend tell dt_progput "$key" "$name" "$cmd" "$dir" "$term" "$hidden"
 }
 
-# Told to the desktop, wm/programs.hibr.
-dt_progsave() {
-	dt_rtsend tell dt_progsave "$@"
-}
-
 # Asked of the desktop, wm/input.hibr.
 dt_ptrlockcan() {
 	dt_rtsend ask dt_ptrlockcan "$@"
@@ -588,11 +573,6 @@ dt_pwcrit() {
 # Told to the desktop, wm/machine.hibr.
 fn dt_pwdo(what) {
 	dt_rtsend tell dt_pwdo "$what"
-}
-
-# Told to the desktop, wm/machine.hibr.
-dt_pwgo() {
-	dt_rtsend tell dt_pwgo "$@"
 }
 
 # Told to the desktop, wm/windows.hibr.
@@ -690,11 +670,6 @@ dt_shot() {
 	dt_rtsend tell dt_shot "$@"
 }
 
-# Told to the desktop, wm/session.hibr.
-dt_size() {
-	dt_rtsend tell dt_size "$@"
-}
-
 # Told to the desktop, wm/budget.hibr.
 fn dt_statadd(key) {
 	dt_rtsend tell dt_statadd "$key"
@@ -750,9 +725,9 @@ dt_trashcount() {
 	dt_rtsend declare dt_trashcount "$@"
 }
 
-# Asked of the desktop, wm/vault.hibr.
+# Told to the desktop, wm/vault.hibr.
 fn dt_vw(input, ...args) {
-	dt_rtsend ask dt_vw "$input" "${args[@]}"
+	dt_rtsend tell dt_vw "$input" "${args[@]}"
 }
 
 # Asked of the desktop, wm/vault.hibr.
