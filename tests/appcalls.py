@@ -40,6 +40,17 @@ if seam.returncode:
     fails += ["FAIL " + l for l in said] or ["FAIL tools/seamcalls.py --check exited %d" % seam.returncode]
 if state.returncode:
     fails.append((state.stdout + state.stderr).strip().splitlines()[-1])
+# Whether each installable can run in a process of its own (ADR 0050,
+# Decision 8): the tree's half -- a call by a platform prefix to a function
+# no file defines, and calls into a separate installable held to a count
+# that only lowers. The catalogue's half is report-only (tools/hostaudit.py
+# with no flag), since it is other sessions' tree.
+host = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "hostaudit.py"), "--check"],
+                      cwd=ROOT, env=env, capture_output=True, text=True)
+fails += [l for l in (host.stdout + host.stderr).splitlines() if l.startswith("FAIL")]
+if host.returncode and not [l for l in host.stdout.splitlines() if l.startswith("FAIL")]:
+    fails.append("FAIL tools/hostaudit.py --check exited %d: %s" % (host.returncode,
+                 (host.stdout + host.stderr).strip()[-300:]))
 passed = 0
 for l in out.splitlines():
     if l.endswith("failed") and " passed, " in l:
