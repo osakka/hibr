@@ -13,6 +13,7 @@
 #define CT_NUMC "\033[38;5;173m"
 #define CT_KEY "\033[38;5;110m"
 #define CT_CMT "\033[38;5;245;3m"
+#define CT_FN "\033[38;5;176m"
 #define CT_HEAD "\033[1m"
 #define CT_OFF "\033[0m"
 
@@ -233,6 +234,22 @@ void ct_run(str *out, const char *p, size_t n, ct_opt *o)
 		i += (size_t)ct_put(out, p + i, n - i, o);
 }
 
+/* The block a C, Python or Markdown line left open, or none. */
+int ct_blk(const ct_opt *o)
+{
+	return o->hs.n ? (unsigned char)o->hs.p[0] : CT_BLK_NONE;
+}
+
+/* Say which block a C, Python or Markdown line leaves open. */
+void ct_setblk(ct_opt *o, int b)
+{
+	o->hs.n = 0;
+	if (b != CT_BLK_NONE)
+		s_ch(&o->hs, b);
+	else if (o->hs.p)
+		o->hs.p[0] = 0;
+}
+
 /* The text that closes the block we are inside, or null. */
 const char *ct_close(int blk)
 {
@@ -254,13 +271,13 @@ void ct_md(str *out, const char *p, size_t n, ct_opt *o)
 	const char *col = 0;
 
 	if (n >= 3 && !strncmp(p, "```", 3)) {
-		o->blk = o->blk == CT_BLK_FENCE ? CT_BLK_NONE : CT_BLK_FENCE;
+		ct_setblk(o, ct_blk(o) == CT_BLK_FENCE ? CT_BLK_NONE : CT_BLK_FENCE);
 		s_cat(out, CT_CMT);
 		ct_run(out, p, n, o);
 		s_cat(out, CT_OFF);
 		return;
 	}
-	if (o->blk == CT_BLK_FENCE) {
+	if (ct_blk(o) == CT_BLK_FENCE) {
 		s_cat(out, CT_STR);
 		ct_run(out, p, n, o);
 		s_cat(out, CT_OFF);
@@ -283,22 +300,395 @@ void ct_md(str *out, const char *p, size_t n, ct_opt *o)
 /* Finish a block that began on an earlier line, and say where it ended. */
 size_t ct_resume(str *out, const char *p, size_t n, ct_opt *o)
 {
-	const char *cl = ct_close(o->blk);
+	const char *cl = ct_close(ct_blk(o));
 	size_t i, cn = strlen(cl);
-	const char *col = o->blk == CT_BLK_CMT ? CT_CMT : CT_STR;
+	const char *col = ct_blk(o) == CT_BLK_CMT ? CT_CMT : CT_STR;
 
 	s_cat(out, col);
 	for (i = 0; i < n; i++) {
 		if (i + cn <= n && !strncmp(p + i, cl, cn)) {
 			ct_run(out, p + i, cn, o);
 			s_cat(out, CT_OFF);
-			o->blk = CT_BLK_NONE;
+			ct_setblk(o, CT_BLK_NONE);
 			return i + cn;
 		}
 		i += (size_t)ct_put(out, p + i, n - i, o) - 1;
 	}
 	s_cat(out, CT_OFF);
 	return n;
+}
+
+/* Whether a language is read as a shell, its strings and heredocs running across lines. */
+int ct_isshell(const char *lang)
+{
+	return lang && (!strcmp(lang, "hibr") || !strcmp(lang, "sh"));
+}
+
+/* How many shell contexts are open: the stack ends where the heredocs begin. */
+size_t ct_depth(const str *hs)
+{
+	const char *e = hs->n ? memchr(hs->p, '\n', hs->n) : 0;
+
+	return e ? (size_t)(e - hs->p) : hs->n;
+}
+
+/* The innermost open shell context, or 0 at the top level. */
+int ct_top(const str *hs)
+{
+	size_t k = ct_depth(hs);
+
+	return k ? (unsigned char)hs->p[k - 1] : 0;
+}
+
+/* Open a shell context inside the innermost one. */
+void ct_push(str *hs, int c)
+{
+	size_t k = ct_depth(hs);
+
+	s_ch(hs, 0);
+	memmove(hs->p + k + 1, hs->p + k, hs->n - 1 - k);
+	hs->p[k] = (char)c;
+}
+
+/* Close the innermost shell context. */
+void ct_pop(str *hs)
+{
+	size_t k = ct_depth(hs);
+
+	if (!k)
+		return;
+	memmove(hs->p + k - 1, hs->p + k, hs->n - k);
+	hs->n--;
+	hs->p[hs->n] = 0;
+}
+
+/* Change colour only when it differs, so a run is one escape and one reset. */
+void ct_pen(str *out, const char **cur, const char *col)
+{
+	if (*cur == col || (*cur && col && !strcmp(*cur, col)))
+		return;
+	if (*cur)
+		s_cat(out, CT_OFF);
+	if (col)
+		s_cat(out, col);
+	*cur = col;
+}
+
+/* Append k bytes in a colour, noticing where ct_put closed it to mark a byte. */
+size_t ct_paint(str *out, const char *p, size_t n, size_t k, ct_opt *o,
+		const char **cur, const char *col)
+{
+	size_t i = 0, at;
+
+	if (k)
+		ct_pen(out, cur, col);
+	while (i < k && i < n) {
+		if (!*cur && col)
+			ct_pen(out, cur, col);
+		at = out->n;
+		i += (size_t)ct_put(out, p + i, n - i, o);
+		if (out->p[at] == '\033')
+			*cur = 0;
+	}
+	return i;
+}
+
+/* Read the word after << or <<-, its quotes taken off, and say where it ends. */
+size_t ct_hdword(const char *p, size_t n, size_t i, str *w)
+{
+	char q = 0, c;
+
+	w->n = 0;
+	for (; i < n; i++) {
+		c = p[i];
+		if (q) {
+			if (c == q)
+				q = 0;
+			else
+				s_ch(w, c);
+			continue;
+		}
+		if (c == '\'' || c == '"') {
+			q = c;
+			continue;
+		}
+		if (c == '\\' && i + 1 < n) {
+			s_ch(w, p[++i]);
+			continue;
+		}
+		if (c == ' ' || c == '\t' || !c || strchr(";|&<>()", c))
+			break;
+		s_ch(w, c);
+	}
+	return i;
+}
+
+/* Colour a line of a heredoc's body, and close the heredoc on the line that ends it. */
+void ct_hdline(str *out, const char *p, size_t n, ct_opt *o)
+{
+	str *hs = &o->hs;
+	size_t k = ct_depth(hs), s = 0, dn;
+	const char *d = hs->p + k + 2, *e = memchr(d, '\n', hs->n - k - 2), *cur = 0;
+
+	dn = e ? (size_t)(e - d) : hs->n - k - 2;
+	if (hs->p[k + 1] == '-')
+		while (s < n && p[s] == '\t')
+			s++;
+	if (n - s == dn && !memcmp(p + s, d, dn)) {
+		ct_paint(out, p, n, n, o, &cur, CT_KEY);
+		memmove(hs->p + k, hs->p + k + dn + 2, hs->n - k - dn - 2);
+		hs->n -= dn + 2;
+		hs->p[hs->n] = 0;
+	} else {
+		ct_paint(out, p, n, n, o, &cur, CT_STR);
+	}
+	ct_pen(out, &cur, 0);
+}
+
+/* Whether byte i of a shell line begins a word. */
+int ct_wstart(const char *p, size_t i)
+{
+	return !i || strchr(" \t;&|(){}`!", p[i - 1]);
+}
+
+/* Whether byte j of a shell line ends a word. */
+int ct_wend(const char *p, size_t n, size_t j)
+{
+	return j >= n || (p[j] && strchr(" \t;&|(){}`", p[j]));
+}
+
+/* Where a function's name ends: letters, digits and _ - . : from i. */
+size_t ct_fname(const char *p, size_t n, size_t i)
+{
+	while (i < n && (isalnum((unsigned char)p[i]) || strchr("_-.:", p[i])) && p[i])
+		i++;
+	return i;
+}
+
+/* Open a substitution at i -- $(( $( ${ or a backquote -- and say how long its opener is. */
+size_t ct_subst(str *hs, const char *p, size_t n, size_t i)
+{
+	if (p[i] == '`') {
+		ct_push(hs, '`');
+		return 1;
+	}
+	if (p[i] != '$' || i + 1 >= n)
+		return 0;
+	if (p[i + 1] == '(' && i + 2 < n && p[i + 2] == '(') {
+		ct_push(hs, 'a');
+		return 3;
+	}
+	if (p[i + 1] == '(') {
+		ct_push(hs, 'c');
+		return 2;
+	}
+	if (p[i + 1] == '{') {
+		ct_push(hs, 'b');
+		return 2;
+	}
+	return 0;
+}
+
+/* Colour a word of shell code at i: a keyword, a function being defined, or neither. */
+size_t ct_shword(str *out, const char *p, size_t n, size_t i, const char **kw,
+		 ct_opt *o, const char **cur)
+{
+	size_t j = i, f, m;
+
+	while (j < n && (isalnum((unsigned char)p[j]) || p[j] == '_'))
+		j++;
+	if (!ct_wstart(p, i))
+		return ct_paint(out, p + i, n - i, j - i, o, cur, 0);
+	f = ct_fname(p, n, i);
+	for (m = f; m < n && (p[m] == ' ' || p[m] == '\t'); m++)
+		;
+	if (m < n && p[m] == '(') {
+		for (m++; m < n && (p[m] == ' ' || p[m] == '\t'); m++)
+			;
+		if (m < n && p[m] == ')')
+			return ct_paint(out, p + i, n - i, f - i, o, cur, CT_FN);
+	}
+	if (!ct_wend(p, n, j) || !ct_iskw(kw, p + i, j - i))
+		return ct_paint(out, p + i, n - i, j - i, o, cur, 0);
+	ct_paint(out, p + i, n - i, j - i, o, cur, CT_KEY);
+	if (strncmp(p + i, "fn", j - i) && strncmp(p + i, "function", j - i))
+		return j - i;
+	for (m = j; m < n && (p[m] == ' ' || p[m] == '\t'); m++)
+		;
+	ct_paint(out, p + j, n - j, m - j, o, cur, 0);
+	f = ct_fname(p, n, m);
+	ct_paint(out, p + m, n - m, f - m, o, cur, CT_FN);
+	return f - i;
+}
+
+/* Colour shell code at i: what opens or closes a context, a comment, a heredoc, a word. */
+size_t ct_shcode(str *out, const char *p, size_t n, size_t i, const char **kw,
+		 ct_opt *o, const char **cur, str *w)
+{
+	str *hs = &o->hs;
+	int t = ct_top(hs);
+	size_t j, k;
+	unsigned char c = (unsigned char)p[i];
+
+	if (c == '\\')
+		return ct_paint(out, p + i, n - i, 2, o, cur, 0);
+	if (c == '#' && ct_wstart(p, i))
+		return ct_paint(out, p + i, n - i, n - i, o, cur, CT_CMT);
+	if (c == '`' && t == '`') {
+		ct_pop(hs);
+		return ct_paint(out, p + i, n - i, 1, o, cur, 0);
+	}
+	if (c == '\'' || (c == '$' && i + 1 < n && p[i + 1] == '\'')) {
+		ct_push(hs, c == '$' ? 'e' : 's');
+		return ct_paint(out, p + i, n - i, c == '$' ? 2 : 1, o, cur, CT_STR);
+	}
+	if (c == '"') {
+		ct_push(hs, 'd');
+		return ct_paint(out, p + i, n - i, 1, o, cur, CT_STR);
+	}
+	if ((k = ct_subst(hs, p, n, i)))
+		return ct_paint(out, p + i, n - i, k, o, cur, 0);
+	if (c == '(' && i + 1 < n && p[i + 1] == '(') {
+		ct_push(hs, 'a');
+		return ct_paint(out, p + i, n - i, 2, o, cur, 0);
+	}
+	if (c == '(' && t)
+		ct_push(hs, 'p');
+	if (c == ')' && (t == 'c' || t == 'p'))
+		ct_pop(hs);
+	if (c == '<' && i + 1 < n && p[i + 1] == '<') {
+		for (k = i; k < n && p[k] == '<'; k++)
+			;
+		if (k - i > 2)
+			return ct_paint(out, p + i, n - i, k - i, o, cur, 0);
+		if (k < n && p[k] == '-')
+			k++;
+		for (j = k; j < n && (p[j] == ' ' || p[j] == '\t'); j++)
+			;
+		k = ct_hdword(p, n, j, w);
+		if (w->n) {
+			s_ch(hs, '\n');
+			s_ch(hs, p[i + 2] == '-' ? '-' : ' ');
+			s_add(hs, w->p, w->n);
+			ct_paint(out, p + i, n - i, j - i, o, cur, 0);
+			ct_paint(out, p + j, n - j, k - j, o, cur, CT_KEY);
+			return k - i;
+		}
+	}
+	if (isalpha(c) || c == '_')
+		return ct_shword(out, p, n, i, kw, o, cur);
+	if (isdigit(c) && (!i || !isalnum((unsigned char)p[i - 1]))) {
+		for (j = i; j < n && (isalnum((unsigned char)p[j]) || p[j] == '.'); j++)
+			;
+		return ct_paint(out, p + i, n - i, j - i, o, cur, CT_NUMC);
+	}
+	for (j = i + 1; j < n && p[j] && !isalnum((unsigned char)p[j]) &&
+		    !strchr("_\\#`'\"$()<", p[j]); j++)
+		;
+	return ct_paint(out, p + i, n - i, c == '(' || c == ')' ? 1 : j - i, o, cur, 0);
+}
+
+/* Colour inside an arithmetic $(( )) or (( )): numbers, quoted keys, nested parentheses. */
+size_t ct_sharith(str *out, const char *p, size_t n, size_t i, ct_opt *o,
+		  const char **cur)
+{
+	str *hs = &o->hs;
+	int t = ct_top(hs);
+	size_t j, k;
+	unsigned char c = (unsigned char)p[i];
+
+	if (c == '"') {
+		ct_push(hs, 'd');
+		return ct_paint(out, p + i, n - i, 1, o, cur, CT_STR);
+	}
+	if ((k = ct_subst(hs, p, n, i)))
+		return ct_paint(out, p + i, n - i, k, o, cur, 0);
+	if (c == '(')
+		ct_push(hs, 'q');
+	if (c == ')' && t == 'q')
+		ct_pop(hs);
+	if (c == ')' && t == 'a' && i + 1 < n && p[i + 1] == ')') {
+		ct_pop(hs);
+		return ct_paint(out, p + i, n - i, 2, o, cur, 0);
+	}
+	if (c == ')' && t == 'a')
+		hs->p[ct_depth(hs) - 1] = 'c';
+	if (isdigit(c) && (!i || !isalnum((unsigned char)p[i - 1]))) {
+		for (j = i; j < n && (isalnum((unsigned char)p[j]) || p[j] == '.'); j++)
+			;
+		return ct_paint(out, p + i, n - i, j - i, o, cur, CT_NUMC);
+	}
+	if (isalpha(c) || c == '_') {
+		for (j = i; j < n && (isalnum((unsigned char)p[j]) || p[j] == '_'); j++)
+			;
+		return ct_paint(out, p + i, n - i, j - i, o, cur, 0);
+	}
+	return ct_paint(out, p + i, n - i, 1, o, cur, 0);
+}
+
+/* Colour inside a string or a ${ }: what closes it, an escape, a substitution. */
+size_t ct_shtext(str *out, const char *p, size_t n, size_t i, ct_opt *o,
+		 const char **cur)
+{
+	str *hs = &o->hs;
+	int t = ct_top(hs);
+	size_t j, k;
+	const char *col = t == 'b' ? 0 : CT_STR;
+	unsigned char c = (unsigned char)p[i];
+
+	if (t == 's' || t == 'e') {
+		for (j = i; j < n && p[j] != '\''; j++)
+			if (t == 'e' && p[j] == '\\' && j + 1 < n)
+				j++;
+		if (j < n)
+			ct_pop(hs);
+		return ct_paint(out, p + i, n - i, j < n ? j + 1 - i : n - i, o,
+				cur, CT_STR);
+	}
+	for (j = i; j < n && p[j] && !strchr(t == 'b' ? "\\}\"$`" : "\\\"$`", p[j]); j++)
+		;
+	if (j > i)
+		return ct_paint(out, p + i, n - i, j - i, o, cur, col);
+	if (c == '\\')
+		return ct_paint(out, p + i, n - i, 2, o, cur, col);
+	if ((t == 'd' && c == '"') || (t == 'b' && c == '}')) {
+		ct_pop(hs);
+		return ct_paint(out, p + i, n - i, 1, o, cur, col);
+	}
+	if (t == 'b' && c == '"') {
+		ct_push(hs, 'd');
+		return ct_paint(out, p + i, n - i, 1, o, cur, CT_STR);
+	}
+	if ((k = ct_subst(hs, p, n, i)))
+		return ct_paint(out, p + i, n - i, k, o, cur, 0);
+	return ct_paint(out, p + i, n - i, 1, o, cur, col);
+}
+
+/* Colour a shell line, carrying open strings, substitutions and heredocs to the next. */
+void ct_sh(str *out, const char *p, size_t n, const char **kw, ct_opt *o)
+{
+	str w;
+	size_t i = 0;
+	int t;
+	const char *cur = 0;
+
+	t = ct_top(&o->hs);
+	if (ct_depth(&o->hs) < o->hs.n && (!t || t == 'c' || t == 'p' || t == '`')) {
+		ct_hdline(out, p, n, o);
+		return;
+	}
+	s_init(&w);
+	while (i < n) {
+		t = ct_top(&o->hs);
+		if (t == 's' || t == 'e' || t == 'd' || t == 'b')
+			i += ct_shtext(out, p, n, i, o, &cur);
+		else if (t == 'a' || t == 'q')
+			i += ct_sharith(out, p, n, i, o, &cur);
+		else
+			i += ct_shcode(out, p, n, i, kw, o, &cur, &w);
+	}
+	ct_pen(out, &cur, 0);
+	s_free(&w);
 }
 
 /* Colour a line lexically: comments, strings, numbers and keywords. */
@@ -315,18 +705,22 @@ void ct_hl(str *out, const char *p, size_t n, const char *lang, ct_opt *o)
 		ct_md(out, p, n, o);
 		return;
 	}
-	if (o->blk != CT_BLK_NONE)
+	if (ct_isshell(lang)) {
+		ct_sh(out, p, n, kw, o);
+		return;
+	}
+	if (ct_blk(o) != CT_BLK_NONE)
 		i = ct_resume(out, p, n, o);
 	while (i < n) {
 		c = (unsigned char)p[i];
 		if (isc && i + 1 < n && p[i] == '/' && p[i + 1] == '*') {
-			o->blk = CT_BLK_CMT;
+			ct_setblk(o, CT_BLK_CMT);
 			i += ct_resume(out, p + i, n - i, o);
 			continue;
 		}
 		if (ispy && i + 2 < n &&
 		    (!strncmp(p + i, "\"\"\"", 3) || !strncmp(p + i, "'''", 3))) {
-			o->blk = p[i] == '"' ? CT_BLK_DQ : CT_BLK_SQ;
+			ct_setblk(o, p[i] == '"' ? CT_BLK_DQ : CT_BLK_SQ);
 			s_cat(out, CT_STR);
 			ct_run(out, p + i, 3, o);
 			s_cat(out, CT_OFF);
@@ -384,17 +778,20 @@ void ct_hl(str *out, const char *p, size_t n, const char *lang, ct_opt *o)
 }
 
 /* Colour one line for another module, with the block state kept outside. */
-void ct_hlapi(str *out, const char *p, size_t n, const char *lang, int *state)
+void ct_hlapi(str *out, const char *p, size_t n, const char *lang, str *state)
 {
 	ct_opt o;
 
 	memset(&o, 0, sizeof o);
 	o.f = CT_COLOUR;
 	o.tabw = 8;
-	o.blk = state ? *state : 0;
+	if (state)
+		o.hs = *state;
 	ct_hl(out, p, n, lang, &o);
 	if (state)
-		*state = o.blk;
+		*state = o.hs;
+	else
+		s_free(&o.hs);
 }
 
 static const hl_api ct_api = { ct_lang, ct_hlapi };

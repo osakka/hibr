@@ -96,7 +96,13 @@ reads those back into display pens, walking the coloured copy alongside the
 buffer so selection and search still paint over the top.
 
 Block state runs from the top of the *file*, not the top of the screen, or a
-comment that opened above the viewport would not colour what is inside it.
+comment, a string or a heredoc that opened above the viewport would not
+colour what is inside it. A heredoc's body is text, a string over several
+lines is one colour, and a function being defined has a colour of its own --
+see `mods/cat/README.md` for what is carried.
+
+`HVI_HL=off` turns colouring off: read once when the editor opens, it never
+asks for the colourer at all.
 
 hibr has its own language in those tables now, rather than being treated as
 `sh`: `fn`, `ret`, `fail`, `try`, `opt`, `args`, `match`, `rsub`, `str`, `arr`,

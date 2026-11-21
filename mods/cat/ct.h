@@ -22,7 +22,7 @@ struct ct_opt {
 	int tty;
 	long n;
 	int blank;
-	int blk;
+	str hs;
 	int col;
 	int tabw;
 	const char *name;
@@ -43,7 +43,7 @@ int ct_binary(const char *b, size_t n);
 const char *ct_lang(const char *nm);
 void ct_line(str *out, const char *p, size_t n, ct_opt *o, const char *lang);
 void ct_hl(str *out, const char *p, size_t n, const char *lang, ct_opt *o);
-void ct_hlapi(str *out, const char *p, size_t n, const char *lang, int *state);
+void ct_hlapi(str *out, const char *p, size_t n, const char *lang, str *state);
 int ct_ini(sh *s);
 void ct_fini(sh *s);
 int ct_u8ok(const char *p, size_t n, int *len);

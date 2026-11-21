@@ -47,9 +47,9 @@ struct vi_ed {
 	vi_buf b;
 	char *path;
 	size_t cur, top, vstart;
-	int wantcol, mode, group, quit, nored, yline, hoff, hlstate;
+	int wantcol, mode, group, quit, nored, yline, hoff;
 	vec undo, redo;
-	str find, cmd, msg, yank, pend;
+	str find, cmd, msg, yank, pend, hlstate;
 	long mtim, mtin;
 	size_t fsize;
 	int ondisk;

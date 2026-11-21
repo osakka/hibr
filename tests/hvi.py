@@ -20,16 +20,18 @@ ROWS, COLS = 10, 60
 LOAD = load("console", "hvi")
 
 
-def vi(path, keys, wait=0.6, step=0.25):
-    """Edit a file, send keys, return everything the terminal received."""
+def vi(path, keys, wait=0.6, step=0.25, env=None, sc=False):
+    """Edit a file, send keys, return everything the terminal received,
+    or with sc the screen as it stood before quitting."""
     # HIBR_MODPATH so the colourer can be found without being named: the
     # editor asks for "highlight" and the shell goes looking for whatever
     # offers it.
     t = Term("-c", LOAD + "hvi %s" % path, rows=ROWS, cols=COLS, settle=wait,
-             env={"HIBR_MODPATH": tree("build/mods")})
+             env=dict({"HIBR_MODPATH": tree("build/mods")}, **(env or {})))
     t.keys(keys, settle=step, collect=0.2)
+    s = t.screen() if sc else None
     t.quit(None, 0.35)
-    return t.text
+    return s if sc else t.text
 
 
 def screen(t):
@@ -171,6 +173,25 @@ t = vi(hb, [Q])
 check("hibr keywords are coloured", "38;5;110" in t)
 check("hibr strings are coloured", "38;5;71" in t)
 check("hibr comments are coloured", "38;5;245" in t)
+check("a function being defined has a colour of its own", "38;5;176" in t)
+t = vi(hb, [Q], env={"HVI_HL": "off"})
+last = t.split("\x1b[2J", 1)[-1]
+check("HVI_HL=off draws the file with no colour",
+      "greet" in last and "38;5;110" not in last and "38;5;71" not in last)
+
+# A heredoc's body is text, and the state that says so runs from the top of
+# the file: the opener is scrolled off the screen before anything is looked
+# at, and what follows the end word is code again (#41).
+hd = fresh("hd.hibr", "cat <<EOF\n" +
+           "".join("while in body %d\n" % k for k in range(15)) +
+           "EOF\nif true; then :; fi\n")
+sc = vi(hd, [b"G"], sc=True)
+rb, rc = sc.find("while in body 14") or (None, None)
+ri, _ = sc.find("if true") or (None, None)
+check("a heredoc's body opened above the screen is text, and code after it",
+      rb is not None and ri is not None and "38;5;71" in sc.p[rb][rc]
+      and "38;5;110" not in sc.p[rb][rc] and "38;5;110" in sc.p[ri][0],
+      rb is not None and ri is not None and (sc.p[rb][rc], sc.p[ri][0]))
 pl2 = fresh("z.unknownkind", "just text\n")
 t = vi(pl2, [Q])
 check("a file of no known kind is left plain",
@@ -202,4 +223,4 @@ print()
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-report(35)
+report(38)

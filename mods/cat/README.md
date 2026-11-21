@@ -36,15 +36,33 @@ line saying how large they are rather than spewed; `-f` overrides that.
 
 Block comments and triple-quoted strings do carry across lines -- `/* … */`,
 `"""…"""`, and Markdown fences -- because `ct_opt` holds the state between
-lines. Tabs are expanded to the stop the *file* means rather than the one the
+lines. For hibr and shell so does everything a line can leave open (#41): a
+string in either quote or `$'…'`, a `$( )`, `${ }`, `$(( ))` or backquote, and
+a heredoc, whose body is text until the line that is its end word -- quoted
+or not, `<<-` stripping the tabs -- so `if` in a heredoc or in a quoted `awk`
+program is not a keyword and a string over two lines is one colour. The state
+is a stack of what is open with the heredocs still owed after it, in a `str`,
+since an end word is any length. A function being defined -- `name()`,
+`fn name`, `function name` -- has a colour of its own; a call does not, since
+nothing on a line says whether a word is a function, a builtin or a program.
+`#` begins a comment only where a word does, so `$#`, `${#a}` and `${x#y}` are
+not comments, and a backslash in single quotes is a character. A line of C,
+Python, JSON or a Makefile still starts afresh, because a quote in one of them
+never runs on. Tabs are expanded to the stop the *file* means rather than the one the
 terminal would pick, since the gutter has already moved the terminal's columns
 along. A byte that is not valid UTF-8 is shown as `<ff>` instead of being sent
 for the terminal to turn into a replacement character.
 
-**Lexical, not syntactic.** It does not parse. A `#` inside a string in a
-language whose comments start with `#` will still end the line, and a `/*`
-inside a string opens a comment. That is the trade for one pass with no forks,
-and it is stated in the guide rather than hidden.
+**Lexical, not syntactic.** It does not parse. A `/*` inside a C string
+opens a comment, `$((` is taken for arithmetic until a lone `)` says it was a
+`$( (`, and a `case` pattern's `)` inside a `$( )` closes it early. That is
+the trade for one pass with no forks, and it is stated in the guide rather
+than hidden. A slip that leaves a quote open now runs on to the next lines
+rather than ending with its own, which is why the change was measured over
+every `.hibr`, `.t` and `.sh` in the tree (#41): all 544 ended with nothing
+left open, and with the escapes taken out every line read as it was written.
+A heredoc whose opener line ends in a `\` continuation starts its body one
+line early.
 
 `-p` turns every addition off, for when the output is a terminal but you want
 the bytes.
@@ -76,9 +94,10 @@ hl = hibr_require(s, "highlight", HL_API_VER);
 hl->line(&out, text, n, hl->lang(filename), &state);
 ```
 
-`state` carries what runs across lines — a block comment, a triple-quoted
-string — and the caller keeps it between calls. The interface is in
-`mods/highlight.h`.
+`state` is a `str` that carries what runs across lines — a block comment, a
+string, a heredoc and its end word — and is the colourer's own: the caller
+starts it empty, keeps it between calls and frees it. The interface is in
+`mods/highlight.h`, version 2 since the state stopped fitting in an `int`.
 
 hibr has its own entry in the language tables rather than being treated as
 `sh`, with its own words: `fn`, `ret`, `fail`, `try`, `opt`, `args`, `match`,

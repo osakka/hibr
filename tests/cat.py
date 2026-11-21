@@ -99,6 +99,28 @@ check("a block comment carries to the next line",
       t.count("\x1b[38;5;245;3m") == 3)
 check("and stops where it closes", "\x1b[38;5;110mint\x1b[0m" in t)
 
+# A shell's strings and heredocs run across lines, and the colour with them
+# (#41): one string is one colour, a heredoc's body is text and not code, and
+# both give the next line back to the code.
+ml = write("ml.hibr", 'x="one\ntwo"\nif true; then :; fi\n')
+t = tty("cat %s" % ml)
+check("a string over two lines is one colour on both, and code after",
+      '\x1b[38;5;71m"one\x1b[0m' in t and '\x1b[38;5;71mtwo"\x1b[0m' in t
+      and "\x1b[38;5;110mif\x1b[0m" in t)
+hd = write("hd.sh", "cat <<-'EOF'\n\tif while done\n\tEOF\nfor x in y; do :; done\n")
+t = tty("cat %s" % hd)
+check("a heredoc's body is text, and its end word gives the code back",
+      "\x1b[38;5;71m        if while done\x1b[0m" in t
+      and "\x1b[38;5;110mwhile" not in t
+      and "\x1b[38;5;110mfor\x1b[0m" in t)
+fd = write("fd.hibr", "f() { :; }\nfn g(a) {\n}\necho $# ${#a} 'a\\' \"x\"\n")
+t = tty("cat %s" % fd)
+check("a function being defined has a colour of its own",
+      "\x1b[38;5;176mf\x1b[0m" in t and "\x1b[38;5;176mg\x1b[0m" in t)
+check("$# and ${#a} start no comment, and a backslash ends no quote",
+      "\x1b[38;5;71m'a\\'\x1b[0m" in t and '\x1b[38;5;71m"x"\x1b[0m' in t
+      and "\x1b[38;5;245;3m" not in t)
+
 tb = write("t.txt", "col1\tcol2\nlonger1\tb\n")
 t = tty("cat %s" % tb)
 check("tabs reach the stop the file means, not the terminal's",
@@ -113,4 +135,4 @@ print()
 for f in os.listdir(D):
     os.unlink(os.path.join(D, f))
 os.rmdir(D)
-report(29)
+report(33)

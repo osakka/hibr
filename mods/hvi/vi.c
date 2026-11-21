@@ -213,7 +213,7 @@ const char *vi_sgr(const char *p, const char *e, unsigned *fg, unsigned *bg,
 }
 
 /* Colour a line through whatever colourer is loaded, into a buffer. */
-void vi_colour(vi_ed *e, size_t ln, str *out, int *state)
+void vi_colour(vi_ed *e, size_t ln, str *out, str *state)
 {
 	str raw;
 
@@ -449,7 +449,7 @@ void vi_render(vi_ed *e, int rows, int cols)
 	dp->clear();
 	/* Colouring runs from the top of the file, not the top of the screen,
 	   or a block comment that opened above the viewport is not seen. */
-	e->hlstate = 0;
+	e->hlstate.n = 0;
 	if (hl && lang) {
 		str t;
 		size_t k;
@@ -1000,6 +1000,7 @@ void vi_edfree(vi_ed *e, str *key)
 	s_free(&e->msg);
 	s_free(&e->yank);
 	s_free(&e->pend);
+	s_free(&e->hlstate);
 	s_free(key);
 }
 
@@ -1037,7 +1038,11 @@ int m_hvi(sh *s, int ac, char **av)
 		}
 		vi_stamp(&ed);
 	}
-	hl = (const hl_api *)hibr_require(s, "highlight", HL_API_VER);
+	{
+		const char *v = hibr_get(s, "HVI_HL");
+		hl = v && !strcmp(v, "off") ? 0 :
+			(const hl_api *)hibr_require(s, "highlight", HL_API_VER);
+	}
 	lang = hl && ed.path ? hl->lang(ed.path) : 0;
 	if (hl && !lang)
 		lg(HIBR_LDBG, "no colouring: nothing claims this file's kind");

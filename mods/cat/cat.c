@@ -130,7 +130,7 @@ int ct_cook(int fd, ct_opt *o)
 	int r = HIBR_OK, first = 1, bin = 0;
 	const char *lang = o->tty ? ct_lang(o->name) : 0;
 
-	o->blk = CT_BLK_NONE;
+	o->hs.n = 0;
 
 	s_init(&in);
 	s_init(&out);
@@ -334,6 +334,7 @@ int m_cat(sh *s, int ac, char **av)
 			r = HIBR_FAIL;
 		}
 	}
+	s_free(&o.hs);
 	return r;
 }
 
