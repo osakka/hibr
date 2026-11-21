@@ -159,18 +159,19 @@ fn ml_spare(acct, int i, op, view = "") {
 }
 
 # Changes made here that the server has not had yet, made again on rows
-# just loaded: the queue the next sync takes, and the one it is taking.
+# just loaded: the queue the next sync takes, the one it is taking, and one
+# a sync that died left taken (lib/pim.hibr's pe_qtake).
 fn ml_pending(acct) {
 	local d op fold uid arg i=0 f
 	local -A at
 
 	d := ml_dir "$acct"
-	[ -s "$d/queue" ] || [ -s "$d/queue.work" ] || return 0
+	[ -s "$d/queue" ] || [ -s "$d/queue.take" ] || [ -s "$d/queue.work" ] || return 0
 	while [ "$i" -lt "${MLN["$acct"]}" ]; do
 		at["${ML["$acct"][$i]["fold"]}"$'\t'"${ML["$acct"][$i]["uid"]}"]=$i
 		i=$((i + 1))
 	done
-	for f in "$d/queue.work" "$d/queue"; do
+	for f in "$d/queue.work" "$d/queue.take" "$d/queue"; do
 		[ -s "$f" ] || continue
 		while IFS=$'\t' read -r op fold uid arg; do
 			i=${at["$fold"$'\t'"$uid"]}
@@ -520,7 +521,7 @@ fn ml_queue(acct, op, int i, arg = "") {
 
 	d := ml_dir "$acct"
 	mkdir -p "$d"
-	printf '%s\t%s\t%s\t%s\n' "$op" "${ML["$acct"][$i]["fold"]}" "${ML["$acct"][$i]["uid"]}" "$arg" >> "$d/queue"
+	pe_qadd "$d" "$op" "${ML["$acct"][$i]["fold"]}" "${ML["$acct"][$i]["uid"]}" "$arg"
 }
 
 # Do something to every message of the selected conversation, or the one
@@ -2235,7 +2236,7 @@ fn mlc_sent(int n, int st) {
 	if [ "$st" = 0 ]; then
 		if [ "${MLA["$acct"]}" = pop ]; then
 			d := ml_dir "$acct"
-			printf 'sent\tSent\t0\t%s\n' "${DTJ[$n]["file"]}" >> "$d/queue"
+			pe_qadd "$d" sent Sent 0 "${DTJ[$n]["file"]}"
 		else
 			command rm -f "${DTJ[$n]["file"]}"
 		fi

@@ -51,6 +51,66 @@ pe_servers() {
 # A server's store folder.
 fn pe_dir(srv) { ret "$PE_DIR/${srv//\//_}"; }
 
+# A store's queue -- DIR/queue, a line a change the next sync sends, for
+# Contacts, Calendar and Mail alike -- is written and taken under
+# DIR/queue.lock (Gitea #599): a writer holds it across its append and a
+# sync across renaming the queue to queue.take, so no append can land in a
+# take the sync has already read. It is held for one write or one rename,
+# so a lock held PE_QSTALE ms is a dead holder's and is taken over.
+PE_QSTALE=2000
+
+# Take DIR's queue lock, waiting while somebody else has it; status 1 when
+# DIR cannot hold one -- the lock cannot be made though nobody has it.
+fn pe_qlock(dir) {
+	local t0=${EPOCHREALTIME/./} miss=0
+
+	until mkdir "$dir/queue.lock" 2> /dev/null; do
+		if [ ! -d "$dir/queue.lock" ]; then
+			miss=$((miss + 1))
+			[ "$miss" -lt 3 ] || return 1
+			continue
+		fi
+		if [ $((${EPOCHREALTIME/./} - t0)) -ge $((PE_QSTALE * 1000)) ]; then
+			command rm -rf "$dir/queue.lock"
+			t0=${EPOCHREALTIME/./}
+			continue
+		fi
+		command sleep 0.01
+	done
+	return 0
+}
+
+# Queue a change in DIR: its fields a line, tab-separated, appended under
+# the queue lock. A lock that cannot be had does not lose the change; the
+# line is appended without it.
+fn pe_qadd(dir, ...fields) {
+	local held=0 st IFS=$'\t'
+
+	pe_qlock "$dir" && held=1
+	printf '%s\n' "${fields[*]}" >> "$dir/queue"
+	st=$?
+	[ "$held" = 1 ] && command rm -rf "$dir/queue.lock"
+	return "$st"
+}
+
+# Take DIR's queue for a sync, into queue.work: a take a sync died holding
+# first, then the queue renamed to queue.take under the lock, appended and
+# removed. A writer appending after the rename starts a new queue for the
+# next sync; one appending before it has finished, since it held the lock.
+fn pe_qtake(dir) {
+	local t="$dir/queue.take" w="$dir/queue.work"
+
+	if [ -e "$t" ]; then
+		cat "$t" >> "$w" && command rm -f "$t" || return 1
+	fi
+	[ -s "$dir/queue" ] || return 0
+	pe_qlock "$dir" || return 1
+	mv -f "$dir/queue" "$t"
+	command rm -rf "$dir/queue.lock"
+	[ -e "$t" ] || return 0
+	cat "$t" >> "$w" && command rm -f "$t"
+}
+
 # Be told, by name, each time a sync finishes: the function is called with
 # the server.
 fn pe_onsync(name) {
@@ -233,14 +293,14 @@ pe_load() {
 # What the queue of one server still holds, laid over its rows: a card
 # waiting to go up replaces its row -- the same address book and the same
 # name in it -- or is a row of its own when it is new; one waiting to be
-# removed marks its row gone. Later lines win, and queue.work is older
-# than queue.
+# removed marks its row gone. Later lines win: queue.work is older than
+# queue.take, which a sync is taking, and that is older than queue.
 fn pe_pending(srv, dir) {
 	local q l op coll a b etag key i=0 w
 	local -a ls
 	local -A put del
 
-	for q in "$dir/queue.work" "$dir/queue"; do
+	for q in "$dir/queue.work" "$dir/queue.take" "$dir/queue"; do
 		[ -s "$q" ] || continue
 		mapfile -t ls < "$q"
 		for l in "${ls[@]}"; do
@@ -361,7 +421,7 @@ fn pe_write(srv, href, coll, uid, etag, old, own, name, ...args) {
 	fi
 	[ -n "$old" ] && [ -r "$old" ] && pe_carry "$f.new" "$old" "$own" "$keepn"
 	mv -f "$f.new" "$f"
-	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${etag:--}" >> "$d/queue"
+	pe_qadd "$d" put "$coll" "$base" "$f" "${etag:--}"
 	ret "$u"
 }
 

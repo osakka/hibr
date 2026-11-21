@@ -22,6 +22,8 @@
 
 strict
 
+. "${BASH_SOURCE%/*}/pim.hibr"
+
 MS_ACCT=$1
 MS_DIR=$2
 MS_MAX=${3:-1000}
@@ -163,15 +165,15 @@ fn ms_thread(thrid, refs, irt, msgid) {
 
 # Push the queued changes to the server, a line at a time. What the
 # server refuses is said and dropped; when the connection is lost instead,
-# that line and the rest stay in the queue for the next sync.
+# that line and the rest stay in the queue for the next sync. The queue is
+# taken by lib/pim.hibr's pe_qtake, under the lock its writers append
+# under (Gitea #599).
 MS_KEPT=0
 ms_push() {
 	local q="$MS_DIR/queue.work" op fold uid arg cur= dest k=0 ok
 	local -a ls
 
-	if [ -s "$MS_DIR/queue" ]; then
-		cat "$MS_DIR/queue" >> "$q" && command rm -f "$MS_DIR/queue"
-	fi
+	pe_qtake "$MS_DIR"
 	[ -s "$q" ] || return 0
 	mapfile -t ls < "$q"
 	while [ "$k" -lt "${#ls[@]}" ]; do
@@ -416,9 +418,7 @@ ms_pop() {
 		[ "${q[$i]["uid"]}" -gt "$top" ] && top=${q[$i]["uid"]}
 		i=$((i + 1))
 	done
-	if [ -s "$MS_DIR/queue" ]; then
-		cat "$MS_DIR/queue" >> "$MS_DIR/queue.work" && command rm -f "$MS_DIR/queue"
-	fi
+	pe_qtake "$MS_DIR"
 	if [ -s "$MS_DIR/queue.work" ]; then
 		mapfile -t ls < "$MS_DIR/queue.work"
 		for k in "${ls[@]}"; do

@@ -29,6 +29,8 @@
 
 strict
 
+. "${BASH_SOURCE%/*}/pim.hibr"
+
 PS_SRV=$1
 PS_DIR=$2
 PS_DB=
@@ -413,18 +415,14 @@ fn ps_book(coll, int rec, kind = card) {
 # Send the queue: each upload or removal conditional on the ETag it was
 # read with. A refusal (a conflict) is said and dropped -- the next sync
 # brings the server's copy; a lost connection keeps the rest for the next
-# sync. The queue is taken by renaming it (Gitea #599): a line an app or
-# `contacts put` appends after that starts a new queue for the next sync,
-# where copying it and then removing it lost whatever came in between. A
-# take a sync died holding goes first, and is never renamed over.
+# sync. The queue is taken by lib/pim.hibr's pe_qtake, under the lock its
+# writers append under (Gitea #599).
 PS_QUEUE=()
 ps_push() {
-	local q="$PS_DIR/queue.work" t="$PS_DIR/queue.take" op coll a b etag l k=0 e
+	local q="$PS_DIR/queue.work" op coll a b etag l k=0 e
 	local -a ls
 
-	[ -e "$t" ] && cat "$t" >> "$q" && command rm -f "$t"
-	[ -s "$PS_DIR/queue" ] && [ ! -e "$t" ] && mv -f "$PS_DIR/queue" "$t" &&
-		cat "$t" >> "$q" && command rm -f "$t"
+	pe_qtake "$PS_DIR"
 	[ -s "$q" ] || return 0
 	mapfile -t ls < "$q"
 	while [ "$k" -lt "${#ls[@]}" ]; do

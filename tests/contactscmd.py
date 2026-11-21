@@ -346,6 +346,74 @@ try:
     check("and every line appended while it ran reached the server, by the next sync",
           st == 0 and sorted(got) == sorted(sent), (st, err, len(sent), len(got), sorted(set(sent) - set(got))[:5]))
 
+    # The take a sync is holding is still the person's change: find reads it
+    # beside the queue and queue.work, the way it shows any queued card.
+    TAKE = os.path.join(STORE, "queue.take")
+    tf = os.path.join(STORE, "out", "tara-take.vcf")
+    open(tf, "w", newline="").write("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:tara-take\r\nFN:Tara Taken\r\n"
+                                    "TEL:555 0101\r\nEND:VCARD\r\n")
+    open(TAKE, "w").write("put\t/addressbooks/u/people/\ttara-take.vcf\t%s\t-\n" % tf)
+    st, out, err = run("find", "tara")
+    check("find shows a card the queue's take still holds", st == 0 and
+          out == "tara-take\tTara Taken\tphone:555 0101\n", (st, out, err))
+
+    # And the rest of #599: a writer that has the queue open when a sync
+    # comes for it. The writer is lib/pim.hibr's pe_write itself, run from a
+    # script whose printf -- the append -- waits, with the queue already open
+    # (a redirection is made before the body runs), until a sync has been
+    # started, and then until that sync has taken the queue from under it or
+    # a second has passed -- half PE_QSTALE, after which a sync would take a
+    # lock over as a dead writer's. A card is already queued, so the sync
+    # has a queue to take. The old take renamed it at once and removed the
+    # take before the line was written; the sync now waits for the writer.
+    MK = os.path.join(D, "mk599")
+    uf = os.path.join(STORE, "out", "ula-ready.vcf")
+    open(uf, "w", newline="").write("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:ula-ready\r\nFN:Ula Ready\r\nEND:VCARD\r\n")
+    with open(QUEUE, "a") as q:
+        q.write("put\t/addressbooks/u/people/\tula-ready.vcf\t%s\t-\n" % uf)
+    wscript = (
+        ". %s\nneed pim\nQF := pe_dir home\nQF=$QF/queue\n"
+        "printf() {\n"
+        "  if [ /dev/fd/1 -ef \"$QF\" ]; then\n"
+        "    : > %s.open\n"
+        "    local n=0 t0\n"
+        "    until [ -e %s.go ] || [ $n -ge 500 ]; do sleep 0.02; n=$((n + 1)); done\n"
+        "    t0=${EPOCHREALTIME/./}\n"
+        "    while { [ /dev/fd/1 -ef \"$QF\" ] || [ -e \"$QF.take\" ]; } && [ $((${EPOCHREALTIME/./} - t0)) -lt 1000000 ]; do sleep 0.02; done\n"
+        "    [ /dev/fd/1 -ef \"$QF\" ] || : > %s.taken\n"
+        "    builtin printf '%%s\\n' \"$EPOCHREALTIME\" > %s.wrote\n"
+        "  fi\n"
+        "  builtin printf \"$@\"\n"
+        "}\n"
+        "u := pe_write home '' /addressbooks/u/people/ '' - '' '' 'Wren Waiting'\n"
+        "builtin printf '%%s\\n' \"$u\"\n" % (tree("programs/desktop/lib/pim.hibr"), MK, MK, MK, MK))
+    wp = subprocess.Popen([sx.HIBR, "-c", wscript], env=ENV, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True)
+    for _ in range(int(500 * SLOW)):
+        if os.path.exists(MK + ".open") or wp.poll() is not None:
+            break
+        time.sleep(0.02)
+    opened = os.path.exists(MK + ".open")
+    t_go = time.time()
+    open(MK + ".go", "w").close()
+    p = subprocess.run([sx.HIBR, CMD, "sync"], env=ENV, capture_output=True, text=True, timeout=120 * SLOW)
+    t_end = time.time()
+    wout, werr = wp.communicate(timeout=60 * SLOW)
+    wuid = wout.strip()
+    try:
+        wrote = float(open(MK + ".wrote").read())
+    except (OSError, ValueError):
+        wrote = 0
+    check("a sync started while pe_write had the queue open waited for the append, rather than taking the queue from under it",
+          opened and wp.returncode == 0 and p.returncode == 0 and t_go < wrote < t_end and
+          not os.path.exists(MK + ".taken"),
+          (opened, wp.returncode, werr, p.returncode, p.stderr, t_go, wrote, t_end, os.path.exists(MK + ".taken")))
+    st, out, err = run("sync")
+    check("and that change, with the take a dead sync left, reached the server",
+          st == 0 and wuid.startswith("hibr-") and wuid + ".vcf" in cards() and "tara-take.vcf" in cards() and
+          "ula-ready.vcf" in cards() and
+          not os.path.exists(TAKE), (st, err, wuid, [n for n in cards() if not n.startswith("q599-")]))
+
     # A server that keeps only calendars is no address book.
     run(script="need dav; dav server set cals http://127.0.0.1:%d -u u -p p" % PORT2)
     choose("cals")
@@ -372,4 +440,4 @@ finally:
     srv.wait()
     srv2.wait()
 
-report(50)
+report(53)

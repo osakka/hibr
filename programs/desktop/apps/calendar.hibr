@@ -834,7 +834,7 @@ cv_deldo() {
 	s=${CVI[$id][$i]["srv"]}
 	d := pe_dir "$s"
 	e := cv_obj "$s" "${CVI[$id][$i]["href"]}" etag
-	printf 'del\t-\t%s\t%s\n' "${CVI[$id][$i]["href"]}" "${e:--}" >> "$d/queue"
+	pe_qadd "$d" del - "${CVI[$id][$i]["href"]}" "${e:--}"
 	dt_notep low "Removed; the server is told at the next sync"
 	pe_sync "$s"
 }
@@ -1327,7 +1327,7 @@ fn cv_save(int id) {
 		dt_notep high "Could not make the event: %s" "${line#hibr: }"
 		return 1
 	fi
-	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$base" "$f" "${CED[$id]["etag"]:--}" >> "$d/queue"
+	pe_qadd "$d" put "$coll" "$base" "$f" "${CED[$id]["etag"]:--}"
 	pe_sync "$srv"
 	if [ "${#ems[@]}" -gt 0 ] && [ "$mine" = 1 ] && [ -n "$acct" ]; then
 		cv_invite "$srv" "$acct" "$f.req" "${CED[$id]["invite"]}" "${CED[$id]["title"]:-New event}" "$st" REQUEST
@@ -1589,7 +1589,7 @@ fn cv_act(acct, ics, act) {
 		dt_notep low "Recorded in your calendar"
 		;;
 	REMOVE)
-		printf 'del\t-\t%s\t%s\n' "${coll%/}/$name" "$etag" >> "$d/queue"
+		pe_qadd "$d" del - "${coll%/}/$name" "$etag"
 		pe_sync "$srv"
 		dt_notep low "Removed from your calendar"
 		return 0
@@ -1600,7 +1600,7 @@ fn cv_act(acct, ics, act) {
 		;;
 	*) return 1 ;;
 	esac
-	printf 'put\t%s\t%s\t%s\t%s\n' "$coll" "$name" "$f" "$etag" >> "$d/queue"
+	pe_qadd "$d" put "$coll" "$name" "$f" "$etag"
 	pe_sync "$srv"
 	return 0
 }

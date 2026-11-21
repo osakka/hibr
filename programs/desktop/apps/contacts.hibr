@@ -199,7 +199,7 @@ pe_deldo() {
 	h := pe_f "$i" href
 	e := pe_f "$i" etag
 	d := pe_dir "$s"
-	printf 'del\t%s\t%s\t%s\n' "-" "$h" "${e:--}" >> "$d/queue"
+	pe_qadd "$d" del - "$h" "${e:--}"
 	dt_notep low "Removed; the server is told at the next sync"
 	pe_sync "$s"
 }
