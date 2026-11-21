@@ -148,6 +148,8 @@ def endsaver():
 def held(secs=2.5 * IDLE):
     """Whether the saver stayed away for well past the idle time, read as
     every state written meanwhile."""
+    if saving():
+        return False
     n = len(states())
     time.sleep(secs * SLOW)
     t.collect(0.2)
@@ -201,6 +203,10 @@ check("with Programs May Keep It Awake off, the request is not honoured",
       st, (states(), log()[-400:]))
 endsaver()
 mark("hon", "1\n")
+# Off let the bus go; on asks for it again, and the desktop opens it no
+# sooner than thirty seconds after it last did (dt_busopen), which is the
+# wait the name check below allows.
+hon_n = len(log())
 check("and on again, it is", held(), states())
 
 # The program lets go.
@@ -222,8 +228,11 @@ endsaver()
 # program's Inhibit holds the saver until it leaves the bus.
 if have_bus:
     tookname = wait(lambda: "saver: programs on the session bus may keep the screen awake"
-                    in log(), 8)
-    check("the desktop takes the session bus's screen saver name", tookname, log()[-600:])
+                    in log()[hon_n:], 45)
+    check("the desktop takes the session bus's screen saver name again once "
+          "Programs May Keep It Awake is on again", tookname, log()[hon_n:][-600:])
+    # Nothing asked meanwhile, so the saver may well be up: ended first.
+    endsaver()
     cl = os.path.join(D, "client.py")
     open(cl, "w").write(
         "import sys, time, dbus\n"
@@ -251,7 +260,8 @@ if have_bus:
     check("the program leaving the bus lets go of it, and the saver starts", st, states())
     endsaver()
 else:
-    for n in ("the desktop takes the session bus's screen saver name",
+    for n in ("the desktop takes the session bus's screen saver name again once "
+              "Programs May Keep It Awake is on again",
               "a program on the session bus asks the screen to stay awake and is given a cookie",
               "which holds the saver off", "and the log says a program on the bus held it, and which",
               "the program leaving the bus lets go of it, and the saver starts"):

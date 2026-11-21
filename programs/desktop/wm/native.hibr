@@ -74,7 +74,7 @@ DT_NATLCELL=
 # the Displays pane asks them too.
 DT_PROGSCALE="${DT_PROGSCALE-}"
 command -v dt_keep > /dev/null && dt_keep DT_PROGSCALE
-dt_onset DT_PROGSCALE dt_natset
+command -v dt_onset > /dev/null && dt_onset DT_PROGSCALE dt_natset
 # Whether a program's window opens where and as large as the person last
 # left it, by its app id (Gitea #508): Control Panel > Windows > Remember
 # Program Windows. What is remembered is data (ADR 0054), in the state

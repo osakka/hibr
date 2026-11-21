@@ -70,7 +70,10 @@ def held(tag, version, preset=None):
         "dt_ticker tst_do\ndt_open\ndt_run\ndt_close\n"
         % (load("console"), tree("programs/desktop/desktop.hibr"), wrap, mark, mark, mark))
     hn = "nsc%s-%d" % (tag, os.getpid())
-    henv = {"HIBR_GFX": "kitty", "TMPDIR": D, "XDG_RUNTIME_DIR": D, "XDG_CONFIG_HOME": conf}
+    # Its own state folder too, so its desktop.log -- which the attaching
+    # Term never reads -- is this desktop's alone, for stop() to read.
+    henv = {"HIBR_GFX": "kitty", "TMPDIR": D, "XDG_RUNTIME_DIR": D, "XDG_CONFIG_HOME": conf,
+            "XDG_STATE_HOME": conf + ".state"}
     if preset is not None:
         henv["DT_PROGSCALE"] = preset
     subprocess.run([sx.HIBR, "-c", load("hold") + 'hold new -d %s "$HIBR" %s' % (hn, p)],
@@ -90,7 +93,10 @@ def layouts(complog):
             x["line"].split()[:2] == ["WINDOW", "layout"] and x["line"] != "WINDOW layout end"]
 
 
-def stop(t, mark, hn, blit):
+def stop(t, mark, conf, hn, blit, tag):
+    """End the held desktop, and say whether its own log is clean: a shell
+    error or a held: stall in the new pane code would otherwise show only as
+    a row missing."""
     open(mark + ".quit", "w").close()
     t.collect(1.0)
     t.quit(None, 0.5)
@@ -98,6 +104,13 @@ def stop(t, mark, hn, blit):
     subprocess.run([sx.HIBR, "-c", load("hold") + "hold kill %s" % hn],
                    env=dict(os.environ, TMPDIR=D), capture_output=True, timeout=20)
     blit.kill()
+    try:
+        lg = open(os.path.join(conf + ".state", "hibr", "desktop.log")).read()
+    except OSError:
+        lg = None
+    bad = [l for l in (lg or "").split("\n") if re.search(r"(^|[^.\w])hibr: |held:", l)]
+    check("the held desktop's own log (%s) has no shell error and no stall" % tag,
+          lg is not None and not bad, bad[-6:] if lg is not None else "no desktop.log")
 
 
 # --- a compositor that takes the seventh word ---------------------------------
@@ -123,7 +136,7 @@ check("Control Panel > Displays has a Program Scale row: the display, then "
 
 pct = sc.find_from("100%", ps[0]) if ps else None
 if pct and pct[0] == ps[0]:
-    t.keys([press(pct[0], pct[1]), release(pct[0], pct[1])])
+    t.keys([press(pct[0], pct[1])])
 sc = t.until(lambda s: ps and s.find_from("150%", ps[0] + 1) is not None)
 item = sc.find_from("150%", ps[0] + 1) if ps else None
 check("its list offers the steps from 100% to 400%",
@@ -131,7 +144,7 @@ check("its list offers the steps from 100% to 400%",
       sc.find_from("125%", ps[0] + 1) is not None, sc)
 if item:
     n0 = len(layouts(complog))
-    t.keys([press(item[0], item[1]), release(item[0], item[1])])
+    t.keys([press(item[0], item[1])])
     lay = wait(lambda: layouts(complog)[n0:], 6)
 else:
     lay = []
@@ -147,18 +160,18 @@ check("kept by the display's name in the settings", saved == "top=150", saved)
 # Back to 100%: the word goes, which the compositor reads as 100.
 pct = sc.find_from("150%", ps[0]) if ps else None
 if pct and pct[0] == ps[0]:
-    t.keys([press(pct[0], pct[1]), release(pct[0], pct[1])])
+    t.keys([press(pct[0], pct[1])])
 sc = t.until(lambda s: ps and s.find_from("100%", ps[0] + 1) is not None)
 item = sc.find_from("100%", ps[0] + 1) if ps else None
 if item:
     n0 = len(layouts(complog))
-    t.keys([press(item[0], item[1]), release(item[0], item[1])])
+    t.keys([press(item[0], item[1])])
     lay = wait(lambda: layouts(complog)[n0:], 6)
 else:
     lay = []
 check("back at 100%, the layout is six words again",
       lay and re.fullmatch(r"WINDOW layout top 0 0 \d+ \d+ \d+", lay[-1]), lay)
-stop(t, mark, hn, blit)
+stop(t, mark, conf, hn, blit, "0.3.130")
 
 # --- an older compositor is never told it ----------------------------------------
 t, complog, mark, conf, hn, blit = held("b", "0.3.129", preset="top=150")
@@ -166,6 +179,6 @@ lay = wait(lambda: layouts(complog), 10)
 check("a compositor before 0.3.130 is told six words though the display's "
       "Program Scale is 150%",
       lay and all(re.fullmatch(r"WINDOW layout top 0 0 \d+ \d+ \d+", l) for l in lay), lay)
-stop(t, mark, hn, blit)
+stop(t, mark, conf, hn, blit, "0.3.129")
 shutil.rmtree(D, True)
-report(9)
+report(11)

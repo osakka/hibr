@@ -901,6 +901,12 @@ void bu_reply(bu_msg *m)
 			bu_ev("noactivate", t->n);
 		break;
 	case K_AWAKE:
+		/* Let go while the daemon was answering: let it go again. */
+		if (!bu_inhrole) {
+			if (!err && bu.iinit(m, &it) && bu_getn(&it, 0) == 1)
+				bu_callw(BU_BUS, BU_BUSPATH, BU_BUS, "ReleaseName", K_IGNORE, 0, BU_SNAME, 0);
+			break;
+		}
 		if (!err && bu.iinit(m, &it) && bu_getn(&it, 0) == 1) {
 			bu_inhrole = 2;
 			bu_ev("awake on", -1);
