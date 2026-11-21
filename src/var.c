@@ -77,8 +77,8 @@ int v_watchask(sh *s, const char *nm, const char *key, int ev)
 	return 1;
 }
 
-/* A variable the shell keeps a copy of has been set or removed: IFS, FUNCNEST. Asked by its first letter, so any other name pays one comparison. */
-void v_named(sh *s, const char *k)
+/* A variable the shell keeps a copy of has been set or removed: IFS, FUNCNEST, HIBR_LOGLEVEL, which may refuse what it was given. Asked by its first letter, so any other name pays one comparison. */
+int v_named(sh *s, const char *k)
 {
 	if (k[0] == 'P' && !strcmp(k, "PATH"))
 		hsh_clear(s, 0);
@@ -86,8 +86,13 @@ void v_named(sh *s, const char *k)
 		s->ifsok = 0;
 	else if (k[0] == 'F' && !strcmp(k, "FUNCNEST"))
 		ex_fnok = 0;
-	else if (k[0] == 'H' && !strcmp(k, "HIBR_MODULES"))
-		m_ldmode = -1;
+	else if (k[0] == 'H' && k[1] == 'I') {
+		if (!strcmp(k, "HIBR_MODULES"))
+			m_ldmode = -1;
+		else if (!strcmp(k, "HIBR_LOGLEVEL"))
+			return v_loglevel(s);
+	}
+	return HIBR_OK;
 }
 
 /* Read a variable value or NULL. */
@@ -163,6 +168,35 @@ const char *sh_ifs(sh *s)
 		s->ifsok = 1;
 	}
 	return s->ifsc;
+}
+
+/* The level in force follows HIBR_LOGLEVEL as it is stored, -d and set -d included: a number is stored again as the name it stands for, anything else is refused and the name in force put back, and with no variable the level is warning. */
+int v_loglevel(sh *s)
+{
+	const char *v = hibr_get(s, "HIBR_LOGLEVEL");
+	int lv;
+
+	if (!v) {
+		hibr_lv = HIBR_LWRN;
+		return HIBR_OK;
+	}
+	lv = lg_parse(v);
+	if (lv < 0) {
+		lg(HIBR_LERR, "HIBR_LOGLEVEL: %s is not a level: error, warning, info, debug, trace, or 0 to 4", v);
+		hibr_set(s, "HIBR_LOGLEVEL", lg_name(hibr_lv), 0);
+		v_refused = 1;
+		return HIBR_FAIL;
+	}
+	hibr_lv = lv;
+	if (strcmp(v, lg_name(lv)))
+		hibr_set(s, "HIBR_LOGLEVEL", lg_name(lv), 0);
+	return HIBR_OK;
+}
+
+/* Set the log level by name or number, as -d and set -d do, through HIBR_LOGLEVEL, the one setting. */
+int v_setlevel(sh *s, const char *v)
+{
+	return hibr_set(s, "HIBR_LOGLEVEL", v, 0);
 }
 
 /* Seed RANDOM, restart SECONDS, ignore the EPOCH clocks: store none. */
@@ -311,9 +345,8 @@ int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
 			e->ex = 1;
 		if (e->ex)
 			setenv(k, e->v, 1);
-		v_named(s, k);
 		s_free(&t);
-		return HIBR_OK;
+		return v_named(s, k);
 	}
 	if (s->sfl && v_strict(s, k)) {
 		s->st = 1;
@@ -324,7 +357,6 @@ int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
 	e->k = xs(k);
 	e->v = xs(v);
 	e->ex = ex ? 1 : 0;
-	v_named(s, k);
 	if (e->ex)
 		setenv(k, e->v, 1);
 	h = vh(k);
@@ -334,7 +366,7 @@ int v_assign(sh *s, const char *k, const char *v, int ex, int keep)
 	s->tn++;
 	if (v_watchpend && v_watchbits[h & 255] && v_watchfn)
 		v_watchfn(s, k, 0, 2);
-	return HIBR_OK;
+	return v_named(s, k);
 }
 
 /* Remove a variable. */

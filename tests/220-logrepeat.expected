@@ -1,0 +1,89 @@
+0
+-- without logtime every line is written
+status 127
+log:
+hibr: nosuch_lr: command not found
+hibr: nosuch_lr: command not found
+hibr: nosuch_lr: command not found
+-- what a command's errors are sent to is not the log: every line, no place
+status 0
+T hibr: nosuch_q: command not found
+T hibr: nosuch_q: command not found
+T hibr: nosuch_q: command not found
+T hibr: nosuch_r: command not found
+T hibr: nosuch_r: command not found
+T hibr: nosuch_r: command not found
+log:
+-- three errors a frame, five frames: each once, then its count at exit
+status 0
+done
+log:
+T hibr: nosuch_a: command not found
+T   at flood.hibr:2
+T hibr: nosuch_b: command not found
+T   at flood.hibr:2
+T hibr: nosuch_c: command not found
+T   at flood.hibr:2
+T hibr: nosuch_c: command not found
+T   at flood.hibr:2, came 4 times more in N s
+T hibr: nosuch_b: command not found
+T   at flood.hibr:2, came 4 times more in N s
+T hibr: nosuch_a: command not found
+T   at flood.hibr:2, came 4 times more in N s
+-- the same text from two places is two errors
+status 127
+log:
+T hibr: nosuch_p: command not found
+T   at place.hibr:2
+T hibr: nosuch_p: command not found
+T   at place.hibr:3
+-- what went to /dev/null first is still written where it is seen
+status 127
+log:
+T hibr: nosuch_n: command not found
+T   at null.hibr:2
+-- each child writes its own first line; the parent's count comes once
+status 0
+captured: hibr: nosuch_k: command not found
+end
+log:
+T hibr: nosuch_k: command not found
+T   at child.hibr:2
+T hibr: nosuch_k: command not found
+T   at child.hibr:2
+T hibr: nosuch_k: command not found
+T   at child.hibr:2
+T hibr: nosuch_k: command not found
+T   at child.hibr:2
+T hibr: nosuch_k: command not found
+T   at child.hibr:2
+T hibr: nosuch_k: command not found
+T   at child.hibr:2, came 2 times more in N s
+T hibr: nosuch_k: command not found
+T   at child.hibr:2, came once more in N s
+-- a minute on the shell's clock writes the count with the line
+status 0
+end
+log:
+T hibr: nosuch_t: command not found
+T   at clock.hibr:2
+T hibr: nosuch_t: command not found
+T   at clock.hibr:2, came 2 times more in N s
+T hibr: nosuch_t: command not found
+T   at clock.hibr:2, came once more in N s
+-- from the command line there is no place to name, only the count
+status 127
+log:
+T hibr: nosuch_c: command not found
+T hibr: nosuch_c: command not found
+T   came 2 times more in N s
+-- three hundred different errors: a count is never lost to the bound
+written first: 300
+counted: 300
+lines: 1200, errors named: 300
+the oldest is said when the bound is reached
+-- agent mode's JSON is never collapsed
+status 127
+log:
+{"error":"nosuch_j: command not found","file":"command line","line":1}
+{"error":"nosuch_j: command not found","file":"command line","line":1}

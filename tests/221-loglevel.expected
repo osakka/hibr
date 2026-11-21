@@ -1,0 +1,42 @@
+0
+-- the variable names the level in force, and every spelling sets it
+default: warning
+-d 2: info
+-d debug: debug
+set -d 0: error
+a number is stored as its name: trace
+hibr: HIBR_LOGLEVEL: loud is not a level: error, warning, info, debug, trace, or 0 to 4
+refused, status 1, still warning
+hibr: HIBR_LOGLEVEL: 9 is not a level: error, warning, info, debug, trace, or 0 to 4
+-d 9: status 2
+in f: error
+after f: info
+hibr: getopts: illegal option -z
+unset: back to warning, []
+-- a child: forked keeps it, a new shell takes it only when exported
+hibr: log level info
+subshell: info
+new shell: warning
+exported: info
+environment, then -d: info
+hibr: HIBR_LOGLEVEL: loud is not a level: error, warning, info, debug, trace, or 0 to 4
+hibr: HIBR_LOGLEVEL: loud is not a level: error, warning, info, debug, trace, or 0 to 4
+an environment naming no level: status 0, warning
+HIBR_DEBUG is gone: warning
+-- in the log, each level below error says its name
+T hibr: nosuch_ll: command not found
+T hibr: warning: getopts: illegal option -z
+T hibr: trace: subscript -1 counts back to 1
+T hibr: debug: EPOCHSECONDS is a clock; the assignment is ignored
+T hibr: info: disowned job [1]
+-- outside the log nothing is tagged
+hibr: getopts: illegal option -z
+hibr: getopts: illegal option -z
+-- a warning collapsed keeps its name
+T hibr: warning: getopts: illegal option -z
+T   at rep.hibr:2
+T hibr: warning: getopts: illegal option -z
+T   at rep.hibr:2, came 2 times more in N s
+-- agent mode's JSON is keyed by the level
+{"warning":"getopts: illegal option -z","file":"command line","line":1}
+{"error":"nosuch_ll: command not found","file":"command line","line":1}

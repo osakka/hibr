@@ -10,11 +10,35 @@
 #include <signal.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
+
+#ifndef HIBR_LGREP
+#define HIBR_LGREP 60
+#endif
+#ifndef HIBR_LGKEEP
+#define HIBR_LGKEEP 256
+#endif
+
+typedef struct lgrec lgrec;
+struct lgrec {
+	char *m, *src;
+	unsigned ln;
+	int lv;
+	dev_t dv;
+	ino_t in;
+	long at, n;
+};
 
 int hibr_lv = HIBR_LWRN;
 sh *lg_sh;
 unsigned lg_ln, lg_col;
+static vec lg_seen;
+static pid_t lg_pid;
+static long lg_t0;
+static int lg_busy, lg_logok;
+static dev_t lg_logdv;
+static ino_t lg_login;
 
 /* Append text to a JSON string's contents, escaped. */
 void lg_jstr(str *o, const char *t)
@@ -99,11 +123,32 @@ void lg_jline(str *o, const char *key, const char *m)
 	s_cat(o, "}\n");
 }
 
+/* A level's name, as the log, agent mode's JSON and HIBR_LOGLEVEL say it. */
+const char *lg_name(int lv)
+{
+	static const char *nm[] = { "error", "warning", "info", "debug",
+				    "trace" };
+
+	return nm[lv < HIBR_LERR ? HIBR_LERR : lv > HIBR_LTRC ? HIBR_LTRC : lv];
+}
+
+/* A level from its name or its number, 0 to 4; -1 when it is neither. */
+int lg_parse(const char *v)
+{
+	int i;
+
+	if (v[0] >= '0' && v[0] <= '4' && !v[1])
+		return v[0] - '0';
+	for (i = HIBR_LERR; i <= HIBR_LTRC; i++)
+		if (!strcmp(v, lg_name(i)))
+			return i;
+	return -1;
+}
+
+
 /* One diagnostic as a line of JSON, for agent mode, keyed by its level's name. */
 void lg_json(int lv, const char *f, va_list ap)
 {
-	static const char *lvn[] = { "error", "warning", "info", "debug",
-				     "trace" };
 	va_list ap2;
 	str o;
 	char *m;
@@ -115,14 +160,14 @@ void lg_json(int lv, const char *f, va_list ap)
 	m = xm((size_t)(n < 0 ? 0 : n) + 1);
 	vsnprintf(m, (size_t)(n < 0 ? 0 : n) + 1, f, ap);
 	s_init(&o);
-	lg_jline(&o, lvn[lv < 0 ? 0 : lv > 4 ? 4 : lv], m);
+	lg_jline(&o, lg_name(lv), m);
 	fputs(o.p, stderr);
 	s_free(&o);
 	free(m);
 }
 
-/* The local time a line is written, RFC 3339 and a space, for logtime. */
-void lg_when(FILE *o)
+/* The local time a line is written, RFC 3339 and a space, for logtime, added to o. */
+void lg_stamp(str *o)
 {
 	time_t t = time(0);
 	struct tm tm;
@@ -130,10 +175,188 @@ void lg_when(FILE *o)
 
 	localtime_r(&t, &tm);
 	z = tm.tm_gmtoff / 60;
-	fprintf(o, "%04d-%02d-%02dT%02d:%02d:%02d%c%02ld:%02ld ",
-		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
-		tm.tm_min, tm.tm_sec, z < 0 ? '-' : '+', (z < 0 ? -z : z) / 60,
-		(z < 0 ? -z : z) % 60);
+	s_fmt(o, "%04d-%02d-%02dT%02d:%02d:%02d%c%02ld:%02ld ",
+	      tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
+	      tm.tm_min, tm.tm_sec, z < 0 ? '-' : '+', (z < 0 ? -z : z) / 60,
+	      (z < 0 ? -z : z) % 60);
+}
+
+/* The same stamp written to a stream. */
+void lg_when(FILE *o)
+{
+	str s;
+
+	s_init(&s);
+	lg_stamp(&s);
+	fputs(s.p, o);
+	s_free(&s);
+}
+
+/* A collapsed diagnostic written again, in one write so another process's line cannot fall between: its line, tagged with its level unless an error, then where it came from and how often it came since. */
+void lg_said(lgrec *r, long d)
+{
+	int at = *r->src && r->ln;
+	str o;
+
+	s_init(&o);
+	lg_stamp(&o);
+	s_cat(&o, "hibr: ");
+	if (r->lv > HIBR_LERR) {
+		s_cat(&o, lg_name(r->lv));
+		s_cat(&o, ": ");
+	}
+	s_cat(&o, r->m);
+	s_ch(&o, '\n');
+	if (at || r->n) {
+		lg_stamp(&o);
+		s_cat(&o, "  ");
+		if (at)
+			s_fmt(&o, "at %s:%u", r->src, r->ln);
+		if (r->n == 1)
+			s_fmt(&o, "%scame once more in %ld s", at ? ", " : "", d < 0 ? 0 : d);
+		else if (r->n)
+			s_fmt(&o, "%scame %ld times more in %ld s", at ? ", " : "", r->n, d < 0 ? 0 : d);
+		s_ch(&o, '\n');
+	}
+	fputs(o.p, stderr);
+	s_free(&o);
+}
+
+/* Forget the collapsed diagnostic at index i, the last taking its place. */
+void lg_forget(size_t i)
+{
+	lgrec *r = lg_seen.p[i];
+
+	free(r->m);
+	free(r->src);
+	free(r);
+	lg_seen.p[i] = lg_seen.p[--lg_seen.n];
+}
+
+/* Standard error as it is when logtime is turned on is the log the diagnostics are collapsed in; a terminal never is. */
+void lg_logat(void)
+{
+	struct stat st;
+
+	lg_logok = !fstat(2, &st) && !S_ISCHR(st.st_mode);
+	lg_logdv = lg_logok ? st.st_dev : 0;
+	lg_login = lg_logok ? st.st_ino : 0;
+	lg(HIBR_LDBG, "logtime: collapsing repeats %s", lg_logok ? "in this log" : "nowhere: not a log");
+}
+
+/* At exit, how often each diagnostic still counted came since it was last written, in the process that counted it. */
+void lg_end(void)
+{
+	struct stat st;
+	long now = (long)time(0) - lg_t0;
+	lgrec *r;
+
+	if (!lg_seen.n || lg_busy || getpid() != lg_pid)
+		return;
+	lg_busy = 1;
+	if (fstat(2, &st))
+		memset(&st, 0, sizeof st);
+	while (lg_seen.n) {
+		r = lg_seen.p[lg_seen.n - 1];
+		if (r->n && r->dv == st.st_dev && r->in == st.st_ino)
+			lg_said(r, now - r->at);
+		lg_forget(lg_seen.n - 1);
+	}
+	v_free(&lg_seen);
+	lg_busy = 0;
+}
+
+/* A diagnostic under logtime: anywhere but the log as it is, and to the log written the first time it comes from a place, then counted for HIBR_LGREP seconds of the shell's own clock, so a flood is a line a minute; past HIBR_LGKEEP being counted the oldest is said and let go. */
+void lg_rep(int lv, const char *f, va_list ap)
+{
+	struct stat st;
+	va_list ap2;
+	lgrec *r, *hit = 0;
+	const char *src;
+	unsigned ln;
+	long now, d;
+	size_t i, old;
+	char *m;
+	int n;
+
+	if (lg_busy) {
+		fputs("hibr: ", stderr);
+		vfprintf(stderr, f, ap);
+		fputc('\n', stderr);
+		return;
+	}
+	lg_busy = 1;
+	if (!lg_logok || fstat(2, &st) || st.st_dev != lg_logdv || st.st_ino != lg_login) {
+		lg_when(stderr);
+		fputs("hibr: ", stderr);
+		vfprintf(stderr, f, ap);
+		fputc('\n', stderr);
+		lg_busy = 0;
+		return;
+	}
+	va_copy(ap2, ap);
+	n = vsnprintf(0, 0, f, ap2);
+	va_end(ap2);
+	m = xm((size_t)(n < 0 ? 0 : n) + 1);
+	vsnprintf(m, (size_t)(n < 0 ? 0 : n) + 1, f, ap);
+	if (lg_pid != getpid()) {
+		while (lg_seen.n)
+			lg_forget(lg_seen.n - 1);
+		lg_pid = getpid();
+	}
+
+	src = lg_sh->src ? lg_sh->src : "";
+	ln = lg_ln ? lg_ln : lg_sh->ln;
+	lg_t0 = lg_sh->t0;
+	now = (long)time(0) - lg_t0;
+	old = 0;
+	for (i = 0; i < lg_seen.n;) {
+		r = lg_seen.p[i];
+		d = now - r->at;
+		if (r->lv == lv && r->ln == ln && r->dv == st.st_dev &&
+		    r->in == st.st_ino && !strcmp(r->m, m) && !strcmp(r->src, src)) {
+			hit = r;
+			i++;
+		} else if (d >= 0 && d < HIBR_LGREP) {
+			if (r->at < ((lgrec *)lg_seen.p[old])->at)
+				old = i;
+			i++;
+		} else {
+			if (r->n && r->dv == st.st_dev && r->in == st.st_ino)
+				lg_said(r, d);
+			lg_forget(i);
+		}
+	}
+	if (hit) {
+		free(m);
+		d = now - hit->at;
+		if (d >= 0 && d < HIBR_LGREP) {
+			hit->n++;
+		} else {
+			lg_said(hit, d);
+			hit->at = now;
+			hit->n = 0;
+		}
+	} else {
+		if (lg_seen.n >= HIBR_LGKEEP) {
+			r = lg_seen.p[old];
+			if (r->n && r->dv == st.st_dev && r->in == st.st_ino)
+				lg_said(r, now - r->at);
+			lg_forget(old);
+		}
+		r = xm(sizeof *r);
+		memset(r, 0, sizeof *r);
+		r->m = m;
+		r->src = xs(src);
+		r->ln = ln;
+		r->lv = lv;
+		r->dv = st.st_dev;
+		r->in = st.st_ino;
+		r->at = now;
+		v_add(&lg_seen, r);
+		lg_said(r, 0);
+	}
+	lg_busy = 0;
 }
 
 /* Emit a diagnostic line when its level is enabled. */
@@ -147,9 +370,9 @@ void lg(int lv, const char *f, ...)
 	va_start(ap, f);
 	if (lg_sh && (lg_sh->sopt & O_AGENT))
 		lg_json(lv, f, ap);
+	else if (lg_sh && (lg_sh->sopt & O_LOGTIME))
+		lg_rep(lv, f, ap);
 	else {
-		if (lg_sh && (lg_sh->sopt & O_LOGTIME))
-			lg_when(stderr);
 		fputs("hibr: ", stderr);
 		vfprintf(stderr, f, ap);
 		fputc('\n', stderr);

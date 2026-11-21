@@ -1157,6 +1157,8 @@ int sh_optset(sh *s, const char *nm, int on)
 		s->sopt &= ~b;
 	if (on && b == O_AGENT)
 		sh_agent(s);
+	if (on && b == O_LOGTIME)
+		lg_logat();
 	return HIBR_OK;
 }
 

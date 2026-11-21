@@ -2114,7 +2114,7 @@ void arc_add(arcw *w, const char *base, const char *rel, int depth)
 			arc_wflush(w);
 		}
 	} else {
-		lg(HIBR_LERR, "archive create: %s is not a file, a folder or a link, and is left out", full.p);
+		lg(HIBR_LWRN, "archive create: %s is not a file, a folder or a link, and is left out", full.p);
 	}
 	s_free(&nm);
 	s_free(&full);

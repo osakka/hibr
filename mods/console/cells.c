@@ -269,7 +269,7 @@ unsigned cw_lkid(unsigned li)
 				break;
 		if (id > CN_CWLINKS || cw_lbytes + ln > CN_CWLKB) {
 			if (!cw_said++)
-				lg(HIBR_LERR, "cells: more links at once than the "
+				lg(HIBR_LWRN, "cells: more links at once than the "
 					      "record carries; the rest are drawn "
 					      "as text");
 			return 0;
@@ -312,7 +312,7 @@ void cw_tsnow(int pct, unsigned fb, unsigned mat)
 	}
 	if (i > CN_CWTS) {
 		if (!cw_tssaid++)
-			lg(HIBR_LERR, "cells: more than %d translucencies at once;"
+			lg(HIBR_LWRN, "cells: more than %d translucencies at once;"
 				      " the rest are drawn as the window's",
 			   CN_CWTS);
 		cn_hlts = 0;

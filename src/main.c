@@ -788,9 +788,8 @@ int main(int ac, char **av)
 		}
 		free(hn);
 	}
-	p = getenv("HIBR_DEBUG");
-	if (p)
-		hibr_lv = atoi(p);
+	if (!hibr_get(&s, "HIBR_LOGLEVEL"))
+		hibr_set(&s, "HIBR_LOGLEVEL", lg_name(hibr_lv), 0);
 	/* A leading dash in argv[0] is how login, getty and sshd say "this
 	   is a login shell" -- the only signal they give -- so it counts the
 	   same as the flag. */
@@ -867,7 +866,8 @@ int main(int ac, char **av)
 			       "       argv[0] begins with a dash, as login invokes it);\n"
 			       "       --login is the same\n"
 			       "  --   end of options; - the same, as in sh\n"
-			       "  -d   log level 0-4 (error, warn, info, debug, trace)\n"
+			       "  -d   log level: error, warning, info, debug, trace or 0-4;\n"
+			       "       the same setting as $HIBR_LOGLEVEL\n"
 			       "  -v --version  print version and module ABI\n"
 			       "  -h --help     this\n\n"
 			       "Interactive when stdin is a terminal: reads ~/.hibrc,\n"
@@ -925,7 +925,10 @@ int main(int ac, char **av)
 					sh_fini(&s);
 					return 2;
 				}
-				hibr_lv = atoi(p);
+				if (v_setlevel(&s, p) != HIBR_OK) {
+					sh_fini(&s);
+					return 2;
+				}
 				break;
 			}
 			if (sh_optch(&s, *q, on) != HIBR_OK) {

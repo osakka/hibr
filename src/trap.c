@@ -280,25 +280,23 @@ void tr_nojobs(sh *s)
 		jc_drop(s, (job *)s->jobs.p[0]);
 }
 
-/* Run the exit trap, if one is set. */
+/* Run the exit trap, if one is set, then write the counts of the diagnostics this process collapsed. */
 void tr_exit(sh *s)
 {
-	char *cmd;
+	char *cmd = s->trap ? s->trap[0] : 0;
 
-	if (!s->trap || !s->trap[0])
-		return;
-	cmd = s->trap[0];
-	s->trap[0] = 0;
-	if (!*cmd) {
+	if (cmd) {
+		s->trap[0] = 0;
+		if (*cmd) {
+			s->quit = 0;
+			s->stop = 0;
+			lg(HIBR_LDBG, "running exit trap");
+			hibr_run(s, cmd);
+			s->quit = 1;
+		}
 		free(cmd);
-		return;
 	}
-	s->quit = 0;
-	s->stop = 0;
-	lg(HIBR_LDBG, "running exit trap");
-	hibr_run(s, cmd);
-	free(cmd);
-	s->quit = 1;
+	lg_end();
 }
 
 /* Run the error trap for a failed command. */

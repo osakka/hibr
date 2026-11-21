@@ -658,8 +658,9 @@ int b_set(sh *s, int ac, char **av)
 			return HIBR_FAIL;
 		}
 		if (!strcmp(av[i], "-d") && i + 1 < ac) {
-			hibr_lv = atoi(av[++i]);
-			lg(HIBR_LINF, "log level %d", hibr_lv);
+			if (v_setlevel(s, av[++i]) != HIBR_OK)
+				return HIBR_FAIL;
+			lg(HIBR_LINF, "log level %s", lg_name(hibr_lv));
 			continue;
 		}
 		if (av[i][1] == 'o' && !av[i][2]) {
