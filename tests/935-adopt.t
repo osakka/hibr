@@ -17,12 +17,16 @@ if [ -z "$ADOPT_STAGE" ]; then
 	# score of suites are competing for ptys as well as for the processor.
 	# It failed there and passed every time on its own, which is what a
 	# fixed budget looks like rather than a bug. Ten seconds, still
-	# bounded, and it leaves as soon as the line is there.
+	# bounded, and it leaves as soon as the screen is there -- the last
+	# line and the prompt the shell prints after it: under the sanitizer
+	# build's leak pass the save was once taken between the two, and
+	# recorded a screen with no prompt on it.
 	n=0
 	while [ $n -lt 200 ]; do
 		term poll $t 50
 		r := term row $t 4
-		[ "$r" = line8 ] && break
+		p := term row $t 5
+		[ "$r" = line8 ] && [ "$p" = '$' ] && break
 		n=$((n + 1))
 	done
 	fd := term fd $t
@@ -45,7 +49,7 @@ term scroll $t 0
 term write $t 'echo X is $X
 '
 n=0
-while [ $n -lt 40 ]; do
+while [ $n -lt 200 ]; do
 	term poll $t 50
 	r := term row $t 4
 	[ "$r" = "X is 42" ] && break

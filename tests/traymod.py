@@ -389,10 +389,14 @@ check("a notification is read: its program, summary, body as plain text, urgency
       "note Standin App|Hello|Bold & plain|2|2|default:Open|later" in lines, (out, err))
 check("one its program replaces keeps its number and has the new text",
       "replaced Hello again" in lines and [x["id"] for x in nt] == [1, 1], (out, nt))
-ai, cl = said(nlog, "ActionInvoked"), said(nlog, "NotificationClosed")
+ai = until(lambda: said(nlog, "ActionInvoked"), 10)
+cl = until(lambda: said(nlog, "NotificationClosed"), 10)
 check("its action is sent to the program, and the note said closed by the person",
       ai and ai[-1]["key"] == "default" and cl and cl[-1]["why"] == 2, (ai, cl))
-cl2 = said(nlog2, "NotificationClosed")
+# The program hears its note closed on its own time: the script has said so
+# and ended by then, and the stand-in's record came after it in 8 runs of 20
+# (Gitea #592) -- so the record is waited for, not read at once.
+cl2 = until(lambda: said(nlog2, "NotificationClosed"), 10)
 check("one its program closes goes, and the program is told so",
       "closed" in lines and cl2 and cl2[-1]["why"] == 3, (out, cl2))
 for x in (np, np2):

@@ -3,7 +3,7 @@
 the only one since Blit 0.3.74: every line about a picture is
 `<WORD> <verb> <id> [arguments]`, the id the third word.
 
-    python3 tests/frameserve.py NAME TOKEN LOG [old|v3|nodma] [ver=X.Y.Z]
+    python3 tests/frameserve.py NAME TOKEN LOG [old|v3|nodma] [ver=X.Y.Z] [hello=SECS]
 
 With old it is a Blit older than 0.3.74, refusing a version 5 hello with
 EINVAL as that one does. v3 imports dmabufs (ADR 0223); without it, or with
@@ -17,6 +17,11 @@ lines, or refused with "FRAME error 0 EINVAL\n".
 
 ver= is the Blit it stands in for, 0.3.127 by default, which decides how it
 draws a placement it is handed (LOG.place, below).
+
+hello= answers each hello SECS late, as a Blit busy elsewhere does: a
+display's client then joins its session before it can say it takes frames,
+which is the window a program asking `hold descriptors` too soon falls in
+(Gitea #420). Under 2, or the client gives up on the hello.
 
 Listens on the abstract Unix socket NAME (SOCK_SEQPACKET), as Blit does,
 takes a hello carrying TOKEN, and then frames: a 48-byte header and one
@@ -49,6 +54,7 @@ OLD = len(sys.argv) > 4 and sys.argv[4] in ("old", "v1")
 NODMA = not (len(sys.argv) > 4 and sys.argv[4] == "v3")
 VER = next((tuple(int(x) for x in a[4:].split(".")) for a in sys.argv[4:]
             if a.startswith("ver=")), (0, 3, 127))
+HELLOLATE = next((float(a[6:]) for a in sys.argv[4:] if a.startswith("hello=")), 0.0)
 F_GET_SEALS = 1034
 SEALS = 0x0002 | 0x0004 | 0x0008
 
@@ -501,6 +507,8 @@ def main():
                     continue
                 conns[s] = True
                 vers[s] = ver
+                if HELLOLATE:
+                    time.sleep(HELLOLATE)
                 note(kind="hello", version=ver)
                 s.send(b"OK dmabuf=0 window=0\n" if NODMA else
                        b"OK dmabuf=1 fence=0 formats=XR24/0,AR24/0 window=0\n")

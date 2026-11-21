@@ -431,11 +431,21 @@ check("and its connection ends, before all that was said to it", eof and len(end
 for k in (stuck, hung):
     k.close()
 # Idle cost: ten connections that say nothing cost a pass next to nothing.
+# Judged by the processor the desktop itself spent (/proc/<pid>/schedstat,
+# what wm/budget.hibr judges a callback by under DT_HOLDBY=cpu), not by the
+# clock: on a gate's loaded box a pass read 102 to 178 us by the clock with
+# the work unchanged, the rest of it waiting for a processor (Gitea #607).
+# Five rounds of 200 passes, and the cheapest round counts, so what another
+# process does to the caches in one round does not either. Where there is
+# no schedstat it is the clock, as before.
 idle = [client("demo") for i in range(10)]
 time.sleep(0.3)
-do('t0=${EPOCHREALTIME/./}; for i in {1..200}; do dt_rttick; done; '
-   'echo $(( (${EPOCHREALTIME/./} - t0) / 200 )) > %s.idle' % SAID)
-deadline = time.time() + 10
+do('o=; for b in 1 2 3 4 5; do c0=; read -r c0 _ _ 2> /dev/null < /proc/$$/schedstat; '
+   't0=${EPOCHREALTIME/./}; for i in {1..200}; do dt_rttick; done; t1=${EPOCHREALTIME/./}; c1=; '
+   'read -r c1 _ _ 2> /dev/null < /proc/$$/schedstat; '
+   'if [ -n "$c0" ] && [ -n "$c1" ]; then u=$(( (c1 - c0) / 200000 )); else u=$(( (t1 - t0) / 200 )); fi; '
+   '[ -z "$o" ] || [ "$u" -lt "$o" ] && o=$u; done; echo "$o" > %s.idle' % SAID)
+deadline = time.time() + 20
 while time.time() < deadline and not os.path.exists(SAID + ".idle"):
     time.sleep(0.05)
 us = open(SAID + ".idle").read().strip() if os.path.exists(SAID + ".idle") else ""

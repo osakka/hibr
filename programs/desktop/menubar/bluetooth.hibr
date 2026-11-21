@@ -32,7 +32,7 @@
 
 strict
 
-app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.2.2
+app bluetooth "Bluetooth on the menu bar and the devices it watches" 1.2.3
 
 # The state: kind (bluez, none, or gone for a bluetoothd that went; empty
 # until the first frame looks), why (asked for and not answering), addr and
@@ -54,6 +54,13 @@ DT_BTREAD=0
 # The read running as a job now, and whether another is owed after it.
 DT_BTRJOB=
 DT_BTRAGAIN=
+# What a read heard of the adapter -- addr, name, power, disc and scan --
+# brought back from its job and put into DT_BT there. Never DT_BT itself:
+# that holds busy and err too, the desktop's own, and a read started while
+# a device was being connected handed back the busy it was started with
+# after the connect had cleared it, so the bar said busy for good (Gitea
+# #371).
+declare -gA DT_BTRD
 # Whether the first read is back: until it is, the bar says it does not
 # know yet, rather than that Bluetooth is off.
 DT_BTKNOWN=
@@ -133,7 +140,7 @@ dt_btread() {
 		DT_BTRAGAIN=1
 		return 0
 	fi
-	DT_BTRJOB := dt_jobvars bt state dt_btreaddone dt_btreadnow DT_BT DT_BTM DT_BTN \
+	DT_BTRJOB := dt_jobvars bt state dt_btreaddone dt_btreadnow DT_BTRD DT_BTM DT_BTN \
 		DT_BTP DT_BTC DT_BTB DT_BTI DT_BTICON 2> /dev/null ||
 		{ DT_BTRJOB=; dt_log "bluetooth: the read could not start as a job"; }
 	return 0
@@ -141,6 +148,12 @@ dt_btread() {
 
 # A read is back: the bar shows it, and an owed one starts.
 fn dt_btreaddone(int? n = "", int? st = "") {
+	local k
+
+	for k in "${!DT_BTRD[@]}"; do
+		DT_BT["$k"]=${DT_BTRD["$k"]}
+	done
+	DT_BTRD=()
 	DT_BTRJOB=
 	DT_BTKNOWN=1
 	dt_btbar
@@ -157,15 +170,16 @@ dt_btreadnow() {
 	local l k v mac nm i
 	local -A con pai
 
+	DT_BTRD=()
 	[ "${DT_BT["kind"]}" = bluez ] || return 0
-	DT_BT["power"]=no; DT_BT["disc"]=no; DT_BT["scan"]=no
+	DT_BTRD["power"]=no; DT_BTRD["disc"]=no; DT_BTRD["scan"]=no
 	while IFS= read -r l; do
 		case $l in
-		Controller\ *) l=${l#Controller }; DT_BT["addr"]=${l%% *} ;;
-		*$'\t'Alias:\ * | *" Alias: "*) DT_BT["name"]=${l#*Alias: } ;;
-		*Powered:\ *) DT_BT["power"]=${l#*Powered: } ;;
-		*Discoverable:\ *) DT_BT["disc"]=${l#*Discoverable: } ;;
-		*Discovering:\ *) DT_BT["scan"]=${l#*Discovering: } ;;
+		Controller\ *) l=${l#Controller }; DT_BTRD["addr"]=${l%% *} ;;
+		*$'\t'Alias:\ * | *" Alias: "*) DT_BTRD["name"]=${l#*Alias: } ;;
+		*Powered:\ *) DT_BTRD["power"]=${l#*Powered: } ;;
+		*Discoverable:\ *) DT_BTRD["disc"]=${l#*Discoverable: } ;;
+		*Discovering:\ *) DT_BTRD["scan"]=${l#*Discovering: } ;;
 		esac
 	done <<< "$(dt_btq show)"
 	while IFS= read -r l; do

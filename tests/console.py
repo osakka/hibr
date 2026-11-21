@@ -1099,22 +1099,53 @@ check("and the run is drawn whole, where it was",
 # 0.99.553 the child read it -- whatever forked from a desktop could take
 # the person's keys from it.
 FK = "/tmp/hibr-console-fork-%d" % os.getpid()
-for x in (FK + ".c", FK + ".p"):
+FKS = (FK + ".r", FK + ".go", FK + ".c", FK + ".p")
+for x in FKS:
     if os.path.exists(x):
         os.unlink(x)
-run('''console open
-( console key 1500; echo "child $?" > %s.c ) &
-k := console key 4000
-echo "parent [$k]" > %s.p
+
+
+def fkread(sfx):
+    return open(FK + sfx).read().split() if os.path.exists(FK + sfx) else []
+
+
+def fkkey(t):
+    """The key is typed once the child is waiting and the parent is about
+    to: a fixed pause before it was a bet on how soon the script got there,
+    and under a gate's load it lost -- the child's wait had ended, its exit
+    ended the parent's (a child exiting interrupts a wait), and the parent
+    read nothing. Then both are waited for, not the clock -- each for
+    as long as the sanitizer build may take, since nothing here is spent
+    unless something has gone wrong."""
+    slow = 4 if os.environ.get("ASAN_OPTIONS") else 1
+    deadline = time.time() + 10 * slow
+    while time.time() < deadline and not os.path.exists(FK + ".go"):
+        t.collect(0.05)
+    t.send(b"x", settle=0.1, collect=0.1)
+    deadline = time.time() + 10 * slow
+    while time.time() < deadline and not (fkread(".c") and fkread(".p")):
+        t.collect(0.05)
+
+
+run(r"""console open
+( echo "$EPOCHREALTIME" > %s.r; console key 3000; echo "child $? $EPOCHREALTIME" > %s.c ) &
+n=0
+while [ ! -s %s.r ] && [ $n -lt 500 ]; do sleep 0.01; n=$((n + 1)); done
+: > %s.go
+k=
+n=0
+while [ -z "$k" ] && [ $n -lt 40 ]; do k := console key 200; n=$((n + 1)); done
+echo "parent [$k] $EPOCHREALTIME" > %s.p
 wait
 console close
-''' % (FK, FK), after=lambda t: (time.sleep(0.6), t.send(b"x", settle=0.2, collect=0.2)), wait=3.0)
-child = open(FK + ".c").read().strip() if os.path.exists(FK + ".c") else "?"
-parent = open(FK + ".p").read().strip() if os.path.exists(FK + ".p") else "?"
+""" % (FK, FK, FK, FK, FK), after=fkkey, wait=0.2)
+child, parent, began = fkread(".c"), fkread(".p"), fkread(".r")
 check("a child forked while the console is open takes no key from the terminal",
-      child == "child 1", child)
-check("and the key typed meanwhile is the parent's", parent == "parent [x]", parent)
-for x in (FK + ".c", FK + ".p"):
+      child[:2] == ["child", "1"], child)
+check("and the key typed meanwhile is the parent's",
+      parent[:2] == ["parent", "[x]"] and began and child[2:] and
+      float(began[0]) < float(parent[2]) < float(child[2]), (began, parent, child))
+for x in FKS:
     if os.path.exists(x):
         os.unlink(x)
 

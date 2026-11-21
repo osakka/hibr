@@ -12,7 +12,10 @@ command it is interactive: a watcher with nothing to read prints a [CHG]
 line whenever the state changes; a pairing session reads agent, pair,
 trust and connect commands and answers as bluez does.
 
-State is $HIBR_BTSTATE/state.json; every call's argv goes to argv.log."""
+State is $HIBR_BTSTATE/state.json; every call's argv goes to argv.log.
+Its "late" map slows a command as a busy machine does, in seconds: "show"
+answers that late, "connect" says it succeeded that long after the device
+connected -- after the watcher has seen it (Gitea #371)."""
 import json
 import os
 import select
@@ -78,7 +81,7 @@ def refuse(s, what):
     return False
 
 
-def connect(s, mac):
+def connect(s, mac, late=0):
     d = dev(s, mac)
     say("Attempting to connect to %s" % mac)
     if not d or not d["paired"] or d.get("away"):
@@ -87,6 +90,7 @@ def connect(s, mac):
     d["connected"] = True
     save(s)
     say("[CHG] Device %s Connected: yes" % mac)
+    time.sleep(late)
     say("Connection successful")
 
 
@@ -206,7 +210,9 @@ def main(a):
         print("No default controller available")
         return
     c = a.pop(0)
+    late = s.get("late", {}).get(c, 0)
     if c == "show":
+        time.sleep(late)
         show(s)
     elif c == "devices":
         f = a[0] if a else ""
@@ -234,7 +240,7 @@ def main(a):
         save(s)
         say("Changing discoverable %s succeeded" % a[0])
     elif c == "connect":
-        connect(s, a[0])
+        connect(s, a[0], late)
     elif c == "disconnect":
         d = dev(s, a[0])
         say("Attempting to disconnect from %s" % a[0])

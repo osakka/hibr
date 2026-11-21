@@ -1736,13 +1736,15 @@ def sidebyside(env1, env2):
     nm = name()
     # Both displays listed is not both displays answered: the second's
     # frame socket says hello after it has joined, so under a gate's load
-    # `hold descriptors` once read "two no" -- wait for the answers.
+    # `hold descriptors` once read "two no" -- wait for the answers, for
+    # as long as a loaded gate may take to start the second display; the
+    # wait ends at the answers, so the bound costs nothing.
     body = ("i=0\nwhile [ $i -lt %d ]; do d := hold descriptors 2> /dev/null; "
             "n=0; while read -r x y; do [ \"$y\" = yes ] && n=$((n + 1)); done <<< \"$d\"; "
             "[ $n -ge 2 ] && break; console key 100 > /dev/null; i=$((i + 1)); done\n"
             "d := hold descriptors\necho \"fd [$d]\" >> %s\n"
             "case \"$d\" in ''|*' no'*) console imgfd off ;; *) console imgfd hold ;; esac\n"
-            "console pane w1 2 2 10 30\nconsole put 0 0 'HELD side'\n" % (40 * SLOW, LOG))
+            "console pane w1 2 2 10 30\nconsole put 0 0 'HELD side'\n" % (200 * SLOW, LOG))
     for g in (GRAD, GRAD3):
         body += ("img draw %s 1 1 8 28 -m pixels -p w1\nconsole flush\n"
                  "console key 150 > /dev/null\n" % g)
@@ -1759,7 +1761,7 @@ def sidebyside(env1, env2):
     t1.collect(1.0)
     t2 = Term(two, rows=24, cols=60, settle=1.0, cellw=8, cellh=16,
               env=dict({"HIBR_GFX": "kitty", "TMPDIR": D}, **env2), caps=["kitty"])
-    for _ in range(40 * SLOW):
+    for _ in range(120 * SLOW):
         t1.collect(0.1)
         t2.collect(0.1)
         if "drawn" in open(LOG).read():
@@ -1773,8 +1775,13 @@ def sidebyside(env1, env2):
     return sc1, sc2, open(LOG).read()
 
 
+# The second display's Blit answers its hello 0.4 s late, so that the
+# second display has joined before it can say it takes frames: the window
+# the program's wait for both answers is there for (Gitea #420) is open on
+# every run, not only under a gate's load -- and far enough inside the
+# client's own 2 s for the hello that a loaded box does not push it past.
 p1, lg1, e1 = fdsrv("s1")
-p2, lg2, e2 = fdsrv("s2")
+p2, lg2, e2 = fdsrv("s2", "hello=0.4")
 sd1, sd2, sdlog = sidebyside(e1, e2)
 for p in (p1, p2):
     p.terminate()

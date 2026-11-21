@@ -163,7 +163,11 @@ try:
     jb = at(sc, "JBL Flip 6")
     check("and devices in reach under them, to pair", jb is not None and "pair" in sc.row(jb[0]), sc)
 
-    b = Bt()
+    # A machine as busy as a gate's: the connect says it is done well after
+    # the device connected, and the read the watcher's word starts is slower
+    # than both -- so a read started while the device was busy ends after
+    # the connect has, which once put the busy back for good (Gitea #371).
+    b = Bt(late={"connect": 0.6, "show": 1.5})
     sc = srun(b, [press(0, col), release(0, col), ("wait", "8BitDo Retro Keyboard"), press(kb[0], kb[1]), release(kb[0], kb[1])],
               until=lambda sc: (b.dev("8BitDo Retro Keyboard") or {}).get("connected")
               and BT + " 2" in bar(sc))
@@ -183,24 +187,24 @@ try:
     b = Bt()
     px = at(sc, "Pixel Phone") or at(srun(b, [press(0, col), release(0, col)], until="Pixel Phone"),
                                      "Pixel Phone")
-    sc = srun(b, [press(0, col), release(0, col), ("wait", "Pixel Phone"), press(px[0], px[1]), release(px[0], px[1]), 1.5],
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Pixel Phone"), press(px[0], px[1]), release(px[0], px[1])],
               until="Does it show this number?")
     check("a device that shows a passkey asks whether it is the same, showing it",
           sc.find("Does it show this number?") is not None and sc.find("123456") is not None, sc)
-    sc = srun(b, [press(0, col), release(0, col), ("wait", "Pixel Phone"), press(px[0], px[1]), release(px[0], px[1]), 1.5,
-                  b"\r"],
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Pixel Phone"), press(px[0], px[1]), release(px[0], px[1]),
+                  ("wait", "Does it show this number?"), b"\r"],
               until=lambda sc: (b.dev("Pixel Phone") or {}).get("paired"))
     check("and yes pairs it", b.dev("Pixel Phone")["paired"], (b.dev("Pixel Phone"), sc))
 
     b = Bt()
     ok = at(srun(b, [press(0, col), release(0, col)], until="Old Keyboard"), "Old Keyboard")
-    sc = srun(b, [press(0, col), release(0, col), ("wait", "Old Keyboard"), press(ok[0], ok[1]), release(ok[0], ok[1]), 1.5,
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Old Keyboard"), press(ok[0], ok[1]), release(ok[0], ok[1]), ("wait", "Its passkey or PIN:"),
                   b"0000", b"\r"],
               until=lambda sc: (b.dev("Old Keyboard") or {}).get("paired"))
     check("a device that wants a PIN asks for it, and the right one pairs it",
           b.dev("Old Keyboard")["paired"], (b.dev("Old Keyboard"), sc))
     b = Bt()
-    sc = srun(b, [press(0, col), release(0, col), ("wait", "Old Keyboard"), press(ok[0], ok[1]), release(ok[0], ok[1]), 1.5,
+    sc = srun(b, [press(0, col), release(0, col), ("wait", "Old Keyboard"), press(ok[0], ok[1]), release(ok[0], ok[1]), ("wait", "Its passkey or PIN:"),
                   b"9999", b"\r"],
               until="Could not pair")
     check("and a wrong one says it could not pair, leaving it unpaired",
