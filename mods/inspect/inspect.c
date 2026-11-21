@@ -28,7 +28,7 @@ typedef struct {
 	sh *caller;
 	const char *identity;
 	const char *src, *path, *request, *filter, *owner;
-	vec names, symbols;
+	vec names, symbols, arguments;
 	ix_pos **positions;
 	const char *input;
 	size_t inputsize, origin;
@@ -154,6 +154,22 @@ static void ix_span(ix_ctx *c, size_t start, size_t end)
 static const char *ix_literal(word *w)
 {
 	return w && w->p && !w->p->nx && w->p->k == P_TXT ? w->p->t : 0;
+}
+
+/* Read a word that is literal text only, its quotes removed; whether every part was quoted. */
+static int ix_wordtext(word *w, str *out, int *quoted)
+{
+	part *p;
+
+	*quoted = 1;
+	for (p = w ? w->p : 0; p; p = p->nx) {
+		if (p->k != P_TXT)
+			return 0;
+		*quoted &= p->q != 0;
+	}
+	for (p = w ? w->p : 0; p; p = p->nx)
+		s_add(out, p->t ? p->t : "", p->t ? p->n : 0);
+	return 1;
 }
 
 /* Collect function names without resolving or loading commands. */
@@ -625,6 +641,65 @@ static int ix_namecode(part *p)
 	return 0;
 }
 
+/* Whether a vector of names holds one. */
+static int iv_has(vec *v, const char *name)
+{
+	size_t i;
+
+	for (i = 0; i < v->n; i++)
+		if (!strcmp(v->p[i], name))
+			return 1;
+	return 0;
+}
+
+/* Show a dynamic subscript's or argument's own source unless it holds command code. */
+static char *iv_dyntext(ix_ctx *c, size_t start, size_t end, str *out)
+{
+	size_t i;
+
+	for (i = start; i < end; i++)
+		if (c->src[i] == '`' || ((c->src[i] == '$' || c->src[i] == '<' || c->src[i] == '>') &&
+					 i + 1 < end && c->src[i + 1] == '('))
+			return 0;
+	s_add(out, c->src + start, end - start);
+	return out->p ? out->p : "";
+}
+
+/* Disclose a call's arguments, for a command the caller asked about: each
+   word's literal value, or its source as written when it expands, never
+   command code. */
+static void ix_arguments(ix_ctx *c, node *n)
+{
+	word *w;
+	str text;
+	size_t start, end;
+	int quoted, literal, located, k = 0;
+
+	s_cat(c->out, ",\"arguments\":[");
+	for (w = n->w->nx; w; w = w->nx) {
+		s_init(&text);
+		literal = ix_wordtext(w, &text, &quoted);
+		located = ix_position(c, w, &start, &end);
+		if (!literal && located && !ix_namecode(w->p))
+			iv_dyntext(c, start, end, &text);
+		s_cat(c->out, k++ ? ",{\"text\":" : "{\"text\":");
+		if (literal || text.n)
+			ix_quote(c->out, text.p ? text.p : "");
+		else
+			s_cat(c->out, "null");
+		s_cat(c->out, ",\"quote\":");
+		ix_quote(c->out, !literal ? "dynamic" : quoted ? "quoted" : "unquoted");
+		s_ch(c->out, ',');
+		if (located)
+			ix_span(c, start, end);
+		else
+			s_cat(c->out, "\"span\":null");
+		s_ch(c->out, '}');
+		s_free(&text);
+	}
+	s_ch(c->out, ']');
+}
+
 /* Walk parsed units to produce function, call and literal-reference records. */
 /* Whether a node's first child's status is tested, as the shell tests it: a
    condition of if, while and until, the left of && and ||, what ! negates;
@@ -753,6 +828,8 @@ static void ix_walk(ix_ctx *c, node *n)
 					ix_expression(c, n);
 			}
 			ix_registration_record(c, n);
+			if (name && iv_has(&c->arguments, name))
+				ix_arguments(c, n);
 			s_ch(c->out, '}');
 		}
 		if (!strcmp(c->request, "refs"))
@@ -801,9 +878,9 @@ typedef struct {
 	int exact, lexical, subdepth;
 } iv_rec;
 
-/* A function's declared parameters, its locals and the arguments it takes by name. */
+/* A function's declared parameters, its rest parameter, its locals and the arguments it takes by name. */
 typedef struct {
-	char *name;
+	char *name, *rest;
 	vec params, locals, byname;
 } iv_fn;
 
@@ -829,17 +906,6 @@ static int iv_namech(ix_ctx *c, size_t at)
 	unsigned char ch = at < c->end ? (unsigned char)c->src[at] : 0;
 
 	return isalnum(ch) || ch == '_';
-}
-
-/* Whether a vector of names holds one. */
-static int iv_has(vec *v, const char *name)
-{
-	size_t i;
-
-	for (i = 0; i < v->n; i++)
-		if (!strcmp(v->p[i], name))
-			return 1;
-	return 0;
 }
 
 /* Record one variable fact; an unknown start takes the enclosing word or command. */
@@ -1035,18 +1101,6 @@ static int iv_brackets(ix_ctx *c, size_t at, size_t end, unsigned subs, size_t *
 	return 1;
 }
 
-/* Show a dynamic subscript's own source unless it holds command code. */
-static char *iv_dyntext(ix_ctx *c, size_t start, size_t end, str *out)
-{
-	size_t i;
-
-	for (i = start; i < end; i++)
-		if (c->src[i] == '`' || ((c->src[i] == '$' || c->src[i] == '<' || c->src[i] == '>') &&
-					 i + 1 < end && c->src[i + 1] == '('))
-			return 0;
-	s_add(out, c->src + start, end - start);
-	return out->p ? out->p : "";
-}
 
 /* Record a word naming a variable: name, subscripts and += read by the parser. */
 static iv_rec *iv_target(ix_ctx *c, word *w, const char *access, const char *form, int quoted,
@@ -1328,7 +1382,7 @@ static void iv_var(ix_ctx *c, part *p)
 				iv_key(d, k, "", 'u');
 			} else {
 				if (!ix_namecode(w->p) && ix_position(c, w, &ws, &we))
-					s_add(&text, c->src + ws, we - ws);
+					iv_dyntext(c, ws, we, &text);
 				iv_key(r, k, text.n ? text.p : 0, 'd');
 				iv_key(d, k, text.n ? text.p : 0, 'd');
 			}
@@ -1489,7 +1543,7 @@ static void iv_decl(ix_ctx *c, node *n, const char *cmd)
 	const char *a;
 	iv_rec *r;
 	size_t ws, we;
-	int global = 0, nameref = 0, functions = 0, print = 0, local, attr, clause, typed;
+	int global = 0, nameref = 0, functions = 0, print = 0, named = 0, local, attr, clause, typed;
 
 	attr = strcmp(cmd, "export") && strcmp(cmd, "readonly");
 	a = n->w->nx ? ix_literal(n->w->nx) : 0;
@@ -1504,7 +1558,7 @@ static void iv_decl(ix_ctx *c, node *n, const char *cmd)
 			print |= strchr(a, 'p') != 0;
 			continue;
 		}
-		if (typed && a && w->nx && v_tycode(a))
+		if (typed && !named++ && a && w->nx && v_tycode(a))
 			continue;
 		if (functions)
 			continue;
@@ -1832,7 +1886,9 @@ static void iv_func(ix_ctx *c, node *n, size_t start)
 	memset(f, 0, sizeof *f);
 	f->name = xs(n->s ? n->s : "");
 	for (pm = n->x; pm; pm = pm->x)
-		if (pm->s && !(pm->f & TY_REST))
+		if (pm->s && (pm->f & TY_REST))
+			f->rest = xs(pm->s);
+		else if (pm->s)
 			v_add(&f->params, xs(pm->s));
 	v_add(&c->vfns, f);
 	c->vfn = c->vfns.n - 1;
@@ -1932,7 +1988,8 @@ static void iv_node(ix_ctx *c, node *n)
 	for (r = n->rd; r; r = r->nx) {
 		if (r->var && isname(r->var)) {
 			exact = ix_position(c, r->var, &at, &end) && iv_at(c, at, r->var, strlen(r->var));
-			iv_add(c, r->var, "write", "fd-variable", exact ? at : (size_t)-1,
+			a = r->k == R_DUP ? ix_literal(r->w) : 0;
+			iv_add(c, r->var, a && !strcmp(a, "-") ? "read" : "write", "fd-variable", exact ? at : (size_t)-1,
 			       at + strlen(r->var), exact);
 		}
 		iv_word(c, r->w);
@@ -1984,7 +2041,7 @@ static void iv_emit(ix_ctx *c)
 		s_cat(c->out, ",\"owner\":");
 		ix_quote(c->out, r->owner);
 		s_cat(c->out, ",\"declared\":");
-		if (r->fn && iv_has(&f->params, r->name))
+		if (r->fn && (iv_has(&f->params, r->name) || (f->rest && !strcmp(f->rest, r->name))))
 			s_cat(c->out, "\"param\"");
 		else if (r->fn && iv_has(&f->locals, r->name))
 			s_cat(c->out, "\"local\"");
@@ -2045,6 +2102,7 @@ static void iv_free(ix_ctx *c)
 		for (j = 0; j < f->params.n; j++)
 			free(f->params.p[j]);
 		free(f->name);
+		free(f->rest);
 		v_free(&f->params);
 		v_free(&f->locals);
 		v_free(&f->byname);
@@ -2255,6 +2313,36 @@ static const char *ix_symbols(sh *settings, ix_ctx *c)
 	return 0;
 }
 
+/* Validate and collect the bounded list of commands whose call arguments the caller asks for. */
+static const char *ix_argnames(sh *settings, ix_ctx *c)
+{
+	char **keys = xm(sizeof *keys);
+	ent *list, *e;
+	size_t count = 0;
+	const char *q;
+
+	keys[0] = "arguments";
+	list = v_path(settings, "OPTIONS", keys, 1, 0);
+	free(keys);
+	if (!list)
+		return 0;
+	if (list->ty != J_ARR)
+		return "arguments must be an array of command names";
+	for (e = list->map; e; e = e->nx) {
+		if (++count > 4096)
+			return "arguments exceeds 4096 names";
+		if (e->ty != J_STR || !e->s || !*e->s)
+			return "arguments must be an array of command names";
+		if (strlen(e->s) > 128)
+			return "argument command exceeds 128 bytes";
+		for (q = e->s; *q; q++)
+			if ((unsigned char)*q <= ' ' || *q == 0x7f)
+				return "arguments must be an array of command names";
+		v_add(&c->arguments, e->s);
+	}
+	return 0;
+}
+
 /* Produce preliminary records in private parser storage, without execution. */
 static int ix_query(sh *caller, const char *request, const char *path,
 		    const char *options, str *out)
@@ -2295,6 +2383,8 @@ static int ix_query(sh *caller, const char *request, const char *path,
 	if (options && strcmp(state, "unreadable")) {
 		char **keys = xm(sizeof *keys);
 		optionerror = ix_symbols(&settings, &c);
+		if (!optionerror)
+			optionerror = ix_argnames(&settings, &c);
 		if (optionerror)
 			state = "unreadable";
 		keys[0] = "function";
@@ -2468,6 +2558,7 @@ static int ix_query(sh *caller, const char *request, const char *path,
 	s_free(&ruleidentity);
 	ix_settingsfree(&settings);
 	v_free(&c.symbols);
+	v_free(&c.arguments);
 	lg_ln = oldln;
 	lg_col = oldcol;
 	return bad || !strcmp(state, "unreadable");
@@ -2622,6 +2713,14 @@ static int ix_builtin(sh *s, int ac, char **av)
 				return 2;
 			}
 			s_cat(&options, "\"symbols\":");
+			s_cat(&options, av[i]);
+		} else if (!strcmp(av[i], "--arguments")) {
+			if (++i >= ac) {
+				s_free(&out);
+				s_free(&options);
+				return 2;
+			}
+			s_cat(&options, "\"arguments\":");
 			s_cat(&options, av[i]);
 		} else if (!strcmp(av[i], "--rules")) {
 			if (++i >= ac) {

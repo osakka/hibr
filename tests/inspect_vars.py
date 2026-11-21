@@ -131,6 +131,14 @@ EXPECTED = [
     (79, 'fx_put', 'write', 'param', 'name', 'param', 'syntax', True, 'name', (), 0, False, {}),
     (79, 'fx_put', 'read', 'expand', 'name', 'param', 'syntax', True, '$name', (), 0, False, {}),
     (80, '', 'name', 'argument', 'DT_BYPUT', None, 'inferred', True, 'DT_BYPUT', (), 0, False, {'callee': 'fx_put', 'rule': 'by-name-parameter'}),
+    (81, 'fx_rest', 'write', 'param', 'id', 'param', 'syntax', True, 'id', (), 0, False, {}),
+    (81, 'fx_rest', 'write', 'param', 'DT_RESTS', 'param', 'syntax', True, '...DT_RESTS', (), 0, False, {}),
+    (82, 'fx_rest', 'write', 'local', 'DT_LA', 'local', 'syntax', True, 'DT_LA', (), 0, False, {}),
+    (82, 'fx_rest', 'write', 'local', 'map', 'local', 'syntax', True, 'map', (), 0, False, {}),
+    (82, 'fx_rest', 'write', 'local', 'DT_LB', 'local', 'syntax', True, 'DT_LB', (), 0, False, {}),
+    (83, 'fx_rest', 'write', 'assign', 'DT_RESTS', 'param', 'syntax', True, 'DT_RESTS[0]', (('unquoted', '0'),), 1, False, {}),
+    (84, 'fx_rest', 'write', 'assign', 'map', 'local', 'syntax', True, 'map[k]', (('unquoted', 'k'),), 1, False, {}),
+    (85, 'fx_rest', 'read', 'fd-variable', 'DT_FD', None, 'syntax', True, 'DT_FD', (), 0, False, {}),
 ]
 
 checks = 0
@@ -206,6 +214,10 @@ with tempfile.TemporaryDirectory() as d:
     status, result = query(path)
     check(result['partial'], 'a transformed substitution is partial')
     check([(v['name'], v['form']) for v in result['vars']][-1] == ('B', 'argument'), 'the second argument is taken by name')
+    path.write_text('echo "${a[$(( $(s1) ))]}" "${b[`s2`]}"\nc[$(( $(s3) ))]=1\n')
+    status, result = query(path)
+    check([(v['name'], v['keys'][0]['text']) for v in result['vars']] == [('a', None), ('b', None), ('c', None)],
+          f'a subscript holding command code anywhere gives no text: {result["vars"]}')
     path.write_text('fn broken( {\nA=1\n')
     status, result = query(path)
     check(status != 0 and result['state'] in ('invalid', 'incomplete'), 'damaged source is not ok')

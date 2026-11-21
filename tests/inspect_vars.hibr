@@ -78,3 +78,9 @@ DT_BOUND := DT_ENV=1 dt_baz
 typeset DT_TS=1
 fn fx_put(name) { printf -v "$name" x; }
 fx_put DT_BYPUT
+fn fx_rest(id, ...DT_RESTS) {
+	local -A DT_LA map DT_LB
+	DT_RESTS[0]=1
+	map[k]=1
+	exec {DT_FD}>&-
+}

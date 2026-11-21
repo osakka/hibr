@@ -7,7 +7,7 @@ This is the authoritative contract for Hibr's `inspect` builtin and versioned C 
 Load the module with `need inspect`. Requests are `functions FILE`, `calls FILE [FUNCTION]`, `refs FILE`, `vars FILE [FUNCTION]` and `check FILE`. Unbound requests render a human summary and all evidence fields. `-j` prints JSON instead. A bound request (`r := inspect ...`) is quiet and returns the same data as a typed map, including when `-j` is present. Exit status is zero for ok/empty input, nonzero for invalid, incomplete, unreadable or unsupported requests. Capture a failed bound request inside `if` when using strict error handling.
 
 - `functions` reports definitions, declared parameters, preceding author comments and body locations.
-- `calls` reports command words and command substitutions. An optional function name filters by enclosing function. It classifies names against this file's definitions, core builtins and already loaded modules; everything else stays unresolved.
+- `calls` reports command words and command substitutions. An optional function name filters by enclosing function. It classifies names against this file's definitions, core builtins and already loaded modules; everything else stays unresolved. `--arguments JSON_ARRAY` names commands whose calls also carry their `arguments`; see [Call arguments](#call-arguments).
 - `refs` reports literal arguments naming functions defined in this file. `--symbols JSON_ARRAY` additionally matches caller-supplied literal candidates. Such candidates remain unresolved; they do not establish cross-file execution or resolution.
 - `vars` reports every variable the parser sees read, written or named, one record per access, with its form, subscripts, enclosing function and whether that function declares the name. An optional function name filters by enclosing function. See [Variable facts](#variable-facts).
 - `check` reports parser diagnostics and findings from the same implementation as `--explain`, with stable rule identifiers.
@@ -68,6 +68,7 @@ Every evidence record has `source`, `span` and `known`. Nested body metadata inh
 | `exact`, `lexical` | For `vars`: whether the span covers the access's own bytes, and whether the fact came from the lexical scan of arithmetic text. |
 | `subscripts`, `keys` | For `vars`: how many subscripts the access is written with, and the first two as `text` and `quote` (`quoted`, `unquoted` or `dynamic`). |
 | `verb`, `callee` | For `vars`: the operation of an `arr`, `json` or `str` access, and the command a named argument is given to. |
+| `arguments` | For `calls` to a command named with `--arguments`: one record per argument word, in order, with `text`, `quote` and `span` (see [Call arguments](#call-arguments)). Absent on every other call. |
 
 ## Variable facts
 
@@ -120,14 +121,14 @@ inspect vars sample.hibr -j
 | `prefix` | write | `name=v cmd`, an assignment for one command |
 | `array`, `array-append`, `array-key` | write | `name=(...)`, `name+=(...)`, and one record per `[k]=v` element |
 | `bind` | write | `name := cmd` and `name[k] := cmd` |
-| `local`, `declare`, `typeset`, `export`, `readonly` | write (read for `-p`) | a declaration's names and array clauses; a type word such as `int` before a name is not one |
+| `local`, `declare`, `typeset`, `export`, `readonly` | write (read for `-p`) | a declaration's names and array clauses; a type word such as `int` before the first name is not one, as the shell reads it |
 | `nameref` | write, name | `declare -n ref=TARGET`: the reference is written and the target named |
-| `param` | write | a declared parameter of `fn name(...)`; the span is the parameter as declared |
+| `param` | write | a declared parameter of `fn name(...)`, a rest parameter `...name` included; the span is the parameter as declared |
 | `unset`, `read`, `read-array`, `mapfile`, `printf`, `getopts`, `match`, `rsub` | write | the names these builtins write, flags and their operands skipped (`readarray` is `mapfile`) |
 | `arr`, `json`, `str` | read, write | the variable an `arr`, `json` or `str` operation reads or writes by name, with its `verb`; one that changes a variable in place gives both |
 | `test` | read | `[[ -v name ]]`, `[ -v name ]`, `test -v name` |
 | `for`, `select` | write | the loop variable |
-| `fd-variable` | write | `{name}>file` and its kin |
+| `fd-variable` | write (read for a close) | `{name}>file` and its kin; `{name}>&-` closes the descriptor the variable holds |
 | `expand`, `length`, `keys`, `indirect`, `names` | read | `$x` and `${x...}`, `${#x}`, `${!x[@]}`, `${!x}`, `${!prefix@}` (the name is the prefix) |
 | `default-assign` | write | `${x:=word}`, beside its `expand` read |
 | `arithmetic` | read, write | a name in `(( ))`, `$(( ))`, `$[ ]`, `for (( ))`, `let` or a `${x:offset:length}`; written when an assignment operator, `++` or `--` follows or `++`/`--` precedes it |
@@ -162,11 +163,45 @@ A subscript's `text` is its literal value, quotes removed, when it is `quoted` o
 
 `declared` is lexical: it says what the enclosing function declares, not what is in scope at run time. A function a caller's `local` reaches through dynamic scope is not followed, nor is anything across files. Variables the shell sets implicitly (`REPLY`, `M`, `BASH_REMATCH`, `RET`, `OPTARG`, `OPTIND`, `PWD`), positional and special parameters, the names a by-name builtin is handed through a variable whose value is unknown, the text inside quoted strings that another command may later run (`eval`, `trap`, `sh -c`, `arr map`), and a name arithmetic would read through the value of another variable are not reported.
 
+## Call arguments
+
+A call's arguments are its own text, so `calls` gives none by default. A consumer that needs them names the commands it means with `--arguments`, and only calls to those commands carry an `arguments` array: a registration's prefix, a menu's title, the name a guard asks about. Each argument word is one record, in order. `text` is its value with quotes removed when the word is all literal text, and `quote` is then `quoted` (every part was quoted) or `unquoted`; a word that expands is `dynamic`, and its `text` is its source as written, or null when it holds command code. `span` covers the word as written, or is null when the parser recorded none. Nothing is evaluated: `$DT_HERE` stays the text `$DT_HERE`.
+
+```sh
+need inspect
+cat > sample.hibr <<'SOURCE'
+fn sample_menus() {
+	dt_menu "File"
+	. "$DT_HERE/lib/pim.hibr"
+	echo "not asked for"
+}
+SOURCE
+r := inspect calls sample.hibr --arguments '["dt_menu", "."]'
+for i in "${!r[calls][@]}"; do
+	printf '%s:' "${r[calls][$i][name]}"
+	for j in "${!r[calls][$i][arguments][@]}"; do
+		printf ' %s (%s)' "${r[calls][$i][arguments][$j][text]}" "${r[calls][$i][arguments][$j][quote]}"
+	done
+	echo
+done
+```
+```output
+dt_menu: File (quoted)
+.: "$DT_HERE/lib/pim.hibr" (dynamic)
+echo:
+```
+
+`--arguments` was added within version 1, and a producer from before it does not refuse it: the builtin takes the unknown word for a function name and finds no calls, and a C query ignores the unknown field and gives calls with no `arguments`. A consumer that asks for them therefore checks that a call to a command it named carries `arguments`, and that it found calls at all, rather than reading their absence as no arguments.
+
+`--symbols` and `--arguments` answer different questions: symbols are values to look for among literal arguments, reported as `refs`; arguments are the commands whose argument words a consumer wants on their `calls` records.
+
 ## Options and limits
 
 `--rules FILE` reads an explicit JSON convention file (the desktop uses `programs/desktop/conventions.json`). Its role registrations and callback IDs produce **inferred** edges, never language facts. Both structural tests and inspection consume that file.
 
 `--symbols JSON_ARRAY` accepts at most **4,096** identifier strings of at most **128 bytes each**. Empty lists are accepted. Wrong types, invalid identifiers and exceeded limits are refused with `state: unreadable`, a diagnostic and no facts. Names are supplied by the caller, matched literally and reported unresolved. There is no source search or cross-file loading.
+
+`--arguments JSON_ARRAY` accepts at most **4,096** command names of at most **128 bytes each**, each non-empty with no blank or control character (`.` is a command name). It is refused the same way.
 
 Sources and rules are limited to **4 MiB**, regular files or registered local schemes only. Non-local schemes, NUL and invalid UTF-8 are refused. Options JSON is limited to **1 MiB**. The core parser's depth bound applies, with an additional substitution-analysis depth bound of **32**. Malformed settings are unreadable, never silently broadened. Diagnostics stay in the result, not stderr or desktop.log.
 
@@ -222,8 +257,8 @@ sample_draw inferred window.draw
 
 ## Safety and C consumers
 
-Nothing in inspected source runs: no commands, substitutions, imports, aliases, traps or module initialization. Classification never scans the autoload index. Source identity and explicit uncertainty must accompany any explanation. Privacy defaults to names, locations, signatures and author comments; unrelated argument strings and body text are not disclosed. Signatures can contain sensitive defaults or comments: choosing to inspect does not authorize sending records elsewhere.
+Nothing in inspected source runs: no commands, substitutions, imports, aliases, traps or module initialization. Classification never scans the autoload index. Source identity and explicit uncertainty must accompany any explanation. Privacy defaults to names, locations, signatures and author comments; argument strings are disclosed only for the commands a caller names with `--arguments`, and body text is not disclosed. Signatures can contain sensitive defaults or comments: choosing to inspect does not authorize sending records elsewhere.
 
-C consumers include `hibr.h` and installed `hibr/inspect.h`, then request `hibr_require(s, "inspect", 1)`. The `ix_api.query(caller, request, path, options, out)` function appends JSON to an initialized, caller-owned `str`. Requests are the same names as the builtin's (`functions`, `calls`, `refs`, `vars`, `check`). Options is null or JSON containing optional `function`, `rules` and `symbols` fields with the same meanings and limits. The consumer frees the string. No parser pointers escape. C queries preserve caller status, RET and line state; the builtin uses the normal result slot. Interface version matching uses Hibr's existing provide/require mechanism, independently of public AST layout (there is none).
+C consumers include `hibr.h` and installed `hibr/inspect.h`, then request `hibr_require(s, "inspect", 1)`. The `ix_api.query(caller, request, path, options, out)` function appends JSON to an initialized, caller-owned `str`. Requests are the same names as the builtin's (`functions`, `calls`, `refs`, `vars`, `check`). Options is null or JSON containing optional `function`, `rules`, `symbols` and `arguments` fields with the same meanings and limits. The consumer frees the string. No parser pointers escape. C queries preserve caller status, RET and line state; the builtin uses the normal result slot. Interface version matching uses Hibr's existing provide/require mechanism, independently of public AST layout (there is none).
 
 These examples are executed by `tests/531-doc-examples.t`. `make check-inspect` covers behavior, bounds, provenance, non-execution, recovery, all tracked source files and function extraction round trips. The sanitizer gate and inspection fuzzer include symbol-limit cases. Review and Hibr's release gate precede freezing the interface.

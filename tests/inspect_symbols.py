@@ -31,7 +31,43 @@ def exercise(binary, env):
                 assert body['refs'] == [], body
             else:
                 assert result.returncode == 0 and body['state'] == 'ok', body
-    return len(cases)
+        argcases = [([], None), (['dt_menu'] * 4096, None),
+                    (['dt_menu'] * 4097, 'arguments exceeds 4096 names'),
+                    (['.'], None), (['a' * 128], None), (['a' * 129], 'argument command exceeds 128 bytes'),
+                    ({'name': 'dt_menu'}, 'arguments must be an array'), ([None], 'arguments must be an array'),
+                    ([''], 'arguments must be an array'), (['two words'], 'arguments must be an array')]
+        for names, error in argcases:
+            options.write_text(json.dumps(names))
+            command = 'need inspect; names=$(command cat "$2"); inspect calls "$1" --arguments "$names" -j'
+            result = subprocess.run([binary, '-c', command, '_', str(source), str(options)],
+                                    env=env, capture_output=True, text=True, timeout=10)
+            assert not result.stderr, result.stderr
+            body = json.loads(result.stdout)
+            if error:
+                assert result.returncode != 0 and body['state'] == 'unreadable', body
+                assert error in body['diagnostics'][0]['message'], body
+                assert body['calls'] == [], body
+            else:
+                assert result.returncode == 0 and body['state'] == 'ok', body
+        text = ('dt_menu "File" plain x"$y" $(secret) "a"b\n'
+                'dt_menu $(( $(s1) )) "${x:-$(s2)}" "${a[$(s3)]}" `s4` <(s5) ${y//$(s6)/z}\n'
+                'echo private words\n')
+        source.write_text(text)
+        options.write_text(json.dumps(['dt_menu']))
+        command = 'need inspect; names=$(command cat "$2"); inspect calls "$1" --arguments "$names" -j'
+        asked = json.loads(subprocess.run([binary, '-c', command, '_', str(source), str(options)],
+                                          env=env, capture_output=True, text=True, timeout=10).stdout)
+        plain = subprocess.run([binary, '-c', 'need inspect; inspect calls "$1" -j', '_', str(source)],
+                               env=env, capture_output=True, text=True, timeout=10).stdout
+        menu, nested = [c for c in asked['calls'] if c['name'] == 'dt_menu']
+        assert [(a['text'], a['quote']) for a in nested['arguments']] == [(None, 'dynamic')] * 6, nested
+        got = [(a['text'], a['quote'], text[a['span']['start']:a['span']['end']]) for a in menu['arguments']]
+        assert got == [('File', 'quoted', '"File"'), ('plain', 'unquoted', 'plain'), ('x"$y"', 'dynamic', 'x"$y"'),
+                       (None, 'dynamic', '$(secret)'), ('ab', 'unquoted', '"a"b')], got
+        assert all('arguments' not in c for c in asked['calls'] if c['name'] != 'dt_menu'), asked
+        assert 'private' not in json.dumps(asked) and 'arguments' not in plain and 'File' not in plain, plain
+        argcases.append('arguments are given for the commands asked about, and only those')
+    return len(cases) + len(argcases)
 
 
 if __name__ == '__main__':

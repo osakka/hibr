@@ -35,11 +35,12 @@ something that is there in every scope. Three rules, each a check here:
 
 Which kinds are installable is read from the catalogue's own CAT_KEXT --
 every kind whose files end in .hibr -- so a kind added later is covered
-without an edit here. Language facts come from inspect functions, calls and refs. Guard argument
-and resource-path checks still read text because version 1 does not expose
-command arguments or path expressions. A guard that
-names any function of a file covers calls to every function of that file,
-since it has asked whether that file is loaded.
+without an edit here. Every fact comes from inspect: functions, calls (with
+the arguments of the guard and source commands), refs, and vars for a path
+built from BASH_SOURCE. `${0%/*}` is still found in the text, since vars
+leaves positional parameters out. A guard that names any function of a
+file covers calls to every function of that file, since it has asked
+whether that file is loaded.
 """
 import glob
 from inspectlib import functions, records
@@ -51,9 +52,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DESK = os.path.join(ROOT, "programs", "desktop")
 
-GUARD = re.compile(r'(?:command -v|dt_has|dt_needs [a-z]+)\s+"?\$?\{?([a-z][a-z0-9_]*)')
-OWNPATH = re.compile(r"\$\{BASH_SOURCE%/\*\}/\.\.|\$\{0%/\*\}")
-LIBSRC = re.compile(r'(?:^|[\s;&|])\.\s+"\$DT_HERE/lib/([a-z][a-z0-9]*)\.hibr"')
+ARGS = ("command", "dt_has", "dt_needs", ".", "source")
+OWNZERO = re.compile(r"\$\{0%/\*\}")
+LIBSRC = re.compile(r'"?\$DT_HERE/lib/([a-z][a-z0-9]*)\.hibr"?')
 MARK = re.compile(r"^[A-Z][A-Z0-9]*_LIBDONE=1$")
 
 
@@ -75,6 +76,35 @@ def code(line):
 def defs(path):
     return {f['name'] for f in functions(path)
             if re.fullmatch(r"[a-z][a-z0-9]*_[a-z0-9_]+", f['name'])}
+
+
+def guarded(call):
+    """The name a guard call asks about, when it is written out literally."""
+    words = [a["text"] if a["quote"] != "dynamic" else None for a in call["arguments"]]
+    if call["name"] == "command":
+        return words[1] if words[:1] == ["-v"] and len(words) > 1 else None
+    if call["name"] == "dt_has":
+        return words[0] if words else None
+    if call["name"] == "dt_needs":
+        return words[1] if len(words) > 1 else None
+    return None
+
+
+def sourced(call):
+    """The library a source call reads from the shipped lib/, if it is one."""
+    if call["name"] not in (".", "source") or not call["arguments"]:
+        return None
+    m = LIBSRC.fullmatch(call["arguments"][0]["text"] or "")
+    return m.group(1) if m else None
+
+
+def ownpath(path):
+    """The lines that build a path from this file's own location."""
+    src = open(path, "rb").read()
+    return {v["span"]["line"] for v in records(path, "vars")["vars"]
+            if v["name"] == "BASH_SOURCE" and v["exact"]
+            and src[v["span"]["start"]:v["span"]["end"]] == b"${BASH_SOURCE%/*}"
+            and src[v["span"]["end"]:v["span"]["end"] + 3] == b"/.."}
 
 
 def platform(path):
@@ -123,39 +153,44 @@ def main():
             if any(MARK.match(l.rstrip("\n")) for l in open(f, errors="replace"))}
     rel = lambda p: os.path.relpath(p, DESK)
     fails = []
-    checked = 0
+    checked = asked = 0
     for g in inst:
-        declarations = functions(g)
-        evidence = records(g, 'calls')['calls'] + records(g, 'refs', symbols=owner)['refs']
-        byline = {}
+        calls = records(g, 'calls', arguments=ARGS)['calls']
+        evidence = calls + records(g, 'refs', symbols=owner)['refs']
+        byline, guardsat, libsat = {}, {}, {}
         for fact in evidence:
             if fact['known'] == 'syntax' and fact.get('name') in owner:
                 byline.setdefault(fact['span']['line'], []).append(fact)
+        for call in calls:
+            if call['known'] != 'syntax' or call['name'] not in ARGS:
+                continue
+            if 'arguments' not in call:
+                sys.exit("%s: the producer gave no call arguments; it is older than this check" % rel(g))
+            asked += 1
+            n = call['span']['line']
+            if guarded(call):
+                guardsat.setdefault(n, []).append((call.get('owner') or '', guarded(call)))
+            if sourced(call):
+                libsat.setdefault(n, []).append(sourced(call))
+        own = ownpath(g)
         guards = {}
-        offset = 0
         for n, line in enumerate(open(g, errors="replace"), 1):
             s = code(line)
             if not s.strip():
-                offset += len(line.encode())
                 continue
             checked += 1
-            if OWNPATH.search(s):
+            if n in own or OWNZERO.search(s):
                 fails.append("%s:%d: builds a path from its own location, which "
                              "is only right in the shipped tree -- use $DT_HERE"
                              % (rel(g), n))
-            for lib in LIBSRC.findall(s):
+            for lib in libsat.get(n, []):
                 if lib not in libs:
                     fails.append("%s:%d: sources lib/%s.hibr, which has no "
                                  "*_LIBDONE=1 line, so the desktop does not load it"
                                  % (rel(g), n, lib))
             inline = set()
-            for gm in GUARD.finditer(s):
-                position = offset + len(s[:gm.start()].encode())
-                containing = [f for f in declarations
-                              if f['span']['start'] <= position < f['span']['end']]
-                containing.sort(key=lambda f: f['span']['end'] - f['span']['start'])
-                scope = containing[0]['name'] if containing else ''
-                guards.setdefault(scope, set()).add(gm.group(1))
+            for scope, name in guardsat.get(n, []):
+                guards.setdefault(scope, set()).add(name)
                 inline.add(scope)
             seen = set()
             for fact in sorted(byline.get(n, []), key=lambda f: f['span']['start']):
@@ -171,7 +206,8 @@ def main():
                 fails.append("%s:%d: calls %s, from %s, with no guard in this "
                              "function -- dt_has, dt_needs or command -v"
                              % (rel(g), n, tok, ", ".join(sorted(rel(x) for x in fs))))
-            offset += len(line.encode())
+    if not asked:
+        sys.exit("no guard or source call was read: the check found nothing to check")
     for f in fails:
         print("FAIL " + f)
     print("%d installable files in %s, %d of them platform; %d lines read"
