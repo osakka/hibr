@@ -443,7 +443,13 @@ a console that has no terminal: `console cells open FD` makes it one, and
 each window it draws is a view (`console cells view NAME GEN H W`), a pane
 of a headless screen laid one view under the next, so a module drawing at
 screen coordinates through `dp->put` and `prect` (`term draw`, `img draw`'s
-cells) lands in it too. The app's runtime clears a view to *none* before
+cells) lands in it too. A view may be drawn through a pane of another name
+(`view NAME GEN H W PANE`): a Control Panel pane's code writes into the
+panel's window, `w$ID`, where its view is `p$ID`. A Control Strip module
+and a saver write at screen coordinates, so `console cells at NAME` says
+which row of the headless screen a view starts at, and `console cells touch
+NAME` has the next flush diff a view drawn that way, which a saver's frame
+never clears first. The app's runtime clears a view to *none* before
 each `_draw` (`console cells clear NAME`), and `console flush` diffs each
 view drawn since the last against the front grid -- which here is what the
 desktop was last sent -- and writes the records ADR 0050 describes: runs of

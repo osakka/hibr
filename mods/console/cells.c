@@ -20,6 +20,7 @@ unsigned cn_hlts;
    was last sent of it is the same rectangle of the front grid. */
 typedef struct cw_av {
 	char *nm;
+	char *pn;
 	long gen;
 	int row, h, w;
 	int sent;
@@ -174,7 +175,7 @@ void cw_layout(void)
 			}
 		}
 		v->row = at;
-		cn_pset(v->nm, at, 0, v->h, v->w);
+		cn_pset(v->pn, at, 0, v->h, v->w);
 		at += v->h;
 	}
 	cn_gfree(&cn_back);
@@ -471,7 +472,7 @@ long cw_flush(void)
 		cn_pane *p;
 
 		v = cw_avs.p[i];
-		p = cn_pfind(v->nm);
+		p = cn_pfind(v->pn);
 		if (!v->drawn && v->sent && !(p && p->drawn))
 			continue;
 		fr.n = 0;
@@ -550,22 +551,40 @@ int cw_open(int fd)
 	return 1;
 }
 
-/* Define or resize a view of this app's own console. */
-int cw_aview(const char *nm, long gen, int h, int w)
+/* Define or resize a view of this app's own console, drawn through the
+   pane named pn (its own name when null): a Control Panel pane's code
+   writes into the panel's window, w$ID, where its view is p$ID. */
+int cw_aview(const char *nm, long gen, int h, int w, const char *pn)
 {
-	cw_av *v = cw_afind(nm);
+	cw_av *v = cw_afind(nm), *o;
+	size_t i;
 
 	if (h < 1 || w < 1 || h > 4096 || w > 4096) {
 		lg(HIBR_LERR, "console cells view: %s: %d by %d is no size", nm,
 		   h, w);
 		return 0;
 	}
+	if (!pn)
+		pn = nm;
+	for (i = 0; i < cw_avs.n; i++) {
+		o = cw_avs.p[i];
+		if (o != v && !strcmp(o->pn, pn)) {
+			lg(HIBR_LERR, "console cells view: %s: pane %s is %s's",
+			   nm, pn, o->nm);
+			return 0;
+		}
+	}
 	if (!v) {
 		v = xm(sizeof *v);
 		memset(v, 0, sizeof *v);
 		v->nm = xs(nm);
+		v->pn = xs(pn);
 		v->row = -1;
 		v_add(&cw_avs, v);
+	} else if (strcmp(v->pn, pn)) {
+		cn_pdrop(v->pn);
+		free(v->pn);
+		v->pn = xs(pn);
 	}
 	if (v->h != h || v->w != w)
 		v->sent = 0;
@@ -586,7 +605,8 @@ int cw_aforget(const char *nm)
 		v = cw_avs.p[i];
 		if (strcmp(v->nm, nm))
 			continue;
-		cn_pdrop(nm);
+		cn_pdrop(v->pn);
+		free(v->pn);
 		free(v->nm);
 		free(v);
 		cw_avs.p[i] = cw_avs.p[--cw_avs.n];
@@ -1368,13 +1388,35 @@ int cw_verb(sh *s, int ac, char **av)
 {
 	const char *v = ac > 2 ? av[2] : "";
 	cw_av *a;
+	str k;
 
 	if (!strcmp(v, "open") && ac == 4 && cn_isint(av[3]))
 		return cw_open(atoi(av[3])) ? HIBR_OK : HIBR_FAIL;
-	if (!strcmp(v, "view") && ac == 7 && cn_isint(av[4]) &&
+	if (!strcmp(v, "view") && (ac == 7 || ac == 8) && cn_isint(av[4]) &&
 	    cn_isint(av[5]) && cn_isint(av[6]))
-		return cw_aview(av[3], atol(av[4]), atoi(av[5]), atoi(av[6])) ?
-			       HIBR_OK : HIBR_FAIL;
+		return cw_aview(av[3], atol(av[4]), atoi(av[5]), atoi(av[6]),
+				ac == 8 ? av[7] : 0) ?
+			       HIBR_OK :
+			       HIBR_FAIL;
+	if (!strcmp(v, "at") && ac == 4) {
+		a = cw_afind(av[3]);
+		if (!a)
+			return HIBR_FAIL;
+		s_init(&k);
+		s_num(&k, a->row);
+		hibr_ret(s, k.p);
+		if (!s->bind)
+			printf("%s\n", k.p);
+		s_free(&k);
+		return HIBR_OK;
+	}
+	if (!strcmp(v, "touch") && ac == 4) {
+		a = cw_afind(av[3]);
+		if (!a)
+			return HIBR_FAIL;
+		a->drawn = 1;
+		return HIBR_OK;
+	}
 	if (!strcmp(v, "forget") && ac == 4)
 		return cw_aforget(av[3]) ? HIBR_OK : HIBR_FAIL;
 	if (!strcmp(v, "clear") && ac == 4)
@@ -1403,7 +1445,8 @@ int cw_verb(sh *s, int ac, char **av)
 		return cw_show(av[3], ac == 5);
 	if (!strcmp(v, "input") && ac == 4)
 		return cw_input(av[3]);
-	lg(HIBR_LERR, "usage: console cells open FD | view NAME GEN H W | "
+	lg(HIBR_LERR, "usage: console cells open FD | view NAME GEN H W "
+		      "[PANE] | at NAME | touch NAME | "
 		      "forget NAME | clear NAME | again NAME | own FD NAME GEN "
 		      "PANE|- ROW COL H W | drop FD [NAME] | take FD | show "
 		      "NAME [-a] | input NAME");
@@ -1420,6 +1463,7 @@ void cw_fin(void)
 	while (cw_vs.n)
 		cw_vfree(cw_vs.p[0]);
 	for (i = 0; i < cw_avs.n; i++) {
+		free(((cw_av *)cw_avs.p[i])->pn);
 		free(((cw_av *)cw_avs.p[i])->nm);
 		free(cw_avs.p[i]);
 	}
