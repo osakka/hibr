@@ -567,6 +567,7 @@ void sh_fini(sh *s)
 	for (i = 0; i < s->srcs.n; i++)
 		free(s->srcs.p[i]);
 	v_free(&s->srcs);
+	s->src = 0;
 	for (i = 0; i < s->sf.n; i++)
 		free(s->sf.p[i]);
 	v_free(&s->sf);
