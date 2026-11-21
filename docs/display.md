@@ -309,6 +309,7 @@ mouse release left 3 12
 mouse drag left 9 40
 mouse wheelup 4 4            the wheel has no button; wheeldown, wheelleft, wheelright
 mouse ctrl-press left 6 6    modifiers prefix the action
+mouse super-drag left 9 40   super too, where the terminal reports Super's own keys
 ```
 
 Row and column count from zero, the same as `put`, so a click can be used as a

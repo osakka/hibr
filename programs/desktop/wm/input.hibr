@@ -646,6 +646,79 @@ fn dt_ptrcan() {
 	[ "$p" = yes ]
 }
 
+# Ask for the pointer's movement over window id while it has focus, or stop
+# asking (Gitea #316): its _hover is told where the pointer is, as hovering
+# tells every window. It is for where Hover is Auto and the display does not
+# report movement by itself -- a terminal that reports cells only; where
+# Hover is On every window hears it anyway, and where it is Off nothing a
+# window asks turns it on (the owner, 2026-11-20). A window with no _hover
+# has nothing to tell, and is refused.
+fn dt_hoverwant(int id, on) {
+	dt_winok "$id" dt_hoverwant || return 1
+	case $on in
+	on)
+		[ -n "${DT[$id]["hover"]-}" ] || return 1
+		DT[$id]["hoverwant"]=1
+		;;
+	off) DT[$id]["hoverwant"]= ;;
+	*) return 2 ;;
+	esac
+	return 0
+}
+
+# Whether the focused window has asked for movement where Hover is not Off:
+# what turns movement on while hovering is off for the desktop. A menu, a
+# bar item's panel, the saver or the lock over it ends it as it ends the
+# pointer lock, and the window hears that the pointer has left.
+fn dt_hoverown() {
+	[ "$DT_HOVER" != off ] && [ -n "$DT_FOCUS" ] &&
+		[ -n "${DT[$DT_FOCUS]["hoverwant"]-}" ] && [ "$MB_OPEN" = -1 ] &&
+		[ -z "$DT_POP$DT_SAVING$DT_LOCKED" ]
+}
+
+# Whether r,c is in the content of the focused window -- the one whose own
+# asking turned movement on: its pane is what is there, and a window with a
+# frame keeps its frame and title bar to the desktop.
+fn dt_hoverbody(int r, int c) {
+	local id rr cc
+
+	id := console hit "$r" "$c"
+	[ -n "$DT_FOCUS" ] && [ "$id" = "w$DT_FOCUS" ] || return 1
+	id=$DT_FOCUS
+	[ "${DT[$id]["chrome"]-}" = none ] && return 0
+	rr=$((r - DT[$id]["row"]))
+	cc=$((c - DT[$id]["col"]))
+	[ "$rr" -ge 1 ] && [ "$rr" -le $((DT[$id]["h"] - 2)) ] &&
+		[ "$cc" -ge 1 ] && [ "$cc" -le $((DT[$id]["w"] - 2)) ]
+}
+
+# Tell the window last told the pointer was over it that it has left: -1 -1
+# to its _hover. A window that has gone is only forgotten.
+fn dt_hoverleave() {
+	local id=$DT_HOVERWIN ap
+
+	[ -n "$id" ] || return 0
+	DT_HOVERWIN=
+	DT_HOVERT=
+	dt_iswin "$id" || return 0
+	ap=${DT[$id]["hover"]-}
+	[ -n "$ap" ] && dt_appfn "${DT[$id]["app"]-}" $ap "$id" -1 -1
+	return 0
+}
+
+# Whether the desktop's drag mode wants every movement as well: hovering is
+# on, or the focused window asked for it (dt_hoverown). With neither, a
+# window still told the pointer is over it is told it has left, since no
+# report will come to say so -- which is how focus moving on, or the window
+# asking no more, ends what it heard.
+fn dt_hovermotion(want) {
+	[ "$want" = drag ] || return 1
+	dt_hoveron && return 0
+	dt_hoverown && return 0
+	[ -z "$DT_HOVERWIN" ] || dt_hoverleave
+	return 1
+}
+
 # The pointer lock (Gitea #379): the window holding the pointer, or empty.
 # While it holds it every report is movement, `mouse rel ACT BTN DX DY`
 # from the console, and goes to that window's _mouse whatever is under the
@@ -870,7 +943,8 @@ fn dt_ptrput(shape = "") {
 fn dt_ptrfor(r = "", c = "") {
 	local id= rr cc g
 
-	if [ -n "$r" ] && [ "$MB_OPEN" = -1 ] && dt_hoveron; then
+	if [ -n "$r" ] && [ "$MB_OPEN" = -1 ] &&
+	   { dt_hoveron || { dt_hoverown && dt_hoverbody "$r" "$c"; }; }; then
 		id := console hit "$r" "$c"
 		id=${id#w}
 	fi
@@ -992,11 +1066,7 @@ fn dt_hover(int r, int c) {
 			fi
 		fi
 	fi
-	if [ -n "$DT_HOVERWIN" ] && [ "$DT_HOVERWIN" != "$id" ]; then
-		ap=${DT[$DT_HOVERWIN]["hover"]}
-		[ -n "$ap" ] && dt_appfn "${DT[$DT_HOVERWIN]["app"]-}" $ap "$DT_HOVERWIN" -1 -1
-		DT_HOVERWIN=
-	fi
+	[ -n "$DT_HOVERWIN" ] && [ "$DT_HOVERWIN" != "$id" ] && dt_hoverleave
 	if [ "${t#w:*:}" != "$t" ]; then
 		DT_HOVERWIN=$id
 		dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["hover"]} "$id" $((r - wr)) $((c - wa))
@@ -1167,6 +1237,19 @@ fn dt_event(k) {
 		read -ra ev <<< "$k"
 		DT_LASTDRAG=0
 		DT_LASTMOVE=1
+		# With hovering off for the desktop, movement is the asking
+		# window's alone (Gitea #316): anywhere else it lights nothing,
+		# shows no tooltip and moves no focus, and leaving the window
+		# says so and gives the pointer its own shape back.
+		if ! dt_hoveron && { ! dt_hoverown || ! dt_hoverbody "${ev[3]}" "${ev[4]}"; }; then
+			[ -n "$DT_HOVERWIN" ] || DT_HOVERQUIET=1
+			dt_hoverleave
+			DT_PTRR=${ev[3]}
+			DT_PTRC=${ev[4]}
+			DT_MOUSEAT="${ev[3]} ${ev[4]}"
+			dt_ptrput ""
+			return 0
+		fi
 		dt_hover "${ev[3]}" "${ev[4]}"
 		return 0
 		;;

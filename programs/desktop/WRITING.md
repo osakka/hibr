@@ -144,11 +144,23 @@ Reader starts a selection there.
 to be hidden over it with `dt_pointer "$id" none` (Gitea #373), and gives it
 back with `dt_pointer "$id"`. The desktop hides it only while the pointer is
 over that window's content, the window has focus, no menu is open and
-hovering is on, and gives it back anywhere else, on a frame, a menu or the
+hovering is on or the window asked for movement (below), and gives it back
+anywhere else, on a frame, a menu or the
 bar. `dt_ptrcan` says whether any display of this desktop can hide its
 pointer at all; most terminals cannot, and a display that cannot simply
 keeps its pointer. Call both behind `dt_has`, since a desktop older than
 0.99.311 has neither.
+
+**A window that follows the pointer** -- a point-and-click game, anything
+with a `_hover` -- is told where the pointer is wherever hovering is on.
+Where Control Panel > Mouse > Hover is Auto and the terminal reports cells
+only, hovering is off, and the window asks for the movement for itself
+with `dt_hoverwant "$id" on` (Gitea #316): while it has focus the terminal
+is asked for every movement, its `_hover` is told where the pointer is over
+its content, and nowhere else does the movement light, tip or move the
+focus. Focus moving on ends it, and `_hover` hears `-1 -1`. Where Hover is
+Off nothing a window asks turns it on. It fails for a window with no
+`_hover`; `dt_hoverwant "$id" off` stops asking. Call it behind `dt_has`.
 
 **A window that turns with the mouse** -- a game on a relative mouse --
 asks to **hold** the pointer with `dt_pointerlock "$id" on` (Gitea #379) and

@@ -591,6 +591,13 @@ long cn_signed(const char *p, int n, int *i, int *ok)
 	return neg ? -v : v;
 }
 
+/* Whether Super is held, as the modifiers of the last key event said (Gitea
+   #415). A mouse report has no bit for it, so a click or a drag made with
+   it down carries `super-` from here; any key event, its own press and
+   release among them, says again, so a release lost elsewhere heals at the
+   next key. */
+int cn_supdown;
+
 /* Append which button a report's number names: left, middle, right, none, or
    with 128 set a mouse's own extra buttons, button8 to button11, as xterm
    numbers them -- 128 read as left before, so a back button clicked. */
@@ -638,6 +645,8 @@ int cn_mrel(const char *p, size_t n, str *o, size_t *used)
 		return -1;
 	done = p[i] == 'm';
 	s_cat(o, "mouse rel ");
+	if (cn_supdown)
+		s_cat(o, "super-");
 	if (b & 16)
 		s_cat(o, "ctrl-");
 	if (b & 8)
@@ -713,6 +722,8 @@ int cn_mouse(const char *p, size_t n, str *o, size_t *used)
 		return -1;
 	rel = p[i] == 'm';
 	s_cat(o, "mouse ");
+	if (cn_supdown)
+		s_cat(o, "super-");
 	if (b & 16)
 		s_cat(o, "ctrl-");
 	if (b & 8)
@@ -1264,6 +1275,8 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 	   keyboard away, so what is held has gone up (Gitea #485). */
 	if (p[1] == '[' && n >= 3 && (p[2] == 'I' || p[2] == 'O')) {
 		*used = 3;
+		if (p[2] == 'O')
+			cn_supdown = 0;
 		if (p[2] == 'I' || !cn_phases)
 			return 2;
 		s_cat(o, "focus out");
@@ -1309,6 +1322,9 @@ int cn_dec(const char *p, size_t n, str *o, size_t *used, int last)
 		if (i >= (int)n)
 			return 0;
 		np++;
+		if (p[i] == 'u' || p[i] == 'Z' || cn_final(p[i]) ||
+		    (p[i] == '~' && cn_tilde(par[0])))
+			cn_supdown = np > 1 && par[1] > 0 && ((par[1] - 1) & 8);
 		/* Super pressed and let go with nothing between: a tap. Its
 		   press and a repeat are held, its release says `super`. */
 		if (!cn_phases && p[1] == '[' && p[i] == 'u' &&
@@ -1426,14 +1442,17 @@ static int cn_hovernext(void)
 	size_t used = 0;
 	int r, h;
 	unsigned tap;
+	int sup;
 
 	if (cn_pend.n <= (size_t)cn_pendo)
 		return 0;
 	s_init(&nx);
 	tap = cn_suptap;
+	sup = cn_supdown;
 	r = cn_dec(cn_pend.p + cn_pendo, cn_pend.n - (size_t)cn_pendo, &nx,
 		   &used, 0);
 	cn_suptap = tap;
+	cn_supdown = sup;
 	h = r == 1 && cn_ishover(nx.p, nx.n);
 	s_free(&nx);
 	return h;

@@ -184,7 +184,7 @@ drawing in the wrong place. The calls:
 | `_click` | `id r c btn` |
 | `_mouse` | `id act btn r c mods` -- and while the window holds the pointer (`dt_pointerlock`, granted only within two seconds of a key or click), `id rel btn dy dx rel` for movement, a press, release or wheel with its own deltas and `rel` as mods, and `id unlock none 0 0 ""` when the lock ends |
 | `_wheel` | `id dir r c` -- dir is up, down, left or right, never wheelup |
-| `_hover` | `id r c` -- the pointer over the window with no button held, where hovering is on; `-1 -1` when it leaves |
+| `_hover` | `id r c` -- the pointer over the window with no button held, where hovering is on or the focused window asked for it (`dt_hoverwant`); `-1 -1` when it leaves |
 | `_scroll` | `id key top` -- a scrollbar drawn with that key, held and dragged |
 | `_copy`, `_cut` | `id` -- hand back the selection with `ret`, or fail with nothing selected |
 | `_paste` | `id text op` -- `op` is `cut` or `copy`; a paste from the host terminal comes the same way, as a copy |

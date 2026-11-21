@@ -624,7 +624,7 @@ fn dt_mousecheck() {
 	local m want=$DT_MOUSEWANT
 
 	[ "$DT_MOUSEHELD" = 0 ] || return 0
-	[ "$want" = drag ] && dt_hoveron && want=motion
+	dt_hovermotion "$want" && want=motion
 	m := console mouse 2> /dev/null || return 0
 	[ "$m" = "$want" ] && return 0
 	console mouse "$want"

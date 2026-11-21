@@ -542,6 +542,14 @@ a position without arithmetic. Modifiers prefix the action in the same order
 keys use. The SGR form (`1006`) is always requested alongside, because the
 older encoding cannot report a column past 223.
 
+A report has bits for shift, alt and ctrl and none for Super, so `super-` is
+the console's own: a terminal speaking the kitty keyboard protocol reports
+Super's press and release as keys, and every key event carries the modifiers
+held, so a report made while the last one said Super was down reads
+`mouse super-press left 3 12` (Gitea #415). A release lost elsewhere is
+healed by the next key, or by the terminal saying it lost the keyboard where
+it was asked to (`console keyphases on`).
+
     console pixels on       # and where the pointer is in pixels
 
 SGR-Pixels (`1016`, Gitea #370) is asked for only by a program that says so,

@@ -330,6 +330,40 @@ hgot = [m.decode("utf8", "replace") for m in re.findall(rb"KEY\[([^\]]*)\]", o)]
 check("a run of hovers read together reaches the program as its last, then the click",
       hgot[:3] == ["mouse drag none 4 12", "mouse press left 5 19", ""], hgot)
 
+# A mouse report has no bit for Super, so a click or a drag made with it
+# held read as plain and Super could not be the drag modifier (Gitea #415).
+# The console keeps what the last key event's modifiers said -- its own
+# press and release among them -- and puts super- in front of a report
+# made while it is down: a click with it is no tap, a tap after still is,
+# num lock beside it changes nothing, the next key with no modifiers lets go
+# of one whose release was lost, so does the terminal losing the keyboard,
+# and a hover with it held is still a hover, coalesced as any is.
+SUPM = [b"\x1b[57444;9u", b"\x1b[<0;13;4M", b"\x1b[<32;14;4M", b"\x1b[<0;14;4m",
+        b"\x1b[57444;1:3u", b"\x1b[<0;13;4M",
+        b"\x1b[57444;9u", b"\x1b[57444;1:3u",
+        b"\x1b[57444;137u", b"\x1b[<0;2;2M", b"\x1b[97;1u", b"\x1b[<0;2;2M",
+        b"\x1b[57444;9u", b"\x1b[O", b"\x1b[<0;2;2M",
+        b"\x1b[57444;9u", b"\x1b[<35;5;5M\x1b[<35;6;5M", b"x"]
+o, _ = run('console open\nconsole mouse motion\nconsole flush\no=\n'
+           'for i in 1 2 3 4 5 6 7 8 9 10 11; do k := console key 3000; o+="[$k]"; done\n'
+           'console close\necho "S $o"\n',
+           after=lambda t: [(t.collect(0.3), os.write(t.fd, k), t.collect(0.06))
+                            for k in SUPM], wait=3.0)
+m = re.search(rb"S (\[.*\])", o)
+sgot = re.findall(r"\[([^\]]*)\]", m.group(1).decode()) if m else []
+check("a click, a drag and a release made with Super held carry super-, and "
+      "Super let go after them is no tap",
+      sgot[:4] == ["mouse super-press left 3 12", "mouse super-drag left 3 13",
+                   "mouse super-release left 3 13", "mouse press left 3 12"], sgot)
+check("a Super tapped alone after them is still a tap", sgot[4:5] == ["super"], sgot)
+check("Super held with num lock on is Super, and a key with no modifiers lets "
+      "go of it when its release was lost",
+      sgot[5:8] == ["mouse super-press left 1 1", "a", "mouse press left 1 1"], sgot)
+check("the terminal giving the keyboard away lets go of Super",
+      sgot[8:9] == ["mouse press left 1 1"], sgot)
+check("a hover with Super held is a hover, coalesced to its last",
+      sgot[9:11] == ["mouse super-drag none 4 5", "x"], sgot)
+
 # What a terminal sends that no person typed is never typed into anything
 # (Gitea #379): a held pointer's report with signed offsets when nothing is
 # held, a device control string, a privacy message, a start of string, an
@@ -1084,4 +1118,4 @@ for x in (FK + ".c", FK + ".p"):
     if os.path.exists(x):
         os.unlink(x)
 
-report(len(WANT) + len(MWANT) + 133)
+report(len(WANT) + len(MWANT) + 138)

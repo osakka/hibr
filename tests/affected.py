@@ -96,13 +96,15 @@ SUITE_MODS = {
     "archive": ["archive", "inflate"],
     "appmgr": ["dav", "archive", "inflate"],
     "upgrade": ["dav"],
+    "superdrag": ["console"],
+    "hoverwant": ["console"],
     "traymod": ["dbus", "console"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt", "archives", "holdrenew", "native",
-                                         "traymod", "rtchan", "onset", "stale", "audience", "appseam", "inputlat", "saverload")
+                                         "traymod", "rtchan", "onset", "stale", "audience", "appseam", "inputlat", "saverload", "superdrag", "hoverwant")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 
