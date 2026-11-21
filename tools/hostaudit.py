@@ -67,7 +67,7 @@ PICTURES = {"img": ("draw", "keep", "pic"), "media": ("draw", "frame"), "web": (
 # is never written here.
 TRACK = {"view": "views", "pane": "views", "strip": "views", "bar": "views", "saver": "views",
          "row": "views", "menus": "menus", "context": "menus", "titlemenu": "menus",
-         "handed": "menus", "list": "menus", "canclose": "crash"}
+         "handed": "menus", "list": "menus"}
 
 
 def track(need):
@@ -80,8 +80,13 @@ def track(need):
     return TRACK.get(k, "unassigned")
 
 
-def src(rel):
-    return open(os.path.join(DESK, rel), errors="replace").read().split("\n")
+def src(rel, desk=DESK):
+    return open(os.path.join(desk, rel), errors="replace").read().split("\n")
+
+
+def code(text):
+    """Text with its comment lines taken out: a name in a comment is no call."""
+    return "\n".join(l for l in text.split("\n") if not l.lstrip().startswith("#"))
 
 
 def fnspan(lines, at):
@@ -96,11 +101,11 @@ def fnspan(lines, at):
     return "\n".join(lines[i:j + 1])
 
 
-def carriage():
-    """What the tree carries for a hosted process, read from it: {kind: True
-    or False} for every kind seamcalls.tsv names, and the view kinds
-    runtime.hibr's dt_rtview takes."""
-    rv = "\n".join(src("wm/rtview.hibr"))
+def carriage(desk=DESK):
+    """What a tree carries for a hosted process, read from it: {kind: yes,
+    partly or no} for every kind its seamcalls.tsv names, and the view kinds
+    its runtime.hibr's dt_rtview takes."""
+    rv = code("\n".join(src("wm/rtview.hibr", desk)))
     m = re.search(r"fn dt_rvhas\(.*?\n\}", rv, re.S)
     refused = set()
     if m:
@@ -108,14 +113,14 @@ def carriage():
             refused |= set(w.strip() for w in arm.split("|"))
     m = re.search(r"fn dt_rvget\(.*?\n\}", rv, re.S)
     getnot = bool(m and "not carried" in m.group(0))
-    rt = "\n".join(open(os.path.join(DESK, "runtime.hibr"), errors="replace").read().split("\n"))
+    rt = code(open(os.path.join(desk, "runtime.hibr"), errors="replace").read())
     m = re.search(r"fn dt_rtview\(.*?\n\}", rt, re.S)
     views = set(re.findall(r'"\$kind"\s*!?=\s*([a-z]+)', m.group(0))) if m else set()
-    views |= set(w for arm in re.findall(r"^\s*([a-z| ]+)\)", m.group(0) if m else "", re.M)
+    views |= set(w.split(":")[0] for arm in re.findall(r"^\s*([a-z0-9| :]+)\)", m.group(0) if m else "", re.M)
                  for w in arm.replace(" ", "").split("|") if w)
     runs = set(re.findall(r"\b(dt_[a-z]+)\b", rt))
     sites = collections.defaultdict(list)
-    for l in open(os.path.join(DESK, "seamcalls.tsv")):
+    for l in open(os.path.join(desk, "seamcalls.tsv")):
         if l.startswith("#") or not l.strip():
             continue
         f, ln, fn, seam, cb, kind = l.rstrip("\n").split("\t")[:6]
@@ -126,7 +131,7 @@ def carriage():
         elif fn in runs:
             ok = True
         else:
-            ok = bool(re.search(r"DT_RV[A-Z]*\[|\$hv\b", fnspan(src(f), int(ln))))
+            ok = bool(re.search(r"DT_RV[A-Z]*\[|\$hv\b", code(fnspan(src(f, desk), int(ln)))))
         sites[kind].append(ok)
     # A kind dt_rvhas refuses by name is refused however it is called; one
     # whose sites route a hosted window in some places and not others is
@@ -245,7 +250,9 @@ def catalogue_entries():
             sys.exit("FAIL %s: its bundle %s is not in the catalogue checkout" % (k, b))
         if kind not in CODEKINDS or not b or not b.endswith(".hibr"):
             out.append({"entry": k, "where": "catalogue", "version": e.get("version", "-"), "kind": kind,
-                        "files": [], "data": True, "hibr": e.get("hibr", "-")})
+                        "files": [], "data": True, "hibr": e.get("hibr", "-"),
+                        "members": (e.get("members") or "").split() if isinstance(e.get("members"), str)
+                        else list(e.get("members") or [])})
             continue
         # The index keeps paths as they go in a URL (Sound%20%26%20Video).
         files = [os.path.join(APPS, unquote(b))] + [os.path.join(APPS, unquote(p["path"])) for p in e.get("parts", [])
@@ -292,19 +299,66 @@ class Audit:
 
     def joined(self, e):
         """The files of the entries this one is one process with: a bundle's
-        members, joined by `# needs:` (ADR 0050, Review 6a), never a
-        library or a command-line entry."""
-        out = set()
-        names = set(x["entry"] for x in self.entries if x["files"] and set(x["files"]) & set(e["files"]))
-        for x in self.entries:
-            if x["kind"] in ("lib", "cli") or not x["files"]:
-                continue
-            if x.get("where") != e.get("where"):
-                continue
-            nx, ne = set(x.get("needs", ())), set(e.get("needs", ()))
-            if (nx & names) or (ne & {x["entry"]}):
-                out |= set(x["files"])
-        return out
+        members, joined by `# needs:` or named together by a bundle (ADR
+        0050, Review 6a) -- the whole connected set, never a library or a
+        command-line entry."""
+        iscode = lambda n: n.split("/", 1)[0] not in ("lib", "cli")
+        if not hasattr(self, "comp"):
+            par = {}
+
+            def find(x):
+                while par.setdefault(x, x) != x:
+                    par[x] = par[par[x]]
+                    x = par[x]
+                return x
+            for x in self.entries:
+                k = (x["where"], x["entry"])
+                find(k)
+                for n in list(x.get("needs", ())) + list(x.get("members", ())):
+                    if n and iscode(n) and iscode(x["entry"]):
+                        par[find(k)] = find((x["where"], n))
+                    elif n and iscode(n) and x["kind"] == "bundles":
+                        par[find(k)] = find((x["where"], n))
+            self.comp = collections.defaultdict(set)
+            for x in self.entries:
+                if x["files"] and iscode(x["entry"]):
+                    self.comp[find((x["where"], x["entry"]))] |= set(x["files"])
+            self.find = find
+        if not iscode(e["entry"]):
+            return set()
+        return self.comp.get(self.find((e["where"], e["entry"])), set())
+
+    def libfiles(self, e):
+        """The libraries an entry's code reaches -- calls a function only a
+        library defines -- and theirs in turn: they run in its process, so
+        what they read and call is its. The copy beside the entry (the
+        tree's for the tree, the catalogue's for the catalogue) wins."""
+        if not hasattr(self, "libdef"):
+            self.libdef = collections.defaultdict(set)
+            for x in self.entries:
+                if x["kind"] == "lib":
+                    for f in x["files"]:
+                        for r in records(f).get("functions", []):
+                            self.libdef[r["name"]].add(f)
+            for f in glob.glob(os.path.join(DESK, "lib", "*.hibr")):
+                for r in records(f).get("functions", []):
+                    self.libdef[r["name"]].add(f)
+        root = os.path.commonpath(e["files"]) if e["files"] else ""
+        own = set(r["name"] for f in e["files"] for r in records(f).get("functions", []))
+        seen, todo = set(), list(e["files"])
+        while todo:
+            f = todo.pop()
+            facts = self.calls(f) or []
+            for c in facts:
+                n = c.get("name")
+                if n in self.libdef and n not in own:
+                    cand = self.libdef[n]
+                    near = [x for x in cand if (APPS in x) == (APPS in root)] or sorted(cand)
+                    for x in near[:1]:
+                        if x not in seen and x not in e["files"]:
+                            seen.add(x)
+                            todo.append(x)
+        return seen
 
     def calls(self, f):
         try:
@@ -325,13 +379,15 @@ class Audit:
         if e.get("data"):
             return need, {}
         mine = set(e["files"]) | self.joined(e)
+        libs = self.libfiles(e) if e["kind"] != "lib" else set()
+        mine |= libs
         own = set()
         for f in e["files"]:
             for r in records(f).get("functions", []):
                 own.add(r["name"])
         detail = {"calls": collections.Counter(), "state": set(), "callbacks": set()}
         prefixes = set()
-        for f in e["files"]:
+        for f in list(e["files"]) + sorted(libs):
             k = kindof(f)
             if k in VIEWKIND and VIEWKIND[k] not in self.views:
                 need["view:" + VIEWKIND[k]].append(os.path.basename(f))
@@ -384,7 +440,8 @@ class Audit:
                       and c.get("known") == "syntax" and re.fullmatch(r"[a-z][a-z0-9]*_[a-z0-9_]+", n)):
                     need["change:calls a platform function no file defines:" + n].append(
                         "%s:%s" % (os.path.basename(f), c.get("line", "?")))
-                elif (n in self.owner and not (self.owner[n] & mine) and n not in self.where and n not in own
+                elif (e["kind"] != "lib" and n in self.owner and not (self.owner[n] & mine) and n not in self.where
+                      and n not in own
                       and not all("/lib/" in x for x in self.owner[n])):
                     need["change:calls another installable:" + n].append(
                         "%s:%s -> %s" % (os.path.basename(f), c.get("line", "?"),
@@ -430,6 +487,12 @@ class Audit:
 def row(a, e):
     need, _ = a.judge(e)
     v = "data, never runs" if e.get("data") else a.verdict(need)
+    if e["kind"] == "lib":
+        # A library runs in the process of each entry that sources it, and
+        # is judged there; its own row says what it brings them.
+        v = "library: " + v.replace("hosted now", "brings nothing")
+    if e["kind"] == "cli":
+        v = "a program already: never hosted"
     ch = [n[len("change:"):] for n in sorted(need) if n.startswith("change:")]
     wt = collections.defaultdict(list)
     for n in sorted(need):
@@ -445,6 +508,17 @@ def shortlist(xs, k=6):
 
 def main():
     args = sys.argv[1:]
+    if "--carriage" in args:
+        # What another tree carries (a track's worktree), read-only: the
+        # same derivation, so a track that lands moves the verdicts here.
+        base = carriage()[0]
+        for d in args[args.index("--carriage") + 1:]:
+            desk = os.path.join(os.path.abspath(d), "programs", "desktop")
+            c, v = carriage(desk)
+            more = sorted(k for k in c if c[k] != base.get(k) and c[k] != "no")
+            print("%s: views %s; carried beyond this tree: %s" % (d, " ".join(sorted(v)), " ".join(
+                "%s(%s)" % (k, c[k]) for k in more) or "nothing"))
+        return 0
     if "--root" in args:
         base = os.path.abspath(args[args.index("--root") + 1])
         entries = tree_entries(base, os.path.basename(base))
@@ -493,8 +567,17 @@ def main():
             o.write("| entry | where | version | verdict | change it needs | waits on (track: what) |\n|---|---|---|---|---|---|\n")
             for r in out:
                 o.write("| " + " | ".join(x.replace("|", "/") for x in r) + " |\n")
-    c = collections.Counter(r[3].split(" on ")[0] if r[3].startswith("waits") else r[3] for r in out)
-    print("verdicts: " + ", ".join("%s %d" % kv for kv in sorted(c.items())))
+    short = lambda v: v.split(" on ")[0] if v.startswith("waits") else v.split(":")[0] if v.startswith("library") else v
+    for w in sorted(set(r[1] for r in out)):
+        c = collections.Counter(short(r[3]) for r in out if r[1] == w)
+        print("verdicts, %s: %s" % (w, ", ".join("%s %d" % kv for kv in sorted(c.items()))))
+    byname = {}
+    for r in out:
+        if r[1] == "catalogue" or r[0] not in byname:
+            byname[r[0]] = r
+    c = collections.Counter(short(r[3]) for r in byname.values())
+    print("verdicts, each entry once (the catalogue's copy where both have one): %s" % (
+        ", ".join("%s %d" % kv for kv in sorted(c.items()))))
     for r in out:
         print("%-34s %-9s %-9s %-24s %s | %s" % (r[0][:34], r[1][:9], r[2][:9], r[3][:24], r[4][:70], r[5][:90]))
     return 0
