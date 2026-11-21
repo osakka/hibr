@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.99.556
+## 0.99.557
+
+0.99.556 was tagged and never published: building its catalogue found a
+function in the app interface dated later than it shipped, which would have
+raised an app's floor for good. 0.99.557 is 0.99.556 with that fixed -- a
+row's date now comes from when its function first shipped (#627) -- and
+everything below is new since 0.99.555.
+
 
 **Archives open zip files and disc images too.** `archive` reads a zip
 (stored or deflated) and an ISO 9660 image -- Rock Ridge and Joliet names,
