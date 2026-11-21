@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.99.556
+
+**Archives open zip files and disc images too.** `archive` reads a zip
+(stored or deflated) and an ISO 9660 image -- Rock Ridge and Joliet names,
+and a CUE sheet's data track -- as folders, beside tar, through the same
+`archive ls|stat|cat` and `/dev/archive/...` paths (#592).
+
+**Log levels, one setting.** error, warning, info, debug and trace, set by
+`-d`, `set -d` or HIBR_LOGLEVEL, which replaces HIBR_DEBUG. In the log
+`set -o logtime` keeps -- a desktop's -- a line below error says its level,
+so a warning is never read as an error, and a line repeated from one place
+is written once and then counted (#555).
+
+**Prefix assignments and subscripts behave as in bash** in five more ways
+(#602); a declared variable counts as set, now a decision on record
+(ADR 0063).
+
+**Highlighting that reads a whole script.** `cat` and `hvi` carry strings,
+command substitutions and heredocs from one line to the next, so a
+heredoc's body is text and a string over two lines is one colour; a
+function being defined has a colour of its own, and `HVI_HL=off` turns
+hvi's colouring off (#41). About 13% more work a line.
+
+**Super drags a window** where it is the Drag Modifier, and a mouse report
+carries `super-` while Super is held (#415). A focused window may ask for
+the pointer's movement with Hover on Auto (`dt_hoverwant`, #316); Hover Off
+is never overridden.
+
+**No change to a calendar, a contact or a mail is lost to a sync.** A
+change is queued under a lock, and a sync takes the queue only while
+holding it (#599).
+
+**Displays joined to a session follow a font change.** A display whose
+grid changes size moves the ones touching its edges with it, so a smaller
+font no longer leaves them overlapping (#409).
+
+**inspect** answers the variables (`inspect vars`) that strictvars and deps
+now read through the parser rather than regexes, and every call's
+arguments, checked against what its callee declares (#536, #537, #541).
+
+**Fixed.** Screen savers were read twice after a rescan, and the list
+emptied (#556). Bluetooth's bar item could stick at its busy mark (#371).
+HTML and markdown share one table of character entities (#420). A
+use-after-free at exit under logtime, found by the gate's sanitizer pass.
+The desktop's suites: a container's mounts no longer read as disks (#608),
+and nine checks that failed under load now wait for the thing they check.
+
+**An app's own process can draw a window** (ADR 0050, protocol 7), end to
+end in a test session: started, its window bound and drawn from the cells
+it sends, given input, closed. The isolation prototype it replaces is gone
+(#605). The wallpaper picker and the Open dialog read a folder in a job:
+7,000 entries held the desktop half a second and now nothing (#606).
+
+**An LCD panel and controls that look the part.** Every colour scheme has an
+LCD panel and its lit colour (DT_LCD, DT_LCDINK), near black in every
+scheme, light ones too; sliders fill and faders slide, an icon button can
+be raised, pressed or lit, and on Blit the key caps have a real bevel
+(framed-raised, framed-pressed) through the console, the emulator and hold
+(#603, #604).
+
+**Program windows at a scale of your choosing.** Control Panel > Displays >
+Program Scale sets, per display, how large programs in their own windows
+draw -- 100% to 400% -- sharp rather than zoomed, on Blit 0.3.130 and later
+(Blit #170).
+
+**A video keeps the screen awake.** A program that asks -- through Blit or
+the session bus's org.freedesktop.ScreenSaver -- holds the screen saver
+while its window is shown; a lock you ask for always works, and Control
+Panel > Screen Saver > Programs May Keep It Awake turns it off (Blit #171).
+
+**Blit 0.3.131's icons** are drawn from their new place (U+101000).
+
 ## 0.99.555
 
 **After hibr is upgraded, the catalogue updates what you installed from it,

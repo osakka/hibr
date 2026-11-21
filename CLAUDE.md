@@ -4229,6 +4229,40 @@ went in the shell.
   The question for any helper both sides load: **who calls it, and whose
   is the name it calls?**
 
+- **A read job returns only its own fields, never a map the desktop also
+  writes** (Gitea #371, 0.99.556). Bluetooth's read went through
+  `dt_jobvars` and brought back the whole `DT_BT`, the desktop's own `busy`
+  and `err` with it -- so a read that started during a connect and ended
+  after it put `busy` back, and the bar stuck at its busy mark. It returns
+  `DT_BTRD`, which the landing merges and empties. Network has the same
+  shape (#623). A stand-in that answers late (`late=` in
+  `tests/net/bluetoothctl`) is what makes the race certain.
+- **A suite that reads the machine reads whatever else the machine is
+  doing.** Every desktop drew an icon per mounted filesystem from the real
+  `/proc/mounts`, and a container's bind mount of its storage folder is one
+  more ext4 disk -- the drag oracle compared two sessions and differed at
+  every step whenever podman ran (#608). `tests/desktop.py` pins
+  `DT_MOUNTS`, and `tests/screen.py` pins `DT_BLITCAT` (a missing file, so
+  every session draws from the generated table, not the installed Blit's
+  catalogue, which lagged 0.3.131 on this box). The product side is #619.
+- **Test desktops can outlive their tests, and they cost the box.** 36 held
+  `hold:desktop` servers were found running for days, each under a
+  `/tmp/hibr-screen-*` scratch folder with no client, together 1.5 of 4
+  cores -- enough to fail every timing check in a gate (#622). Before
+  believing a gate's timing failures, `uptime` and
+  `ss -xlp | grep hibr-screen`; stop only those, by pid, with the owner's
+  word.
+- **A prefix assignment on a program goes to the program alone**, so
+  `HIBR_LOGLEVEL=bad prog` is refused once, by the program, not also by the
+  shell starting it (#602 meeting #555; 221-loglevel re-recorded). A prefix
+  on a builtin or function sets the shell's own level for that command and
+  puts it back (225-loglevel-prefix).
+- **A wait on `console key` ends empty on SIGCHLD.** A child's exit is an
+  EINTR, which the console answers as "no key" -- so a single long
+  `console key 4000` in a process with children returns at once and loses
+  nothing but its wait. Wait in a loop of short calls (console.py's fork
+  check, 0.99.556), as `console key` returning on a resize already says.
+
 ## Testing discipline
 
 - Tests with a `.expected` file are **recorded** (first line exit status, then
