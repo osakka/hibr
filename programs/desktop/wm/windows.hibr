@@ -27,13 +27,19 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
 	DT[$id]["autoclose"]=
+	# Drawn by its app's own process, or not, decided once (wm/rtview.hibr).
+	dt_rvnew "$id" "$ap"
 	dt_hooks "$id" "$ap"
 	DT_NEXT=$((DT_NEXT + 1))
 	console pane "w$id" "$row" "$col" "$h" "$w"
 	DT_FOCUS=$id
 	local nw=$DT_NOTEWIN
 	DT_NOTEWIN=$id
-	[ -n "${DT[$id]["open"]}" ] && dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["open"]} "$id" "$arg"
+	if [ -n "${DT_RVC[$id]+x}" ]; then
+		dt_rvopen "$id" "$arg"
+	elif [ -n "${DT[$id]["open"]}" ]; then
+		dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["open"]} "$id" "$arg"
+	fi
 	DT_NOTEWIN=$nw
 	dt_tile
 	ret "$id"
@@ -42,12 +48,21 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 # Which of an app's callbacks a window calls, asked once: a restored window
 # asks again, since the hibr it was saved by may have had other ones.
 fn dt_hooks(int id, ap = "") {
-	local f
+	local f has
+	local hv=${DT_RVC[$id]+1}
 
 	for f in draw key click mouse wheel hover open close copy cut paste drop \
 		refresh idle undo redo selall canclose savefile find signin signfill \
 		focus; do
-		if [ -n "$ap" ] && dt_has "${ap}_$f"; then
+		# A window its app's own process draws has what that process said
+		# (wm/rtview.hibr); any other, what this one defines.
+		has=1
+		if [ -n "$hv" ]; then
+			dt_rvhas "$ap" "$f" && has=0
+		elif [ -n "$ap" ] && dt_has "${ap}_$f"; then
+			has=0
+		fi
+		if [ "$has" = 0 ]; then
 			DT[$id]["$f"]="${ap}_$f"
 			[ "$f" = focus ] && DT_FOCUSUSED=1
 		else
@@ -98,6 +113,7 @@ fn dt_winforget(id) {
 # Close a window and forget it.
 fn dt_del(int id) {
 	local ws=${DT[$id]["ws"]:-1}
+	local hv=${DT_RVC[$id]+1}
 
 	# Asked from inside a frame -- an app's _draw, _dirty or _idle -- the
 	# window is marked and closed once the frame is drawn, as dt_wantclose does: taken away now, the frame went on
@@ -106,6 +122,9 @@ fn dt_del(int id) {
 		[ -n "${DT[$id]["row"]+x}" ] && dt_wantclose "$id"
 		return 0
 	fi
+	# One its app's own process draws is held until the app has answered its
+	# close, or DT_HOLDMS has passed, never waited on (wm/rtview.hibr).
+	[ -z "$hv" ] || dt_rvclose "$id" || return 0
 	# Whatever the search widget was holding for this window, centrally
 	# rather than in each app's own `_close`: an app that has no
 	# `_close` at all -- Files has none -- would otherwise leak its
@@ -115,7 +134,7 @@ fn dt_del(int id) {
 	unset DT_LIVE["$id"]
 
 	DT_NOTEWIN=$id
-	[ -n "${DT[$id]["close"]}" ] && dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["close"]} "$id"
+	[ -n "$hv" ] || [ -z "${DT[$id]["close"]}" ] || dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["close"]} "$id"
 	DT_NOTEWIN=
 	console pane drop "w$id"
 	dt_winforget "$id"

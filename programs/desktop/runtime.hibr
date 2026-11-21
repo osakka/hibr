@@ -11,9 +11,13 @@
 # DT_HERE is where the desktop's files are, DT_RTSOCK the desktop's socket
 # for app processes, and DT_RTTOKEN the token of this launch, which the
 # hello spends and which says whose this process is; all three are given by
-# whatever started this one (dt_rtspawn).
+# whatever started this one (dt_rtspawn). Run rather than sourced --
+# `hibr runtime.hibr APP FILE`, as the desktop starts an installed app
+# (dt_rthost) -- it is that app's whole process: the app's file read, the
+# hello, its windows' cells on a channel of their own, and its loop.
 
 strict
+DT_HERE="${DT_HERE:-${BASH_SOURCE[0]%/*}}"
 # A slip in an app -- a write the desktop's copies refuse, an arithmetic
 # error -- fails that one command and is logged, as it does in the desktop,
 # never ends the app's loop with it.
@@ -67,6 +71,23 @@ DT_RTRECV=0
 # The connection to the desktop, and what it said to the hello.
 DT_RTFD=
 DT_RTSAID=
+# The one-time token the hello's ok gave for this process's cells channel,
+# and that channel once open.
+DT_RTCTOK=
+DT_RTCFD=
+# The apps this process's file registers (its dt_app lines), one prefix
+# each: a window's calls resolve from its own app, never from the process.
+DT_RTPFX=()
+# The views the desktop has bound, by name (w$ID): "KIND ID DH DW OR OC";
+# those to draw whole at the next pass (new, resized, called or asked
+# again); and whether there has been one, so the last one forgotten ends
+# the process.
+declare -gA DT_RTV DT_RTVNEW
+DT_RTHADV=
+# The window a note an app's callback raises is about, and why a call said
+# no, as the desktop keeps them around a callback.
+DT_NOTEWIN=
+DT_WHY=
 
 # Open the connection and say hello: the protocol, the hibr version and
 # the app's name. A desktop that refuses says why, which is kept in
@@ -107,6 +128,7 @@ fn dt_rtopen(app) {
 			case ${w[0]-} in
 			ok)
 				console unwatch "$DT_RTFD"
+				DT_RTCTOK=${w[2]-}
 				dt_rtderived
 				# The language put into effect here once, as the
 				# desktop's is at its start; after this dt_derive
@@ -141,11 +163,19 @@ dt_rtderived() {
 }
 
 # One message to the desktop: tell, ask or declare, the function, and its
-# words. A told request is sent and never waited for. What is asked and
-# what is declared are not carried yet, and say so rather than seem to work.
+# words. A told request is sent and never waited for, an asked one waited
+# for (dt_rtask); of what is declared only dt_app is taken, as this
+# process's prefixes, and the rest says it is not carried yet.
 fn dt_rtsend(verb, name, ...args) {
 	local l
 
+	# An app's registration is read by the desktop from its file (ADR
+	# 0050: read, not run); here it says which prefixes this process answers
+	# for, as its file is read, before there is any connection.
+	if [ "$verb" = declare ] && [ "$name" = dt_app ]; then
+		DT_RTPFX+=("${args[0]-}")
+		return 0
+	fi
 	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
 	case $verb in
 	tell) ;;
@@ -259,9 +289,9 @@ fn dt_rtask(name, ...args) {
 	return "$st"
 }
 
-# What the desktop said: `tell NAME words` runs this app's own function
-# NAME with the words -- never one the app interface defines, and never by
-# eval. Anything else is not carried yet, and says so.
+# What the desktop said: shared state (json, jsonk, unsetk), a call into
+# this app (call), the views it draws in (view, again, forget) and a
+# revoked call. Anything else is not carried yet, and says so.
 fn dt_rtcalled(line) {
 	local -a w a
 	local x name
@@ -277,22 +307,188 @@ fn dt_rtcalled(line) {
 		dt_log "app runtime: an answer to ask ${w[1]-?} came after its time; dropped"
 		return 0
 		;;
-	tell) ;;
+	call | view | again | forget | revoke) ;;
 	*)
 		dt_log "app runtime: the desktop said ${w[0]:-nothing}, which is not carried yet (ADR 0050)"
 		return 0
 		;;
 	esac
-	name := dt_rtdec "${w[1]-}"
-	for x in "${w[@]:2}"; do
+	for x in "${w[@]:1}"; do
 		x := dt_rtdec "$x"
 		a+=("$x")
 	done
-	if [ -n "${DT_RTIFACE["$name"]+x}" ] || ! dt_has "$name"; then
-		dt_log "app runtime: the desktop told $name, which is not this app's own; refused"
+	case ${w[0]} in
+	call) dt_rtcall "${a[@]}" ;;
+	view) dt_rtview "${a[@]}" ;;
+	again)
+		name=${a[0]-}
+		[ -n "${DT_RTV["$name"]+x}" ] || return 0
+		console cells again "$name"
+		DT_RTVNEW["$name"]=1
+		;;
+	forget)
+		name=${a[0]-}
+		[ -n "${DT_RTV["$name"]+x}" ] || return 0
+		console cells forget "$name"
+		unset DT_RTV["$name"] DT_RTVNEW["$name"]
+		;;
+	revoke) dt_log "app runtime: the desktop revoked call ${a[0]-?}, which had run (ADR 0050, a declined key)" ;;
+	esac
+	return 0
+}
+
+# `call SEQ TARGET NAME WORDS...`: TARGET a window this process draws and
+# NAME the kind of its callback (key, click, open, close...), resolved from
+# the window's own app; or TARGET -, NAME a function of this process's own.
+# Never one the app interface defines, never by eval, and timed as the
+# desktop times a callback (dt_appcall). An ask (SEQ above 0) is answered
+# `took SEQ STATUS KIND VALUE WHY`, 126 when refused.
+fn dt_rtcall(seq, target, name, ...args) {
+	local fn= st=126 v= why= k t0
+
+	if [ "$target" = - ]; then
+		fn=$name
+	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ]; then
+		fn=${DT[$target]["app"]-}_$name
+	else
+		dt_log "app runtime: the desktop called $name of window $target, which this process does not draw; refused"
+	fi
+	if [ -n "$fn" ] && { [ -n "${DT_RTIFACE["$fn"]+x}" ] || ! dt_has "$fn"; }; then
+		dt_log "app runtime: the desktop told $fn, which is not this app's own; refused"
+		fn=
+	fi
+	if [ -n "$fn" ]; then
+		RET=
+		DT_WHY=
+		if [ "$target" = - ]; then
+			t0=${EPOCHREALTIME/./}
+			"$fn" "${args[@]}"
+			st=$?
+			dt_spent "$fn" "$((${EPOCHREALTIME/./} - t0))" "${DT_RTPFX[0]-}"
+		else
+			dt_appcall "$target" "$fn" "${args[@]}"
+			st=$?
+			DT_RTVNEW["w$target"]=1
+		fi
+		v=$RET
+		why=${DT_WHY-}
+	fi
+	[ "$seq" = 0 ] && return 0
+	if [ -n "$v" ]; then
+		k := dt_rtline took "$seq" "$st" s "$v" "$why"
+	else
+		k := dt_rtline took "$seq" "$st" - "" "$why"
+	fi
+	send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+	return 0
+}
+
+# `view NAME GEN H W KIND ARGS...`: a place the desktop gave this process to
+# draw in. A window's (KIND win, ARGS ID DH DW OR OC) is drawn by its own
+# app's _draw with ID, DH, DW and its row and column, at pane origin OR OC.
+fn dt_rtview(name, gen, h, w, kind = "", ...args) {
+	if [ "$kind" != win ] || [ "${#args[@]}" != 5 ] || [ "$name" != "w${args[0]}" ]; then
+		dt_log "app runtime: the desktop bound $name as ${kind:-nothing}, which is not carried yet (ADR 0050)"
 		return 0
 	fi
-	"$name" "${a[@]}"
+	if [ -z "$DT_RTCFD" ] || ! console cells view "$name" "$gen" "$h" "$w"; then
+		dt_log "app runtime: cannot draw $name: no cells channel"
+		return 0
+	fi
+	DT_RTV["$name"]="$kind ${args[*]}"
+	DT_RTVNEW["$name"]=1
+	DT_RTHADV=1
+	return 0
+}
+
+# Draw every view due, then send what changed in one flush: a window whose
+# app says it is clean (_dirty) is left unless it is new, called or asked
+# again. Cleared to none first, so a shorter string leaves nothing stale;
+# drawn in the pen the desktop leaves before a window's _draw, and timed as
+# the desktop times a window's draw.
+dt_rtdraw() {
+	local v kind id dh dw or oc ap drew= t0 t
+
+	for v in "${!DT_RTV[@]}"; do
+		read -r kind id dh dw or oc <<< "${DT_RTV["$v"]}"
+		ap=${DT[$id]["app"]-}
+		[ -n "$ap" ] && dt_has "${ap}_draw" || continue
+		if [ -z "${DT_RTVNEW["$v"]+x}" ] && dt_has "${ap}_dirty" && ! "${ap}_dirty" "$id"; then
+			continue
+		fi
+		unset DT_RTVNEW["$v"]
+		console cells clear "$v"
+		console pen "$DT_INK" "$DT_FACE"
+		DT_NOTEWIN=$id
+		dt_wclear "$id"
+		[ "$or$oc" = 00 ] || console pane origin "$v" "$or" "$oc"
+		DT_WHO="win:$ap"
+		slowest on "${DT_SLOWMS:-50}"
+		t0=${EPOCHREALTIME/./}
+		"${ap}_draw" "$id" "$dh" "$dw" "${DT[$id]["row"]-0}" "${DT[$id]["col"]-0}"
+		t=$((${EPOCHREALTIME/./} - t0))
+		DT_WHO=
+		[ "$t" -lt 1000 ] || dt_spent "win:$ap" "$t" "$ap"
+		[ "$or$oc" = 00 ] || console pane origin "$v" 0 0
+		DT_NOTEWIN=
+		drew=1
+	done
+	[ -z "$drew" ] || console flush > /dev/null
+	return 0
+}
+
+# This process's cells channel: a second connection to the desktop, named
+# by the token the hello's ok gave, opened only when one of its apps draws;
+# then which callbacks each of its apps has, a line each (`has PREFIX
+# KIND...`), which is how the desktop calls a window of it. Status 1 when
+# the desktop refused or did not answer within two seconds.
+dt_rtcells() {
+	local p= q f l fd end now st
+	local -a w kinds
+
+	for q in "${DT_RTPFX[@]}"; do
+		dt_has "${q}_draw" && { p=$q; break; }
+	done
+	[ -n "$p" ] || return 0
+	[ -n "$DT_RTCTOK" ] || { dt_log "app runtime: the desktop gave no cells token"; return 1; }
+	connect -U "$DT_RTSOCK" fd 2> /dev/null || { dt_log "app runtime: cannot open a cells channel"; return 1; }
+	send "$fd" "cells $DT_RTCTOK" 2> /dev/null || return 1
+	DT_RTCTOK=
+	console watch "$fd"
+	end=$((${EPOCHREALTIME/./} / 1000 + 2000))
+	l=
+	while :; do
+		dt_rtlines "$fd"
+		st=$?
+		[ "${#DT_RTGOT[@]}" -gt 0 ] && { l=${DT_RTGOT[0]}; break; }
+		now=$((${EPOCHREALTIME/./} / 1000))
+		[ "$st" != 1 ] && [ "$now" -lt "$end" ] || break
+		console key $((end - now)) > /dev/null
+	done
+	console unwatch "$fd"
+	unset DT_RTBUF["$fd"] DT_RTMORE["$fd"]
+	read -ra w <<< "$l"
+	if [ "${w[0]-}" != ok ]; then
+		dt_log "app runtime: the desktop refused a cells channel: ${l:-no answer}"
+		exec {fd}>&-
+		return 1
+	fi
+	console cells open "$fd" || return 1
+	DT_RTCFD=$fd
+	# Every function of each prefix's own, by what follows the prefix: the
+	# desktop takes the callbacks it knows from that, so no second list of
+	# callback kinds is kept here.
+	l := declare -F
+	mapfile -t w <<< "$l"
+	for p in "${DT_RTPFX[@]}"; do
+		kinds=()
+		for f in "${w[@]}"; do
+			f=${f##* }
+			[[ $f == "${p}_"* ]] && [ -z "${DT_RTIFACE["$f"]+x}" ] && kinds+=("${f#"${p}_"}")
+		done
+		l := dt_rtline has "$p" "${kinds[@]}"
+		send "$DT_RTFD" "$l" 2> /dev/null || return 1
+	done
 	return 0
 }
 
@@ -354,6 +550,14 @@ dt_rtrun() {
 
 	console watch "$DT_RTFD" || return 1
 	while :; do
+		# What this pass made due is drawn before the wait, so a key's
+		# echo goes out with the call that caused it.
+		dt_rtdraw
+		if [ -n "$DT_RTHADV" ] && [ "${#DT_RTV[@]}" = 0 ]; then
+			console unwatch "$DT_RTFD"
+			dt_log "app runtime: its last window has gone; this app ends"
+			return 0
+		fi
 		console key ${DT_WANT:+"$DT_WANT"}
 		DT_WANT=
 		dt_tickers
@@ -389,3 +593,18 @@ dt_rtrun() {
 		fi
 	done
 }
+
+# Run as an installed app's process: the hello, so the desktop's state is
+# here before the app's file reads it, as it is in the desktop; the app's
+# file, read with no arguments of this process's (an app run directly acts
+# on its own); its cells channel; its loop.
+if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "$#" = 2 ]; then
+	dt_rtopen "$1" || { dt_log "app runtime: $1: $DT_RTSAID"; exit 1; }
+	DT_LOADING=$2
+	set --
+	. "$DT_LOADING"
+	DT_LOADING=
+	dt_rtcells || exit 1
+	dt_rtrun
+	exit
+fi

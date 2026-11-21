@@ -78,7 +78,11 @@ fn dt_winbare(int id) {
 	DT_NOTEWIN=$id
 	dt_wclear "$id"
 	dt_fieldstale "$id"
-	[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	if [ -n "${DT_RVC[$id]+x}" ]; then
+		[ -z "$dr" ] || dt_rvshow "$id" -a
+	else
+		[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 2)) $((w - 2)) "$wr" "$wc"
+	fi
 	DT_NOTEWIN=
 	console pen "$fg" "$bg"
 	t := str repeat " " "$w"
@@ -161,6 +165,18 @@ fn dt_clean(int id) {
 	[ -n "$ap" ] || { DT_WHY=noapp; return 1; }
 	dt_hotmoved "$id" && { DT_WHY=hover; return 1; }
 	case " $DT_ALONE " in *" $id "*) ;; *) dt_under "$id" && { DT_WHY=overlap; return 1; } ;; esac
+	# Drawn by its app's own process: dirty only when its cells changed or
+	# its view was bound again (wm/rtview.hibr), never asked; one waiting
+	# for its view is drawn once, face and frame, and then left.
+	if [ -n "${DT_RVC[$id]+x}" ]; then
+		if [ -n "${DT_RVDIRTY[$id]-}" ]; then
+			[ -n "${DT_RVC[$id]}" ] || unset DT_RVDIRTY[$id]
+			DT_WHY=cells
+			return 1
+		fi
+		DT_WHY=left
+		return 0
+	fi
 	dt_has "${ap}_dirty" || { DT_WHY=nodirty; return 1; }
 	dt_appfn "$ap" "${ap}_dirty" "$id" && { DT_WHY=dirty; return 1; }
 	DT_WHY=left
@@ -822,7 +838,13 @@ fn dt_contentonly(int id) {
 	[ -n "$DT_FORCEONCE" ] && return 1
 	case $DT_FORCEWIN in *" $id "*) return 1 ;; esac
 	[ -n "$ap" ] && [ -n "${DT[$id]["csig"]}" ] || return 1
-	dt_has "${ap}_paintsall" && dt_appfn "$ap" "${ap}_paintsall" "$id" || return 1
+	# One its app's own process draws paints every cell it changed and
+	# uncovered none: its kept cells are shown over what is already there.
+	if [ -n "${DT_RVC[$id]+x}" ]; then
+		[ -n "${DT_RVC[$id]}" ] && [ -z "${DT_RVUNC[$id]-}" ] || return 1
+	else
+		dt_has "${ap}_paintsall" && dt_appfn "$ap" "${ap}_paintsall" "$id" || return 1
+	fi
 	dt_hotmoved "$id" && return 1
 	case " $DT_ALONE " in *" $id "*) ;; *) dt_under "$id" && return 1 ;; esac
 	s := dt_chromesig "$id"
@@ -838,7 +860,15 @@ fn dt_win(int id) {
 	console layer "w$id"
 	local wr=${DT[$id]["row"]} wc=${DT[$id]["col"]} dr=${DT[$id]["draw"]}
 	local fixed=${DT_APPS[${DT[$id]["app"]}]["fixed"]} cap=0
+	local hv=${DT_RVC[$id]+1}
 
+	# Drawn by its app's own process: never here. Its view is bound, or
+	# bound again at a new size, and its kept cells go where its _draw
+	# would have run (wm/rtview.hibr); until it is bound, face and frame.
+	if [ -n "$hv" ]; then
+		dt_rvbind "$id"
+		dr=${DT[$id]["draw"]}
+	fi
 	# Rolled up to its title bar, its app is not drawn (dt_idle reads it).
 	[ -n "${DT[$id]["shaded"]-}" ] && dr=
 
@@ -882,7 +912,9 @@ fn dt_win(int id) {
 		DT_NOTEWIN=$id
 		dt_wclear "$id"
 		dt_fieldstale "$id"
-		if dt_capped "$id"; then
+		if [ -n "$hv" ]; then
+			[ -z "$dr" ] || dt_rvshow "$id"
+		elif dt_capped "$id"; then
 			console pane origin "w$id" 0 1
 			[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
 			console pane origin "w$id" 0 0
@@ -932,7 +964,11 @@ fn dt_win(int id) {
 		DT_NOTEWIN=$id
 		dt_wclear "$id"
 		dt_fieldstale "$id"
-		[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" "$h" "$w" "$wr" "$wc"
+		if [ -n "$hv" ]; then
+			[ -z "$dr" ] || dt_rvshow "$id" -a
+		else
+			[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" "$h" "$w" "$wr" "$wc"
+		fi
 		DT_NOTEWIN=
 		return 0
 	fi
@@ -958,7 +994,10 @@ fn dt_win(int id) {
 	DT_NOTEWIN=$id
 	dt_wclear "$id"
 	dt_fieldstale "$id"
-	if dt_capped "$id"; then
+	if [ -n "$hv" ]; then
+		dt_capped "$id" && cap=1
+		[ -z "$dr" ] || dt_rvshow "$id" -a
+	elif dt_capped "$id"; then
 		cap=1
 		console pane origin "w$id" 0 1
 		[ -n "$dr" ] && dt_appfn "${DT[$id]["app"]-}" $dr "$id" $((h - 1)) "$w" "$wr" "$wc"
@@ -976,7 +1015,12 @@ fn dt_win(int id) {
 
 	case $DT_LANG in ?*) t := dt_trtitle "$t" ;; esac
 	DT[$id]["btns"] := dt_chrome "w$id" 0 0 "$h" "$w" "$t" "$on" "$cap" "${fixed:-0}" "$id"
-	dt_has "${DT[$id]["app"]}_paintsall" && DT[$id]["csig"] := dt_chromesig "$id"
+	# A window its app's own process draws, once its view is bound, paints
+	# what it changed as a paints-all app does; one waiting for its view
+	# draws nothing a frame could skip to.
+	if [ -n "${DT_RVC[$id]-}" ] || { [ -z "$hv" ] && dt_has "${DT[$id]["app"]}_paintsall"; }; then
+		DT[$id]["csig"] := dt_chromesig "$id"
+	fi
 }
 
 # Which title-bar button is at this column, if any.  fixed omits max, whose

@@ -39,8 +39,12 @@ dt_appfn() { local DT_CALLER=$1; "${@:2}" && ret -k; }
 # paste or a drop) called by the desktop: through the seam, by the
 # window's app, and timed by dt_appcall in the process that runs it -- the
 # desktop's own, today. dt_winget is the same for one that answers with ret.
-dt_wincall() { dt_appfn "${DT[$1]["app"]-}" dt_appcall "$@"; }
-dt_winget() { dt_appfn "${DT[$1]["app"]-}" dt_appget "$@" && ret -k; }
+# A window drawn by its app's own process (DT_RVC, filled only by the
+# desktop's wm/rtview.hibr, and only in a session that listens for app
+# processes) is sent the call instead: one lookup for every other window.
+declare -gA DT_RVC
+dt_wincall() { [ -z "${DT_RVC[$1]+x}" ] || { dt_rvcall "$@"; return; }; dt_appfn "${DT[$1]["app"]-}" dt_appcall "$@"; }
+dt_winget() { [ -z "${DT_RVC[$1]+x}" ] || { dt_rvget "$@"; return; }; dt_appfn "${DT[$1]["app"]-}" dt_appget "$@" && ret -k; }
 
 # Whose a hook is: the function a registration names -- a mode hook, a bar
 # hook, a bus handler, a start-up or unload hook -- or "prefix_" for one

@@ -33,6 +33,11 @@ declare -gA DT_RTC
 # being blame, not a lock. Each connection's launch, both ways, so a tell
 # reaches that one process and not the first of its name.
 declare -gA DT_RTLAUNCH DT_RTCTOK DT_RTTOKC
+# Each request connection's cells channel and back (wm/rtview.hibr), the
+# one-time tokens a hello's ok gave for one, by token, and each
+# connection's process, kept past its hello so one left with no window can
+# be ended.
+declare -gA DT_RTCELLS DT_RTCELLC DT_RTCELLTOK DT_RTCPID
 # The apps with a connection, with how many: a frame asks one lookup
 # whether any process is to be told of a window. And the last change the
 # variable table reported (varwatch seq), so a pass with nothing changed
@@ -323,6 +328,8 @@ dt_rttick() {
 	for c in "${!DT_RTPEND[@]}"; do
 		dt_rtsay "$c" ""
 	done
+	[ "${#DT_RVASK[@]}${#DT_RTENDPID[@]}" = 00 ] || dt_rvtick
+	[ "${#DT_RTCELLC[@]}" = 0 ] || dt_rvtakes
 	if command -v console > /dev/null; then
 		w := console woke "$DT_RTLFD" "${!DT_RTC[@]}"
 		read -ra ready <<< "$w"
@@ -437,8 +444,10 @@ dt_rtlaunches() {
 # holds -- the terminal under another number, its listening socket, other
 # apps' connections -- is closed in the child before the program starts,
 # since an app holding them would keep them open past the desktop's own
-# close.
-fn dt_rtspawn(app, file) {
+# close. What runs is the file, or the words given after it -- the runtime
+# with an installed app's name and file (dt_rthost) -- the launch being the
+# file's either way, which is what the app is sent by (dt_rtwants).
+fn dt_rtspawn(app, file, ...run) {
 	local f t
 
 	t := dt_rtissue "$app" "$file"
@@ -452,23 +461,24 @@ fn dt_rtspawn(app, file) {
 			case $f in "" | *[!0-9]*) continue ;; esac
 			[ "$f" -gt 2 ] && [ -e "/dev/fd/$f" ] && exec {f}>&-
 		done
-		DT_RTTOKEN=$t exec "$HIBR" "$file" < /dev/null > /dev/null
+		[ "${#run[@]}" -gt 0 ] || run=("$file")
+		DT_RTTOKEN=$t exec "$HIBR" "${run[@]}" < /dev/null > /dev/null
 	) &
 	DT_RTLPID["$t"]=$!
 	dt_log "app runtime: started $app from $file as $!"
 	ret "$t"
 }
 
-# Tell the process of one launch to run one of its own functions -- the
-# one verb the desktop says today (ADR 0050): sent, never waited for.
-# Status 1 when that launch has no connection.
+# Tell the process of one launch to run one of its own functions, by name
+# (`call 0 - NAME WORDS`, ADR 0050): sent, never waited for. Status 1 when
+# that launch has no connection.
 fn dt_rttell(launch, name, ...args) {
 	local c=${DT_RTTOKC["$launch"]-} x
 
 	[ -n "$c" ] || return 1
 	# What changed goes out before a call that may read it, held or not.
 	dt_rtpass force
-	x := dt_rtline tell "$name" "${args[@]}"
+	x := dt_rtline call 0 - "$name" "${args[@]}"
 	dt_rtsay "$c" "$x"
 }
 
@@ -487,7 +497,10 @@ fn dt_rtdrop(int c) {
 		[ "${DT_RTAPPS["$x"]}" -gt 0 ] || unset DT_RTAPPS["$x"]
 	fi
 	unset DT_RTC["$c"] DT_RTBUF["$c"] DT_RTMORE["$c"] DT_RTPEND["$c"] DT_RTCTOK["$c"] DT_RTCFILE["$c"]
-	unset DT_RTPENDB["$c"] DT_RTPENDT["$c"]
+	unset DT_RTPENDB["$c"] DT_RTPENDT["$c"] DT_RTCPID["$c"]
+	# Gone first, so nothing below says anything more to it: then its
+	# cells channel and its windows.
+	dt_rvdrop "$c"
 	return 0
 }
 
@@ -641,6 +654,10 @@ fn dt_rtmsg(int c, line) {
 		a+=("$x")
 	done
 	if [ "$who" = - ]; then
+		if [ "${a[0]-}" = cells ]; then
+			dt_rvcells_in "$c" "${a[1]-}"
+			return 1
+		fi
 		if [ "${a[0]-}" != hello ]; then
 			dt_rtsay "$c" "refused said%20nothing%20first"
 			dt_rtdrop "$c"
@@ -669,6 +686,7 @@ fn dt_rtmsg(int c, line) {
 			return 1
 		fi
 		who=${DT_RTLAUNCH["$x"]}
+		DT_RTCPID["$c"]=${DT_RTLPID["$x"]-}
 		DT_RTCFILE["$c"]=
 		[ -z "${DT_RTLFILE["$x"]-}" ] || DT_RTCFILE["$c"] := dt_rtkindrel "${DT_RTLFILE["$x"]}"
 		unset DT_RTLAUNCH["$x"] DT_RTLFILE["$x"] DT_RTLTIME["$x"] DT_RTLPID["$x"]
@@ -698,7 +716,13 @@ fn dt_rtmsg(int c, line) {
 			t+=${t:+$'\n'}$x
 		done
 		dt_rtsay "$c" "$t" || return 1
-		dt_rtsay "$c" "ok $DT_RTPROTO" || return 1
+		# And a one-time token for its cells channel, should it draw: given
+		# here, on a connection already proved this launch's, never in any
+		# environment (wm/rtview.hibr).
+		read -r t < <(od -An -tx1 -N16 /dev/urandom)
+		t=${t// /}
+		DT_RTCELLTOK["$t"]=$c
+		dt_rtsay "$c" "ok $DT_RTPROTO $t" || return 1
 		return 0
 	fi
 	case ${a[0]-} in
@@ -721,6 +745,12 @@ fn dt_rtmsg(int c, line) {
 		;;
 	ask)
 		dt_rtanswer "$c" "$who" "${a[@]:1}"
+		;;
+	has)
+		dt_rvhas_in "$c" "${a[@]:1}"
+		;;
+	took)
+		dt_rvtook "$c" "${a[1]-}" "${a[2]-}"
 		;;
 	*)
 		dt_log "app runtime: $who sent ${a[0]-nothing}, which is not carried yet"

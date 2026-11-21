@@ -1442,6 +1442,43 @@ cheaper too: an 80x24 window drawn whole, 3,530 a frame against 3,660 at
 0.99.553. `tests/cellwire.py` holds the records to in-process cell for
 cell.
 
+## The spine (2026-11-21, protocol 7)
+
+The first path an app's own process draws a window through, end to end:
+started, bound, drawn, given input, closed. Protocol 7, once, for all of it.
+
+- **A second connection, the cells channel.** The desktop's `ok` after a
+  hello carries a one-time token, good only on that request connection and
+  void when it drops. An app whose file defines `_draw` opens a second
+  connection to the same socket with `cells TOKEN`; the desktop answers `ok`
+  and from then only reads it -- cell records (`console cells`), never a
+  request. Either connection ending ends both.
+- **`has PREFIX KIND...`** -- what the process's file registers, sent once
+  the cells channel is up; a window of that app made from then on is hosted.
+- **A hosted window is never drawn in-process.** `DT_RVC[id]` is set when
+  it is made (`wm/seam.hibr`); `dt_win` binds its view (`view NAME GEN H W
+  win ID DH DW OR OC`, the body's size and origin worked out by the desktop
+  as `dt_win` does, so the app never re-derives them) and shows its kept
+  cells where `_draw` would have run (`wm/rtview.hibr`). Until it binds, its
+  face and frame are drawn and nothing else. It is dirty only when its cells
+  changed or it was bound again (`DT_RVDIRTY`), never asked (`_dirty`).
+- **One verb runs an app's code: `call SEQ ID KIND WORDS...`** -- SEQ 0 a
+  tell, above 0 an ask answered `took SEQ STATUS T VALUE WHY`. Desktop to
+  app `tell` is retired into it. `again NAME` repeats a view whose `take`
+  failed, `forget NAME` ends one, `revoke SEQ` withdraws an ask whose answer
+  came too late (the input track's).
+- **Close is an ask that holds the window**, never a wait: the window goes
+  when the app's `took` says so, or its process ends.
+- **Only a test session hosts** (`dt_rthost`, through `dt_rtlisten`), so in
+  a real session each new branch is one empty-map lookup: no app is moved
+  out by this, and no switch chooses between two paths. `tests/hosted.py`
+  drives Clock, a closer, a hanger and the calculator through it.
+
+The later tracks -- a Control Panel pane, a strip module, a bar item, a
+saver, menus and the words a list shows -- need no new verb: each is a
+`view` of another KIND (`pane`, `strip`, `bar`, `saver`) or a `call` of
+another callback, so they add code and not protocol.
+
 ## The first plan (2026-11-01), superseded
 
 In three steps, each a release that stands on its own:

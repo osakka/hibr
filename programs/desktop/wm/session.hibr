@@ -750,6 +750,10 @@ dt_run() {
 					DT_QWAIT=1
 					dt_answering "$now" && DT_QWAIT=
 				else
+					# What app processes drew since the wait, taken
+					# before the frame, so it is in this frame and
+					# not the next (wm/rtview.hibr).
+					[ "${#DT_RTCELLC[@]}" = 0 ] || dt_rvtakes
 					t0=${EPOCHREALTIME/./}
 					dt_draw
 					t0=$((${EPOCHREALTIME/./} - t0))
