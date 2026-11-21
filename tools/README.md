@@ -134,6 +134,47 @@ each process pinned to one core. The loop's instruction count comes from
 callgrind, because wall time between two builds moves several percent on
 code layout alone.
 
+## hostaudit.py
+
+Whether each installable can run in a process of its own (ADR 0050,
+Decision 8), the tree's and the catalogue's, and what it waits on or needs
+if not. An entry is what one process runs: its file, its parts and the
+members `# needs:` joins it with. Read by inspect, never run.
+
+```text
+tools/hostaudit.py [--md FILE] [--tsv FILE]   # every entry, tree and catalogue
+tools/hostaudit.py --root DIR                 # a checkout laid out by kind (huiamp)
+tools/hostaudit.py --detail ENTRY...          # one entry's calls, callbacks and state
+tools/hostaudit.py --check                    # the tree's half: tests/appcalls.py
+```
+
+What the tree carries for a hosted process is read from it -- `dt_rvhas`,
+`dt_rvget`, `dt_rtview`'s view kinds, and whether each seam site's
+function routes a hosted window -- so the verdicts move as the tracks
+land; which track carries a kind is the one table written by hand
+(`TRACK`). The check fails a call by a platform prefix to a name no file
+defines, which `appcalls.py`'s table cannot see, and holds the calls from
+one installable into a separate one (`CROSS`) to a count that only lowers.
+
+## budgets.py
+
+The budgets an app in a process of its own must keep (ADR 0050, Decision
+8), measured the same way in any tree so a candidate is read against
+0.99.549, the last release with no isolation code: idle, a key's echo, a
+full window redrawn ten times a second, and the Terminal's three writers.
+Each is a desktop on a pty, so it runs under the suites' lock.
+
+```text
+tools/budgets.py [--tree DIR] [--hosted] [CASE...]
+tools/budgets.py --compare A B [--runs N] [--hosted-b] [CASE...]
+```
+
+Processor time comes from `/proc`, for the desktop, its hibr processes
+below it (app processes, hosted) and the programs apart; the echo is read
+off the screen from outside, so a tree without the latency instruments is
+measured exactly as one with them. `--compare` alternates the trees and
+prints medians with their spread and the load average.
+
 ## mdanchors.py
 
 Every `](page.md#anchor)` in a tracked page names a heading that page
