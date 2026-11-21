@@ -1,10 +1,11 @@
 0
-a bare desktop runs 15 tickers a pass:
+a bare desktop runs 16 tickers a pass:
   dt_jobtick
   dt_writetick
   dt_swtick
   dt_shadownote
   dt_movednote
+  fp_feedtick
   dt_notetick
   dt_bustick
   dt_ctlpoll
@@ -15,12 +16,13 @@ a bare desktop runs 15 tickers a pass:
   dt_pktick
   dt_nattick
   dt_modetick
-with this tree loaded, 24:
+with this tree loaded, 25:
   dt_jobtick
   dt_writetick
   dt_swtick
   dt_shadownote
   dt_movednote
+  fp_feedtick
   dt_notetick
   dt_bustick
   dt_ctlpoll
