@@ -8,9 +8,13 @@
 
 strict
 
-# Which of an app's five functions actually exist, asked once.
+# Which of an app's five functions actually exist, asked once: defined
+# here, or said to be had by the process that draws a pane, a strip module
+# or a saver (DT_RVFN, filled only by the desktop's wm/rtkinds.hibr), which
+# is asked only when the name is not defined here.
+declare -gA DT_RVFN
 fn dt_has(name) {
-	command -v "$name" > /dev/null
+	command -v "$name" > /dev/null || [ -n "${DT_RVFN["$name"]+x}" ]
 }
 
 # A title that says which app and what it holds: `Mail [Home Email]`,

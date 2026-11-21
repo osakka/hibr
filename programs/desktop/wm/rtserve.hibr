@@ -438,6 +438,7 @@ dt_rtlaunches() {
 		fi
 		[ -n "$why" ] || continue
 		dt_log "app runtime: ${DT_RTLAUNCH["$t"]} started from ${DT_RTLFILE["$t"]:-nothing} $why; its launch is void"
+		[ "${#DT_RVP[@]}" = 0 ] || dt_rvxvoid "${DT_RTLAUNCH["$t"]}"
 		# A note from a ticker asks for the frame that shows it, or it
 		# expires before anything draws.
 		if [ -n "${DT_RTLFILE["$t"]-}" ]; then
@@ -586,7 +587,7 @@ fn dt_rtmine(f) {
 	local m p
 
 	[ -n "${DT_RTFROM-}" ] || return 0
-	m=${DT_APPS["$DT_CALLER"]["src"]-}
+	m := dt_rvsrc "$DT_CALLER"
 	[ -n "$f" ] && [ -n "$m" ] || return 1
 	[ "$f" = "$m" ] && return 0
 	p := dt_rtpartfiles "$m" || return 1
@@ -626,8 +627,13 @@ fn dt_rtparts(src) {
 fn dt_rtmay(name) {
 	local src t f
 
-	[ -n "$name" ] && [ -n "${DT_APPS["$name"]["title"]+x}" ] || return 1
-	src=${DT_APPS["$name"]["src"]-}
+	[ -n "$name" ] || return 1
+	if [[ $name == */* ]]; then
+		dt_rvinst "$name" || return 1
+	else
+		[ -n "${DT_APPS["$name"]["title"]+x}" ] || return 1
+	fi
+	src := dt_rvsrc "$name"
 	[ -n "$src" ] && [ -r "$src" ] || return 1
 	[ "${DT_RTMAYOF["$name"]-}" = "$src" ] && return 0
 	t=$(< "$src")
@@ -657,9 +663,9 @@ fn dt_rtowns(who, id) {
 
 	[[ $id =~ ^[0-9]+$ ]] || return 1
 	dt_iswin "$id" || return 1
-	[ "${DT[$id]["app"]-}" = "$who" ] && return 0
+	dt_rvappof "$who" "${DT[$id]["app"]-}" && return 0
 	f=${FP[$id]["for"]-}
-	[ -n "$f" ] && dt_iswin "$f" && [ "${DT[$f]["app"]-}" = "$who" ]
+	[ -n "$f" ] && dt_iswin "$f" && dt_rvappof "$who" "${DT[$f]["app"]-}"
 }
 
 # One message from a connection; status 1 when it was let go.
@@ -712,9 +718,9 @@ fn dt_rtmsg(int c, line) {
 		[ "${a[3]-}" = "$who" ] ||
 			dt_log "app runtime: a hello said it was ${a[3]:-nothing}; it is $who, by its launch"
 		if ! dt_rtmay "$who"; then
-			x := dt_rtline refused "$who is not an installed app"
+			x := dt_rtline refused "$who is not installed"
 			dt_rtsay "$c" "$x"
-			dt_log "app runtime: refused a hello from $who, which is not an installed app"
+			dt_log "app runtime: refused a hello from $who, which is not installed"
 			dt_rtdrop "$c"
 			return 1
 		fi

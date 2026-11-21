@@ -538,6 +538,9 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	bx=$((lw + 2))
 	bw=$((w - lw - 2))
 	case $DT_MIRRORON in 1) bx=2 ;; esac
+	# A pane its own process drew here before goes when another is shown
+	# (wm/rtkinds.hibr): one lookup for every other panel.
+	[ -z "${DT_RVX["p$id"]+x}" ] || dt_rvpaneseen "$id" "$pane"
 	if dt_has "${pane}_draw"; then
 		dt_prefixfn "$pane" draw "$id" $((h - 1 - srows)) "$bw" "$bx"
 	else

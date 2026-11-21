@@ -369,6 +369,11 @@ fn dt_rvtook(int c, seq, st = "") {
 		"${w[@]}"
 		return 0
 	fi
+	# A press a hosted pane declined (wm/rtkinds.hibr).
+	if [ "$kind" = pmouse ]; then
+		dt_rvxpress "$seq" "$st"
+		return 0
+	fi
 	[ "${DT_RVC[$id]-}" = "$c" ] || return 0
 	if [ "$kind" != close ]; then
 		[ "$DT_RVHOLD" != "$seq" ] || dt_rvunhold "$seq" "$st"
@@ -383,15 +388,21 @@ fn dt_rvtook(int c, seq, st = "") {
 # is how the desktop calls a window of it; and the windows of that app
 # waiting for their view are bound now. Only an app its own file registers.
 fn dt_rvhas_in(int c, ap = "", ...kinds) {
-	local who=${DT_RTC["$c"]} id
+	local who=${DT_RTC["$c"]} id src
 
-	if [ -z "$ap" ] || [ -z "${DT_APPS["$ap"]["src"]-}" ] ||
-		[ "${DT_APPS["$ap"]["src"]}" != "${DT_APPS["$who"]["src"]-}" ]; then
-		dt_log "app runtime: $who said what ${ap:-nothing} has, which its file does not register; refused"
+	src := dt_rvsrc "$who"
+	if [ -z "${DT_RTCELLS["$c"]-}" ]; then
+		dt_log "app runtime: $who said what ${ap:-nothing} has with no cells channel; refused"
 		return 0
 	fi
-	if [ -z "${DT_RTCELLS["$c"]-}" ]; then
-		dt_log "app runtime: $who said what $ap has with no cells channel; refused"
+	# A pane, a strip module or a saver of its file: drawn in a view of its
+	# own kind (wm/rtkinds.hibr). One prefix is never both in one file.
+	if [ -n "$ap" ] && [ -n "$src" ] && [ "${DT_APPS["$ap"]["src"]-}" != "$src" ]; then
+		dt_rvkinds_in "$c" "$src" "$ap" "${kinds[@]}" && return 0
+	fi
+	if [ -z "$ap" ] || [ -z "${DT_APPS["$ap"]["src"]-}" ] ||
+		[ "${DT_APPS["$ap"]["src"]}" != "$src" ]; then
+		dt_log "app runtime: $who said what ${ap:-nothing} has, which its file does not register; refused"
 		return 0
 	fi
 	DT_RTHAS["$ap"]=" ${kinds[*]} "
@@ -452,14 +463,22 @@ fn dt_rvtake(int fd) {
 		case ${w[0]-} in
 		changed)
 			for n in "${w[@]:1}"; do
-				DT_RVDIRTY[${n#w}]=1
+				if [ -n "${DT_RVX["$n"]+x}" ]; then
+					DT_RVXDIRTY["$n"]=1
+				else
+					DT_RVDIRTY[${n#w}]=1
+				fi
 				any=1
 			done
 			;;
 		uncovered)
 			for n in "${w[@]:1}"; do
-				DT_RVDIRTY[${n#w}]=1
-				DT_RVUNC[${n#w}]=1
+				if [ -n "${DT_RVX["$n"]+x}" ]; then
+					DT_RVXDIRTY["$n"]=1
+				else
+					DT_RVDIRTY[${n#w}]=1
+					DT_RVUNC[${n#w}]=1
+				fi
 				any=1
 			done
 			;;

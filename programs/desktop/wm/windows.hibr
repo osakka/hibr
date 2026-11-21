@@ -151,6 +151,9 @@ fn dt_del(int id) {
 	DT_NOTEWIN=$id
 	[ -n "$hv" ] || [ -z "${DT[$id]["close"]}" ] || dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["close"]} "$id"
 	DT_NOTEWIN=
+	# A Control Panel pane its own process draws in this window goes with it
+	# (wm/rtkinds.hibr): one lookup for every other window.
+	[ -z "${DT_RVX["p$id"]+x}" ] || dt_rvxforget "p$id"
 	console pane drop "w$id"
 	dt_winforget "$id"
 	unset "DT[$id]"

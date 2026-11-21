@@ -1,0 +1,408 @@
+# wm/rtkinds -- the other things an installable draws, drawn by its own
+# process (ADR 0050, the view kinds): a Control Panel pane in the panel's
+# window, a Control Strip module in its slot of the strip, and a screen
+# saver on the screen. Each is a view of the spine's (wm/rtview.hibr) of
+# another kind, on the same cells channel and the same `view` line -- `pane`
+# (NAME p$ID, the panel's window pane w$ID and the body's rectangle in it),
+# `strip` (NAME s$NAME, the screen and its slot), `saver` (NAME v, the
+# screen) -- and its input is a `call` by name, so no verb is added. A
+# process is the installable's file's, started by its file (dt_rthostk):
+# the seam already names such an installable by its file (DT_HOOKOWNER), so
+# the connection is that file's, as a window's is its app's. Its prefixes
+# are hosted from the moment it is started, so it is never drawn in this
+# process meanwhile: the seam (dt_prefixfn) sends what it would have
+# called, and dt_has answers from what the process said it has. Only a test
+# session listens (dt_rtlisten), so in a real session each branch on DT_RVP
+# or DT_RVX is one empty lookup.
+#
+# Part of the window manager; desktop.hibr sources it. It only defines
+# functions and sets state, so it can be read on its own and is never run.
+
+strict
+
+# Each hosted prefix's request connection, empty while its process is being
+# started; its file; and the callbacks carried for it, as " KIND... ".
+# DT_RVP itself is the seam's (wm/seam.hibr), DT_RVFN dt_has's
+# (wm/names.hibr).
+declare -gA DT_RVPC DT_RVPF DT_RVPK
+# Each view of these kinds by name: its connection (empty once let go here
+# and to be bound again where it is next drawn), generation, the place and
+# words it was last bound with, whether its kept cells changed since they
+# were last shown, and whose it is (its prefix).
+declare -gA DT_RVX DT_RVXGEN DT_RVXARGS DT_RVXDIRTY DT_RVXP
+
+# The callbacks each kind carries, its others said once and left out: a
+# pane's body is drawn, clicked, scrolled, typed into and pressed in; a
+# strip module drawn and clicked; a saver begun and stepped. A pane's rows,
+# a module's _shown and the rest are asks or another track's.
+declare -gA DT_RVCARRY=([pane]=" draw click wheel key mouse " [strip]=" draw click " [saver]=" start frame ")
+
+# The file who stands for: an app's, or who itself when it is a file -- a
+# pane, a strip module or a saver started by its file. Answered with ret.
+fn dt_rvsrc(who = "") {
+	if [[ $who == */* ]]; then
+		ret "$who"
+	else
+		ret "${DT_APPS["$who"]["src"]-}"
+	fi
+}
+
+# Whether app is who's own: who itself, or an app its file registers.
+fn dt_rvappof(who, app = "") {
+	[ -n "$app" ] || return 1
+	[ "$app" = "$who" ] && return 0
+	[[ $who == */* ]] && [ "${DT_APPS["$app"]["src"]-}" = "$who" ]
+}
+
+# Whether f is a file the desktop registered an installable from.
+fn dt_rvinst(f) {
+	local p
+
+	dt_has cp_pane && for p in "${!CP_PANES[@]}"; do
+		[ "${CP_PANES[$p]["src"]-}" = "$f" ] && return 0
+	done
+	dt_has cs_module && for p in "${!CS_MODS[@]}"; do
+		[ "${CS_MODS[$p]["src"]-}" = "$f" ] && return 0
+	done
+	dt_has sv_saver && for p in "${!SV[@]}"; do
+		[ "${SV[$p]["src"]-}" = "$f" ] && return 0
+	done
+	for p in "${!DT_APPS[@]}"; do
+		[ "${DT_APPS[$p]["src"]-}" = "$f" ] && return 0
+	done
+	return 1
+}
+
+# Start the process of the file that registers a pane, a strip module or a
+# saver, by kind and name -- a test session's only, as dt_rthost is -- and
+# host every pane, module and saver of that file from now on. Answered with
+# the launch, as dt_rthost answers.
+fn dt_rthostk(kind, name) {
+	local f= p t
+
+	case $kind in
+	pane) dt_has cp_pane && f=${CP_PANES["$name"]["src"]-} ;;
+	strip) dt_has cs_module && f=${CS_MODS["$name"]["src"]-} ;;
+	saver) dt_saverload && f=${SV["$name"]["src"]-} ;;
+	esac
+	[ -n "$f" ] || { dt_log "app runtime: no $kind $name with a file to start"; return 1; }
+	dt_rtlisten || return 1
+	dt_has cp_pane && for p in "${!CP_PANES[@]}"; do
+		[ "${CP_PANES[$p]["src"]-}" = "$f" ] && dt_rvxpend "$p" pane "$f"
+	done
+	dt_has cs_module && for p in "${!CS_MODS[@]}"; do
+		[ "${CS_MODS[$p]["src"]-}" = "$f" ] && dt_rvxpend "$p" strip "$f"
+	done
+	dt_has sv_saver && for p in "${!SV[@]}"; do
+		[ "${SV[$p]["src"]-}" = "$f" ] && dt_rvxpend "$p" saver "$f"
+	done
+	t := dt_rtspawn "$f" "$f" "$DT_HERE/runtime.hibr" "$f" "$f"
+	ret "$t"
+}
+
+# A prefix hosted by a process being started: never drawn here from now.
+fn dt_rvxpend(p, kind, f) {
+	DT_RVP["$p"]=$kind
+	DT_RVPC["$p"]=
+	DT_RVPF["$p"]=$f
+	DT_RVPK["$p"]=" "
+}
+
+# A launch that never said hello (dt_rtlaunches): the prefixes it was to
+# host are this desktop's again.
+fn dt_rvxvoid(f = "") {
+	local p
+
+	for p in "${!DT_RVP[@]}"; do
+		[ "${DT_RVPF["$p"]-}" = "$f" ] && [ -z "${DT_RVPC["$p"]-}" ] || continue
+		dt_log "app runtime: $p was to be drawn by $f's process, which did not start"
+		unset DT_RVP["$p"] DT_RVPC["$p"] DT_RVPF["$p"] DT_RVPK["$p"]
+	done
+	return 0
+}
+
+# `has PREFIX KIND...` from connection c for a pane, a strip module or a
+# saver its file src registers: carried from now on, and drawn at the next
+# frame. Status 1 when p is none of the three of src's.
+fn dt_rvkinds_in(int c, src, p, ...kinds) {
+	local k= f h=" "
+
+	if dt_has cp_pane && [ "${CP_PANES["$p"]["src"]-}" = "$src" ]; then
+		k=pane
+	elif dt_has cs_module && [ "${CS_MODS["$p"]["src"]-}" = "$src" ]; then
+		k=strip
+	elif dt_has sv_saver && [ "${SV["$p"]["src"]-}" = "$src" ]; then
+		k=saver
+	fi
+	[ -n "$k" ] || return 1
+	for f in "${kinds[@]}"; do
+		if [[ ${DT_RVCARRY["$k"]} == *" $f "* ]]; then
+			DT_RVFN["${p}_$f"]=1
+			h+="$f "
+		else
+			dt_rvonce "has:$p:$f" "app runtime: ${p}_$f is not carried yet (ADR 0050); the $k has none"
+		fi
+	done
+	DT_RVP["$p"]=$k
+	DT_RVPC["$p"]=$c
+	DT_RVPF["$p"]=$src
+	DT_RVPK["$p"]=$h
+	dt_want 0
+	return 0
+}
+
+# A call through the seam to a hosted prefix (dt_prefixfn, prefix, what, the
+# function it names and its words): its drawing shown from its cells, its
+# input sent as a call -- a tell, or a key or a press numbered as an ask,
+# which the desktop never waits for -- and anything not carried said once.
+# While its process is being started nothing is drawn and nothing sent.
+dt_rvpfn() {
+	local p=$1 what=$2 k=${DT_RVP["$1"]} c=${DT_RVPC["$1"]-}
+
+	shift 3
+	if [ -z "$c" ]; then
+		dt_rvonce "early:$p:$what" "app runtime: $k $p was given $what before its process said what it has; not sent"
+		[ "$what" = shown ]
+		return
+	fi
+	case $k:$what in
+	pane:draw) dt_rvxpane "$p" "$@" ;;
+	strip:draw) dt_rvxstrip "$p" "$@" ;;
+	saver:start) dt_rvxsaver "$p" "$@" ;;
+	saver:frame)
+		[ -z "${DT_RVXDIRTY[v]+x}" ] || dt_rvxshow v
+		return 0
+		;;
+	pane:click | pane:wheel | strip:click)
+		dt_rvxinput "$p" "$k" "${1-}"
+		dt_rvxsend "$c" 0 "${p}_$what" "$@"
+		;;
+	pane:key)
+		if dt_rvwithheld "${1-}"; then
+			dt_log "hosted: key ${1-} withheld, the desktop's"
+			return 1
+		fi
+		DT_RVSEQ=$((DT_RVSEQ + 1))
+		DT_RVASK[$DT_RVSEQ]="pkey - $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
+		dt_rvxinput "$p" "$k" "${1-}"
+		dt_rvxsend "$c" "$DT_RVSEQ" "${p}_key" "$@"
+		;;
+	pane:mouse)
+		dt_rvxinput "$p" "$k" "${1-}"
+		if [ "${2-}" != press ]; then
+			dt_rvxsend "$c" 0 "${p}_mouse" "$@"
+			return 0
+		fi
+		DT_RVSEQ=$((DT_RVSEQ + 1))
+		DT_RVASK[$DT_RVSEQ]="pmouse $p:${1-}:${4-}:${5-} $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
+		dt_rvxsend "$c" "$DT_RVSEQ" "${p}_mouse" "$@"
+		;;
+	strip:shown)
+		dt_rvonce "ask:$p:$what" "app runtime: ${p}_$what is asked, which is not carried yet (ADR 0050); the module shows"
+		return 0
+		;;
+	*)
+		dt_rvonce "ask:$p:$what" "app runtime: ${p}_$what of the $k is not carried yet (ADR 0050)"
+		return 1
+		;;
+	esac
+}
+
+# One call by name into a hosted prefix's process: `call SEQ - NAME
+# WORDS...`, what changed sent first, so it reads the desktop as it stands.
+fn dt_rvxsend(int c, int seq, name, ...words) {
+	local x
+
+	dt_rtpass force
+	x := dt_rtline call "$seq" - "$name" "${words[@]}"
+	dt_rtsay "$c" "$x"
+}
+
+# The person's own input to a view: its cells channel is input until the
+# app's next frame end, so the echo is drawn when it comes. A pane's view
+# is its panel window's (w is the window), a module's its own.
+fn dt_rvxinput(p, kind, w = "") {
+	local n
+
+	case $kind in
+	pane) n="p$w" ;;
+	*) n="s$p" ;;
+	esac
+	[ -z "${DT_RVX["$n"]-}" ] || console cells input "$n"
+}
+
+# A press a hosted pane's _mouse declined, answered: what the panel does
+# with a press its pane does not want -- the click it would have been
+# (panel_mouse), the panel's own, which tells the pane's _click in turn.
+fn dt_rvxpress(id, st = "") {
+	local p w r c
+
+	[ "$st" = 1 ] || return 0
+	IFS=: read -r p w r c <<< "$id"
+	dt_iswin "$w" && dt_has panel_click || return 0
+	CP_MDRAG[$w]=
+	panel_click "$w" "$r" "$c"
+	dt_want 0
+}
+
+# Bind a view of these kinds, or bind it again when its place or words
+# changed, telling its process `view NAME GEN H W KIND ARGS...`. A screen
+# view that would cover another's place -- a module moved onto where
+# another still is -- lets the others on the screen go first; each is bound
+# again where it is next drawn, and since nothing of it is kept here then,
+# its process is asked for all of it again (`again NAME`), or it would send
+# only what changed since it last drew. Status 1 while there is no cells
+# channel.
+fn dt_rvxbind(name, p, pane, int r, int col, int h, int w, ...args) {
+	local c=${DT_RVPC["$p"]-} fd a x new=
+
+	[ -n "$c" ] || return 1
+	fd=${DT_RTCELLS["$c"]-}
+	[ -n "$fd" ] || return 1
+	a="$pane $r $col $h $w ${args[*]}"
+	[ "${DT_RVX["$name"]-}" = "$c" ] && [ "${DT_RVXARGS["$name"]-}" = "$a" ] && return 0
+	[ "${DT_RVX["$name"]-}" = "$c" ] || new=1
+	DT_RVXGEN["$name"]=$((${DT_RVXGEN["$name"]:-0} + 1))
+	if ! console cells own "$fd" "$name" "${DT_RVXGEN["$name"]}" "$pane" "$r" "$col" "$h" "$w" 2> /dev/null; then
+		[ "$pane" = - ] && dt_rvxscreen "$name"
+		if ! console cells own "$fd" "$name" "${DT_RVXGEN["$name"]}" "$pane" "$r" "$col" "$h" "$w"; then
+			dt_log "app runtime: $name of $p could not be bound"
+			return 1
+		fi
+	fi
+	DT_RVX["$name"]=$c
+	DT_RVXARGS["$name"]=$a
+	DT_RVXP["$name"]=$p
+	DT_RVXDIRTY["$name"]=1
+	dt_rtpass force
+	x := dt_rtline view "$name" "${DT_RVXGEN["$name"]}" "$h" "$w" "${args[@]}"
+	dt_rtsay "$c" "$x"
+	if [ -n "$new" ]; then
+		x := dt_rtline again "$name"
+		dt_rtsay "$c" "$x"
+	fi
+	return 0
+}
+
+# Let every view on the screen go here but one, each to be bound again where
+# it is next drawn; its process keeps drawing it and is never told.
+fn dt_rvxscreen(but = "") {
+	local n c fd
+
+	for n in "${!DT_RVX[@]}"; do
+		[ "$n" != "$but" ] && [[ ${DT_RVXARGS["$n"]-} == "- "* ]] || continue
+		c=${DT_RVX["$n"]}
+		fd=${DT_RTCELLS["$c"]-}
+		[ -z "$fd" ] || console cells drop "$fd" "$n"
+		DT_RVX["$n"]=
+		unset DT_RVXARGS["$n"]
+	done
+	return 0
+}
+
+# Show a view's kept cells: those that changed, or all of them (-a) over a
+# face just painted.
+fn dt_rvxshow(name, all = "") {
+	[ -n "${DT_RVX["$name"]-}" ] || return 0
+	console cells show "$name" $all
+	unset DT_RVXDIRTY["$name"]
+	return 0
+}
+
+# A hosted pane's body, where panel_draw would have run its _draw: the
+# panel's window w$ID, from row 1 and the body's left column bx, h by w,
+# shown whole over the face the panel painted. The pane's own code writes
+# into w$ID at those columns, so its view's origin is 1, bx.
+fn dt_rvxpane(p, int id, int h, int w, int bx) {
+	local n="p$id"
+
+	[ -z "${DT_RVXP["$n"]-}" ] || [ "${DT_RVXP["$n"]}" = "$p" ] || dt_rvxforget "$n"
+	dt_rvxbind "$n" "$p" "w$id" 1 "$bx" "$h" "$w" pane "$id" "$p" 1 "$bx" || {
+		dt_rvonce "pend:$n" "app runtime: pane $p waits for its process's cells; its face meanwhile"
+		return 0
+	}
+	dt_rvxshow "$n" -a
+}
+
+# A hosted module's slot of the strip, where dt_stripdraw would have run
+# its _draw: one row of the module's width at the strip's row and column,
+# shown whole over the strip just painted, lit while the pointer is over
+# it as the strip lights it.
+fn dt_rvxstrip(p, int row, int col) {
+	local n="s$p" hv=0
+
+	[ "${CS_MOD_LIST[${DT_HOTSTRIP:--1}]-}" = "$p" ] && [ -n "${DT_HOTSTRIP-}" ] && hv=1
+	dt_rvxbind "$n" "$p" - "$row" "$col" 1 "${CS_MODS["$p"]["w"]:-1}" strip "$p" "$hv" || return 0
+	dt_rvxshow "$n" -a
+}
+
+# A hosted saver beginning, where sv_begin would have run its _start: the
+# whole screen, which the modules' slots give up while it runs, shown over
+# the screen sv_begin cleared; its frames show what changed.
+fn dt_rvxsaver(p, int rows, int cols) {
+	dt_rvxscreen v
+	dt_rvxbind v "$p" - 0 0 "$rows" "$cols" saver "$p" || return 0
+	dt_rvxshow v -a
+}
+
+# A view goes: the panel showing another pane or closing, the saver
+# stopping. Its process is told, and one left with no view ends by itself,
+# or DT_RTENDSECS later.
+fn dt_rvxforget(name) {
+	local c=${DT_RVX["$name"]-} fd i p x
+
+	unset DT_RVX["$name"] DT_RVXGEN["$name"] DT_RVXARGS["$name"] DT_RVXDIRTY["$name"] DT_RVXP["$name"]
+	[ -n "$c" ] || return 0
+	fd=${DT_RTCELLS["$c"]-}
+	[ -z "$fd" ] || console cells drop "$fd" "$name"
+	if [ -n "${DT_RTC["$c"]+x}" ]; then
+		x := dt_rtline forget "$name"
+		dt_rtsay "$c" "$x"
+	fi
+	for i in "${!DT_RVC[@]}" "${!DT_RVX[@]}"; do
+		[ "${DT_RVC[$i]-}" = "$c" ] || [ "${DT_RVX["$i"]-}" = "$c" ] && return 0
+	done
+	p=${DT_RTCPID["$c"]-}
+	[ -z "$p" ] || DT_RTENDPID["$p"]=$((EPOCHSECONDS + DT_RTENDSECS))
+	return 0
+}
+
+# The panel showing a pane in window id: a view of another pane there goes.
+fn dt_rvpaneseen(int id, pane = "") {
+	[ "${DT_RVXP["p$id"]-}" = "$pane" ] || dt_rvxforget "p$id"
+}
+
+# A request connection going: its prefixes are this desktop's again -- until
+# the crash track gives the person the choice (ADR 0050, Decision 7) -- and
+# its views are let go, said in the log.
+fn dt_rvxdrop(int c) {
+	local p n f
+
+	for p in "${!DT_RVP[@]}"; do
+		[ "${DT_RVPC["$p"]-}" = "$c" ] || continue
+		dt_log "app runtime: the process drawing ${DT_RVP["$p"]} $p has gone"
+		for f in ${DT_RVPK["$p"]}; do
+			unset DT_RVFN["${p}_$f"]
+		done
+		unset DT_RVP["$p"] DT_RVPC["$p"] DT_RVPF["$p"] DT_RVPK["$p"]
+	done
+	for n in "${!DT_RVX[@]}"; do
+		[ "${DT_RVX["$n"]}" = "$c" ] || continue
+		[ -z "${DT_RTCELLS["$c"]-}" ] || console cells drop "${DT_RTCELLS["$c"]}" "$n"
+		unset DT_RVX["$n"] DT_RVXGEN["$n"] DT_RVXARGS["$n"] DT_RVXDIRTY["$n"] DT_RVXP["$n"]
+	done
+	dt_want 0
+	return 0
+}
+
+# The strip's list made again (cs_relist): a module its own process draws
+# that is no longer on it goes, as a window goes when it closes.
+dt_rvxstrips() {
+	local n
+
+	for n in "${!DT_RVX[@]}"; do
+		[[ $n == s* ]] && [ -n "${DT_RVXP["$n"]-}" ] || continue
+		[[ " ${CS_MOD_LIST[*]-} " == *" ${DT_RVXP["$n"]} "* ]] || dt_rvxforget "$n"
+	done
+	return 0
+}

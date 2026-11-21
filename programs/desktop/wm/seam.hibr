@@ -77,5 +77,11 @@ dt_hookfn() { dt_appfn "${DT_HOOKOWNER["$1"]-}" "$@" && ret -k; }
 # A hook named by a prefix and what follows it -- a strip module's
 # name_draw, a location's prefix_can -- through the seam as the prefix's
 # owner's. The prefix is said, never guessed from the name, since one may
-# hold an underscore of its own.
-dt_prefixfn() { dt_appfn "${DT_HOOKOWNER["$1_"]-}" "$1_$2" "${@:3}" && ret -k; }
+# hold an underscore of its own. A Control Panel pane, a strip module or a
+# saver drawn by its own process (DT_RVP, filled only by the desktop's
+# wm/rtkinds.hibr, and only in a session that listens for app processes) is
+# handed to dt_rvpfn, which sends the call or shows its cells: for every
+# other one word that expands to nothing, 2,700 instructions a call where a
+# test of its own was 6,900 (callgrind, 2026-11-21).
+declare -gA DT_RVP
+dt_prefixfn() { dt_appfn "${DT_HOOKOWNER["$1_"]-}" ${DT_RVP[$1]+dt_rvpfn "$1" "$2"} "$1_$2" "${@:3}" && ret -k; }

@@ -146,6 +146,8 @@ fn dt_saverinput(k) {
 dt_saverstop() {
 	DT_SAVING=
 	DT_SAVERPREVIEW=
+	# A saver its own process drew goes with the screen (wm/rtkinds.hibr).
+	[ -z "${DT_RVX[v]+x}" ] || dt_rvxforget v
 	console cursor off
 	DT_IDLEFROM=$EPOCHSECONDS
 	console pen "$DT_INK" "$DT_WALL"

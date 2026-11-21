@@ -41,6 +41,21 @@ trap : HUP
 # own descriptors with it before the loop starts, so it is loaded here.
 need console || dt_log "app runtime: no console module, so no wait for this app"
 
+# The other kinds of thing this process's file registers, each drawn in a
+# view of its own (ADR 0050, the view kinds): by prefix, "pane" a Control
+# Panel pane, "strip" a Control Strip module, "saver MS" a screen saver and
+# the milliseconds between its frames. The registrations themselves are
+# the desktop's, read from the file; here they say what this process draws.
+# Both are recorded before the file is read, so the desktop can never call
+# them by name.
+declare -gA DT_RTKP
+fn cp_pane(pane, title, icon, group = "system") {
+	DT_RTKP["$pane"]=pane
+}
+fn sv_saver(name, title, int ms) {
+	DT_RTKP["$name"]="saver $ms"
+}
+
 # Every function the app interface defines, recorded before the app's own
 # file is read: the desktop telling this process to run one of them is
 # refused, since only the app's own functions are its to call here.
@@ -78,11 +93,13 @@ DT_RTCFD=
 # The apps this process's file registers (its dt_app lines), one prefix
 # each: a window's calls resolve from its own app, never from the process.
 DT_RTPFX=()
-# The views the desktop has bound, by name (w$ID): "KIND ID DH DW OR OC";
-# those to draw whole at the next pass (new, resized, called or asked
-# again); and whether there has been one, so the last one forgotten ends
-# the process.
-declare -gA DT_RTV DT_RTVNEW
+# The views the desktop has bound, by name: a window's (w$ID) "win ID DH DW
+# OR OC", a pane's (p$ID) "pane ID PANE OR OC", a strip module's (s$NAME)
+# "strip NAME HV", a saver's (v) "saver NAME"; those to draw whole at the
+# next pass (new, resized, called or asked again); when a saver's next frame
+# is due; and whether there has been one, so the last one forgotten ends the
+# process.
+declare -gA DT_RTV DT_RTVNEW DT_RTVDUE DT_RTVH DT_RTVW DT_RTONCE
 DT_RTHADV=
 # The calls the desktop has revoked (`revoke SEQ`: a key it took as
 # declined when no answer came in time, ADR 0050), noted as their lines
@@ -190,6 +207,10 @@ fn dt_rtsend(verb, name, ...args) {
 		MB_EDITED=1
 		dt_menu "Edit"
 		MB[$((MB_N - 1))]["edit"]=1
+		return 0
+	fi
+	if [ "$verb" = declare ] && [ "$name" = cs_module ]; then
+		DT_RTKP["${args[0]-}"]=strip
 		return 0
 	fi
 	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
@@ -351,7 +372,7 @@ fn dt_rtcalled(line) {
 		name=${a[0]-}
 		[ -n "${DT_RTV["$name"]+x}" ] || return 0
 		console cells forget "$name"
-		unset DT_RTV["$name"] DT_RTVNEW["$name"]
+		unset DT_RTV["$name"] DT_RTVNEW["$name"] DT_RTVDUE["$name"] DT_RTVH["$name"] DT_RTVW["$name"]
 		;;
 	revoke)
 		if [ -n "${DT_RTDROPPED["${a[0]-}"]+x}" ]; then
@@ -506,17 +527,34 @@ fn dt_rtmbpush(kind, ap, id = "", ...sel) {
 # `view NAME GEN H W KIND ARGS...`: a place the desktop gave this process to
 # draw in. A window's (KIND win, ARGS ID DH DW OR OC) is drawn by its own
 # app's _draw with ID, DH, DW and its row and column, at pane origin OR OC.
+# A Control Panel pane's (pane, ARGS ID PANE OR OC, NAME p$ID) is drawn by
+# the pane's _draw into the panel's window, w$ID, which here is the view's
+# own pane: the body H by W from OR OC of it. A strip module's (strip, ARGS
+# NAME HV, NAME s$NAME) and a saver's (saver, ARGS NAME, NAME v) draw at
+# screen coordinates, which here are the view's own rows of this process's
+# screen; a saver's from the top, so its view must be the first.
 fn dt_rtview(name, gen, h, w, kind = "", ...args) {
-	if [ "$kind" != win ] || [ "${#args[@]}" != 5 ] || [ "$name" != "w${args[0]}" ]; then
-		dt_log "app runtime: the desktop bound $name as ${kind:-nothing}, which is not carried yet (ADR 0050)"
+	local pn= ok= p=${args[1]-}
+
+	case $kind:${#args[@]} in
+	win:5) [ "$name" = "w${args[0]}" ] && ok=1 ;;
+	pane:4) [ "$name" = "p${args[0]}" ] && [ "${DT_RTKP["$p"]-}" = pane ] && ok=1 && pn="w${args[0]}" ;;
+	strip:2) [ "$name" = "s${args[0]}" ] && [ "${DT_RTKP["${args[0]}"]-}" = strip ] && ok=1 ;;
+	saver:1) [ "$name" = v ] && [[ ${DT_RTKP["${args[0]}"]-} == saver\ * ]] && ok=1 ;;
+	esac
+	if [ -z "$ok" ]; then
+		dt_log "app runtime: the desktop bound $name as ${kind:-nothing} ${args[*]}, which this process does not draw; refused"
 		return 0
 	fi
-	if [ -z "$DT_RTCFD" ] || ! console cells view "$name" "$gen" "$h" "$w"; then
+	if [ -z "$DT_RTCFD" ] || ! console cells view "$name" "$gen" "$h" "$w" ${pn:+"$pn"}; then
 		dt_log "app runtime: cannot draw $name: no cells channel"
 		return 0
 	fi
 	DT_RTV["$name"]="$kind ${args[*]}"
+	DT_RTVH["$name"]=$h
+	DT_RTVW["$name"]=$w
 	DT_RTVNEW["$name"]=1
+	unset DT_RTVDUE["$name"]
 	DT_RTHADV=1
 	return 0
 }
@@ -525,12 +563,17 @@ fn dt_rtview(name, gen, h, w, kind = "", ...args) {
 # app says it is clean (_dirty) is left unless it is new, called or asked
 # again. Cleared to none first, so a shorter string leaves nothing stale;
 # drawn in the pen the desktop leaves before a window's _draw, and timed as
-# the desktop times a window's draw.
+# the desktop times a window's draw. A pane, a strip module and a saver are
+# drawn as the desktop draws them (dt_rtkind).
 dt_rtdraw() {
 	local v kind id dh dw or oc ap drew= t0 t
 
 	for v in "${!DT_RTV[@]}"; do
 		read -r kind id dh dw or oc <<< "${DT_RTV["$v"]}"
+		if [ "$kind" != win ]; then
+			dt_rtkind "$v" && drew=1
+			continue
+		fi
 		ap=${DT[$id]["app"]-}
 		[ -n "$ap" ] && dt_has "${ap}_draw" || continue
 		if [ -z "${DT_RTVNEW["$v"]+x}" ] && dt_has "${ap}_dirty" && ! "${ap}_dirty" "$id"; then
@@ -557,18 +600,104 @@ dt_rtdraw() {
 	return 0
 }
 
+# Draw one view of another kind than a window, as the desktop draws it in
+# its own process, timed the same way; status 1 when nothing was due. A
+# pane and a strip module have no _dirty, so they are drawn every pass, as
+# the desktop draws them every frame, and the flush sends only what
+# changed. A pane is drawn into the panel's window through its view, at the
+# body's origin, with the body's size and left column; a strip module at
+# its view's own row of this process's screen, in the pen the strip leaves
+# before it (lit while the pointer is over it); a saver begins on a new or
+# asked-again view and then draws a frame each period, never cleared
+# between them, since each frame draws only what moved.
+fn dt_rtkind(v) {
+	local kind a b c d now r ms who t0 t
+
+	read -r kind a b c d <<< "${DT_RTV["$v"]}"
+	case $kind in
+	pane)
+		who=$b
+		dt_has "${who}_draw" || return 1
+		console cells clear "$v"
+		console pen "$DT_INK" "$DT_FACE"
+		DT_NOTEWIN=$a
+		dt_wclear "$a"
+		console pane origin "w$a" "$c" "$d"
+		unset DT_RTVNEW["$v"]
+		DT_WHO="pane:$who"
+		slowest on "${DT_SLOWMS:-50}"
+		t0=${EPOCHREALTIME/./}
+		"${who}_draw" "$a" "${DT_RTVH["$v"]}" "${DT_RTVW["$v"]}" "$d"
+		;;
+	strip)
+		who=$a
+		dt_has "${who}_draw" || return 1
+		r := console cells at "$v"
+		console cells clear "$v"
+		if [ "$b" = 1 ]; then
+			console pen "$DT_ACTIVE" "$DT_WELL" bold
+		else
+			console pen "$DT_IDLE" "$DT_FACE"
+		fi
+		unset DT_RTVNEW["$v"]
+		DT_WHO="strip:$who"
+		slowest on "${DT_SLOWMS:-50}"
+		t0=${EPOCHREALTIME/./}
+		"${who}_draw" "$r" 0
+		;;
+	saver)
+		who=$a
+		read -r _ ms <<< "${DT_RTKP["$who"]}"
+		now=$((${EPOCHREALTIME/./} / 1000))
+		r := console cells at "$v"
+		if [ "$r" != 0 ]; then
+			[ -n "${DT_RTONCE["first:$v"]+x}" ] ||
+				dt_log "app runtime: saver $who's view is not this process's first; not drawn"
+			DT_RTONCE["first:$v"]=1
+			return 1
+		fi
+		DT_WHO="saver:$who"
+		slowest on "${DT_SLOWMS:-50}"
+		t0=${EPOCHREALTIME/./}
+		if [ -n "${DT_RTVNEW["$v"]+x}" ]; then
+			unset DT_RTVNEW["$v"]
+			console cells clear "$v"
+			console pen white black
+			"${who}_start" "${DT_RTVH["$v"]}" "${DT_RTVW["$v"]}"
+		elif [ "$now" -lt "${DT_RTVDUE["$v"]:-0}" ]; then
+			dt_want $((DT_RTVDUE["$v"] - now))
+			DT_WHO=
+			return 1
+		fi
+		console cells touch "$v"
+		"${who}_frame" "${DT_RTVH["$v"]}" "${DT_RTVW["$v"]}"
+		DT_RTVDUE["$v"]=$((now + ms))
+		dt_want "$ms"
+		;;
+	*) return 1 ;;
+	esac
+	t=$((${EPOCHREALTIME/./} - t0))
+	DT_WHO=
+	DT_NOTEWIN=
+	[ "$t" -lt 1000 ] || dt_spent "$kind:$who" "$t" "$who"
+	return 0
+}
+
 # This process's cells channel: a second connection to the desktop, named
-# by the token the hello's ok gave, opened only when one of its apps draws;
-# then which callbacks each of its apps has, a line each (`has PREFIX
-# KIND...`), which is how the desktop calls a window of it. Status 1 when
+# by the token the hello's ok gave, opened only when one of its apps draws
+# or its file registers a pane, a strip module or a saver; then which
+# callbacks each of its prefixes has, a line each (`has PREFIX KIND...`),
+# which is how the desktop calls a window or a view of it. Status 1 when
 # the desktop refused or did not answer within two seconds.
 dt_rtcells() {
 	local p= q f l fd end now st
 	local -a w kinds
+	local -A got
 
 	for q in "${DT_RTPFX[@]}"; do
 		dt_has "${q}_draw" && { p=$q; break; }
 	done
+	[ "${#DT_RTKP[@]}" = 0 ] || p=1
 	[ -n "$p" ] || return 0
 	[ -n "$DT_RTCTOK" ] || { dt_log "app runtime: the desktop gave no cells token"; return 1; }
 	connect -U "$DT_RTSOCK" fd 2> /dev/null || { dt_log "app runtime: cannot open a cells channel"; return 1; }
@@ -600,7 +729,9 @@ dt_rtcells() {
 	# callback kinds is kept here.
 	l := declare -F
 	mapfile -t w <<< "$l"
-	for p in "${DT_RTPFX[@]}"; do
+	for p in "${DT_RTPFX[@]}" "${!DT_RTKP[@]}"; do
+		[ -z "${got["$p"]+x}" ] || continue
+		got["$p"]=1
 		kinds=()
 		for f in "${w[@]}"; do
 			f=${f##* }

@@ -108,8 +108,13 @@ cs_relist() {
 	CS_MOD_LIST=()
 	# Off, nothing is shown, and everything that asks the list -- the
 	# drawing, a click, the keys, where a new window goes -- sees no strip
-	# without a second question of its own (Gitea #393).
-	[ "${CS_SHOW:-0}" = 1 ] || return 0
+	# without a second question of its own (Gitea #393). A module its own
+	# process draws and that is no longer shown goes, and its process with
+	# it (wm/rtkinds.hibr): one count for every relist.
+	if [ "${CS_SHOW:-0}" != 1 ]; then
+		[ "${#DT_RVX[@]}" = 0 ] || dt_rvxstrips
+		return 0
+	fi
 	cs_ordered
 	for m in "${CS_MOD_ORD[@]}"; do
 		# A module with a switch of its own is that switch, through its
@@ -120,6 +125,7 @@ cs_relist() {
 		dt_has "${m}_shown" && ! dt_prefixfn "$m" shown && continue
 		CS_MOD_LIST+=("$m")
 	done
+	[ "${#DT_RVX[@]}" = 0 ] || dt_rvxstrips
 	return 0
 }
 

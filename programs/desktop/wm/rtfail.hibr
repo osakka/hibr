@@ -218,6 +218,9 @@ fn dt_rvdrop(int c, who = "", pid = "", why = "") {
 	for p in "${!DT_RTCELLTOK[@]}"; do
 		[ "${DT_RTCELLTOK["$p"]}" = "$c" ] && unset DT_RTCELLTOK["$p"]
 	done
+	# The panes, strip modules, savers and bar items it drew go with it
+	# (wm/rtkinds.hibr), while its cells channel is still known.
+	[ "${#DT_RVP[@]}${#DT_RVB[@]}" = 00 ] || dt_rvxdrop "$c"
 	# What it pushed of its menus and lists, and what waited on a callback
 	# handed back to it, go with it (wm/rtview.hibr).
 	for p in "${!DT_RVMENU[@]}"; do
