@@ -444,8 +444,8 @@ void v_names(sh *s, const char *pre, vec *out)
 	   pre);
 }
 
-/* True when a name is assigned by one of a command's own assignments. */
-int v_shadowed(vec *extra, const char *k)
+/* Where a command's own environment entries give a name, or -1. */
+int v_envat(vec *extra, const char *k)
 {
 	size_t i, n = strlen(k);
 	const char *e;
@@ -453,9 +453,9 @@ int v_shadowed(vec *extra, const char *k)
 	for (i = 0; i < extra->n; i++) {
 		e = (const char *)extra->p[i];
 		if (!strncmp(e, k, n) && e[n] == '=')
-			return 1;
+			return (int)i;
 	}
-	return 0;
+	return -1;
 }
 
 /* Build a NULL terminated envp from exported variables plus extras. */
@@ -471,7 +471,7 @@ char **v_envp(sh *s, vec *extra)
 		for (v = s->tab[i]; v; v = v->nx) {
 			if (!v->ex)
 				continue;
-			if (extra && v_shadowed(extra, v->k)) {
+			if (extra && v_envat(extra, v->k) >= 0) {
 				lg(HIBR_LTRC, "%s overridden for this command",
 				   v->k);
 				continue;

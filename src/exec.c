@@ -1166,6 +1166,7 @@ char *xcap(sh *s, const char *src)
 }
 
 static vec asv_free;
+static vec asg_fr;
 
 /* A save record for k, from the records earlier calls gave back with their name buffers, so a function call does not allocate per parameter (Gitea #451). */
 struct sav *asv_new(const char *k)
@@ -1208,27 +1209,42 @@ void asv_put(struct sav *sv)
 	v_add(&asv_free, sv);
 }
 
-/* Remember a variable's current binding so it can be restored: through a
-   nameref, the binding of the variable the assignment will reach. */
-void asg_keep(sh *s, vec *old, const char *k)
+/* Remember a variable's current binding so it can be restored, and answer
+   the name the prefix reaches: k itself, or the variable a nameref names.
+   A reference that names nothing, or names an element, is lifted out whole
+   and the prefix is a plain variable of its own name while it stands, as
+   in bash. sc marks a prefix on eval or source, whose binding never sticks. */
+const char *asg_keep(sh *s, vec *old, const char *k, int sc)
 {
-	var *v = v_find(s, k);
+	var *v = v_find(s, k), *tv;
+	const char *k0 = k, *t = k;
 	struct sav *sv;
+	int lift = 0;
 
 	if (v && (v->at & A_REF)) {
-		v = v_findr(s, &k);
-		lg(HIBR_LDBG, "the prefix reaches %s through a reference: that is kept", k);
+		tv = v_findr(s, &t);
+		if (tv && (tv->at & A_REF) && !v->ro) {
+			lg(HIBR_LDBG, "%s names no variable: the reference is lifted out while the prefix stands", k);
+			lift = 1;
+		} else {
+			lg(HIBR_LDBG, "the prefix reaches %s through a reference: that is kept", t);
+			k = t;
+			v = tv;
+		}
 	}
 	sv = asv_new(k);
-	sv->v = 0;
+	sv->sc = sc;
 	sv->ex = v ? v->ex : 0;
-	if (v && (v->am || v->map) && !v->ro) {
+	if (!lift && v && (v->am || v->map) && !v->ro) {
 		lg(HIBR_LDBG, "%s is an array: lifted out while the prefix stands", k);
-		sv->w = v_take(s, k);
-	} else if (v) {
-		sv->v = xs(v->v);
+		lift = 1;
 	}
+	if (lift)
+		sv->w = v_take(s, k);
+	else if (v)
+		sv->v = xs(v->v);
 	v_add(old, sv);
+	return k == k0 ? k0 : sv->k;
 }
 
 /* Whether standard output has been closed, said as the write would: only a
@@ -1405,12 +1421,17 @@ char *asg_eq(char *kv)
 	return strchr(kv, '=');
 }
 
-/* Apply temporary assignments, remembering the previous values. */
-void asg_push(sh *s, vec *asg, vec *old)
+/* Apply temporary assignments, remembering the previous values, and put in
+   env what a program's environment carries for each: the name it reached,
+   once, with the value written. sc as asg_keep's. */
+void asg_push(sh *s, vec *asg, vec *old, vec *env, int sc)
 {
 	size_t i;
-	char *kv, *q;
+	int j;
+	char *kv, *q, *e;
+	const char *k;
 	struct sav *sv;
+	str b;
 
 	for (i = 0; i < asg->n; i++) {
 		kv = (char *)asg->p[i];
@@ -1418,25 +1439,100 @@ void asg_push(sh *s, vec *asg, vec *old)
 		if (!q)
 			continue;
 		*q = 0;
-		asg_keep(s, old, kv);
-		if (hibr_set(s, kv, q + 1, 1) != HIBR_OK) {
+		k = asg_keep(s, old, kv, sc);
+		if (hibr_set(s, k, q + 1, 1) != HIBR_OK) {
 			sv = (struct sav *)old->p[--old->n];
 			lg(HIBR_LDBG, "%s was refused, so nothing is put back", kv);
+			if (sv->w)
+				v_back(s, sv->w);
 			asv_put(sv);
+			*q = '=';
+			continue;
 		}
+		e = kv;
+		if (k != kv) {
+			s_init(&b);
+			s_fmt(&b, "%s=%s", k, q + 1);
+			e = ar_dup(s->xa, b.p, b.n);
+			s_free(&b);
+		}
+		j = env->n ? v_envat(env, k) : -1;
 		*q = '=';
+		if (j >= 0)
+			env->p[j] = e;
+		else
+			v_add(env, e);
 	}
+}
+
+/* A prefix's binding kept for good: an export or a readonly of a name a
+   pending prefix holds, as bash keeps it -- but not on eval or source,
+   whose bindings go with them. The innermost prefix holding the name is
+   the one kept, whole. */
+void asg_fix(const char *k)
+{
+	size_t i, j;
+	vec *fr;
+	struct sav *sv;
+	int hit;
+
+	for (i = asg_fr.n; i-- > 0;) {
+		fr = (vec *)asg_fr.p[i];
+		hit = 0;
+		for (j = 0; j < fr->n; j++) {
+			sv = (struct sav *)fr->p[j];
+			if (strcmp(sv->k, k))
+				continue;
+			if (sv->sc || (sv->w && (sv->w->at & A_REF)))
+				return;
+			hit = 1;
+		}
+		if (!hit)
+			continue;
+		lg(HIBR_LDBG, "%s keeps its prefix's binding, as in bash", k);
+		for (j = 0; j < fr->n; j++) {
+			sv = (struct sav *)fr->p[j];
+			if (!strcmp(sv->k, k))
+				sv->fix = 1;
+		}
+		return;
+	}
+}
+
+/* Keep an array's prefix: the array comes back with the prefix's value as
+   its element 0, and the export or readonly given it, as in bash. */
+void asg_arrfix(sh *s, struct sav *sv)
+{
+	var *t = v_find(s, sv->k), *a = sv->w;
+	char *k0 = "0", *val = xs(t && t->v ? t->v : "");
+	unsigned ex = t ? t->ex : 0, ro = t ? t->ro : 0;
+
+	v_back(s, a);
+	v_setp(s, sv->k, &k0, 1, val);
+	a->ex |= ex;
+	a->ro |= ro;
+	free(val);
 }
 
 /* Put back a scalar a temporary assignment replaced, and take back the
    export it gave one that had none, as bash does -- under set -a too. The
    export goes first, so the restore does not put it in the environment
-   only for it to come out again. */
+   only for it to come out again. A readonly given it while the prefix
+   stood, and not kept with the prefix -- declare -gr -- is the restored
+   variable's, as in bash, but one given under eval or source goes with it;
+   either way the restore says nothing. */
 void asg_back(sh *s, struct sav *sv)
 {
-	var *v = sv->ex ? 0 : v_find(s, sv->k);
+	var *v = v_find(s, sv->k), *r = v && v->ro ? v : 0;
 
-	if (v && (!v->ex || v->ro || (v->at & A_REF)))
+	if (r) {
+		lg(HIBR_LDBG, "%s was made readonly under its prefix: %s", sv->k,
+		   sv->sc ? "that goes with it" : "the old value is readonly");
+		r->ro = 0;
+		if (sv->sc)
+			r = 0;
+	}
+	if (v && (sv->ex || !v->ex || (v->at & A_REF)))
 		v = 0;
 	if (v) {
 		lg(HIBR_LDBG, "%s was exported by its prefix alone: no longer", sv->k);
@@ -1447,6 +1543,8 @@ void asg_back(sh *s, struct sav *sv)
 		v->ex = 0;
 		unsetenv(sv->k);
 	}
+	if (r)
+		r->ro = 1;
 }
 
 /* Restore variables saved by a temporary assignment. */
@@ -1457,7 +1555,10 @@ void asg_pop(sh *s, vec *old)
 
 	while (i--) {
 		sv = (struct sav *)old->p[i];
-		if (sv->w) {
+		if (sv->fix) {
+			if (sv->w)
+				asg_arrfix(s, sv);
+		} else if (sv->w) {
 			v_back(s, sv->w);
 		} else if (sv->v) {
 			asg_back(s, sv);
@@ -1856,7 +1957,7 @@ int ex_cmd(sh *s, node *n)
 {
 	amark m = ar_mark(s->xa);
 	vec none = { 0, 0, 0 };
-	vec *asg = &none, *asgm = &none;
+	vec *asg = &none;
 	vec sv = { 0, 0, 0 }, old = { 0, 0, 0 };
 	char **av, **env, **am = 0;
 	char *path = 0;
@@ -1864,7 +1965,7 @@ int ex_cmd(sh *s, node *n)
 	node *f = 0;
 	const hibr_bi *b = 0;
 	word *w;
-	int ac = 0, st = 0, w2, nofork = s->nofork, abad = 0;
+	int ac = 0, st = 0, w2, nofork = s->nofork, abad = 0, fr = 0, sc = 0;
 	int cf[2], cap = 0, slw = ex_slon;
 	unsigned ncap0 = s->ncap, slg;
 	long long sl0, sla;
@@ -1882,19 +1983,26 @@ int ex_cmd(sh *s, node *n)
 	av = xargv(s, n->w, &ac, &am);
 	if (n->aw && !s->xerr && !s->stop && !s->quit) {
 		v_refused = 0;
-		asg = vb_get(s);
-		asgm = vb_get(s);
+		if (ac) {
+			const char *c0 = av[0][0] == 'c' && ac > 1 &&
+				!strcmp(av[0], "command") ? av[1] : av[0];
+
+			sc = (c0[0] == 'e' && !strcmp(c0, "eval")) ||
+			     (c0[0] == 's' && !strcmp(c0, "source")) ||
+			     (c0[0] == '.' && !c0[1]);
+			asg = vb_get(s);
+			v_add(&asg_fr, &old);
+			fr = 1;
+		}
 		for (w = n->aw; w && !s->xerr; w = w->nx) {
 			char *mk = 0, *kv = xone_fq(s, w, &mk, HIBR_XONE | HIBR_XASG);
-			v_add(asg, kv);
-			v_add(asgm, mk);
 			if (s->xerr)
 				break;
 			if (ac) {
 				vec one = { 0, 0, 0 };
 				v_add(&one, kv);
 				s->decl++;
-				asg_push(s, &one, &old);
+				asg_push(s, &one, &old, asg, sc);
 				s->decl--;
 				v_free(&one);
 			} else if (ex_asg(s, kv, mk, 0) != HIBR_OK) {
@@ -2206,14 +2314,14 @@ out:
 		s->srefuse = 0;
 		st = 1;
 	}
+	if (fr)
+		asg_fr.n--;
 	if (old.n || old.p) {
 		asg_pop(s, &old);
 		v_free(&old);
 	}
-	if (asg != &none) {
+	if (asg != &none)
 		vb_put(s, asg);
-		vb_put(s, asgm);
-	}
 	if (slw && ex_slon && !f && slg == ex_slgen)
 		ex_slnote(s, sl0, sla, ac, av);
 	if (s->psub.n)

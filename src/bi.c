@@ -227,6 +227,8 @@ int b_exp(sh *s, int ac, char **av)
 			v_assign(s, av[i], q + 1, !un, 1);
 			if (un)
 				b_unexp(s, av[i]);
+			else
+				asg_fix(av[i]);
 			*q = '=';
 			continue;
 		}
@@ -241,6 +243,7 @@ int b_exp(sh *s, int ac, char **av)
 		} else {
 			hibr_set(s, av[i], "", 1);
 		}
+		asg_fix(av[i]);
 	}
 	return HIBR_OK;
 }
@@ -2602,6 +2605,8 @@ int b_decl(sh *s, int ac, char **av)
 			n = 1;
 		if (ro && (v = v_find(s, av[i])))
 			v->ro = 1;
+		if ((ro || ex) && !glob)
+			asg_fix(av[i]);
 		if (q)
 			*q = '=';
 	}
@@ -2679,6 +2684,7 @@ int b_ro(sh *s, int ac, char **av)
 			if (assoc)
 				v->at |= A_ASSOC;
 		}
+		asg_fix(av[i]);
 		if (q)
 			*q = '=';
 	}

@@ -72,6 +72,7 @@ downside is usually a decision nobody had to make.
 | [0060](0060-a-native-build-says-what-it-needs.md) | A native build says what it needs to load | proposed |
 | [0061](0061-an-entry-says-what-it-needs.md) | An entry says what it needs, and one resolver answers | proposed |
 | [0062](0062-the-catalogue-has-a-native-half.md) | The catalogue has a native half, the `pkg` module | proposed |
+| [0063](0063-a-declared-variable-is-set.md) | A declared variable is set | accepted |
 
 ---
 

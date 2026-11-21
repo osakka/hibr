@@ -281,13 +281,18 @@ void xaslice(sh *s, part *p, char **ks, int nk, vec *lst, long *off, long *len)
 		xslice(s, p, lst->n, off, len);
 }
 
-/* One element's value; a scalar, or the one a nameref reaches, is its own element 0, as in bash. */
+/* One element's value; a scalar, or the one a nameref reaches, is its own
+   element 0, as in bash -- and a negative subscript on one is bash's
+   error, which xneg left unresolved for want of an array to count in. */
 const char *xgetk(sh *s, const char *nm, char **ks, int nk)
 {
 	const char *v = v_getp(s, nm, ks, nk);
 	var *sv;
+	int neg;
 
-	if (!v && nk == 1 && !strcmp(ks[0], "0")) {
+	if (!v && nk == 1 &&
+	    ((neg = ks[0][0] == '-' && isdigit((unsigned char)ks[0][1])) ||
+	     (ks[0][0] == '0' && !ks[0][1]))) {
 		sv = v_find(s, nm);
 		if (sv && (sv->at & A_REF)) {
 			sv = v_findr(s, &nm);
@@ -296,8 +301,13 @@ const char *xgetk(sh *s, const char *nm, char **ks, int nk)
 				return 0;
 			}
 		}
-		if (sv && sv->v && !sv->map && !sv->am)
+		if (sv && sv->v && !sv->map && !sv->am) {
+			if (neg) {
+				lg(HIBR_LERR, "%s: bad array subscript", nm);
+				return 0;
+			}
 			v = sv->v;
+		}
 	}
 	return v;
 }

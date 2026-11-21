@@ -168,6 +168,54 @@ In a compound assignment an element's key is read to its closing `]`, so
 as bash does; a `[key]=value` element is expanded like an assignment, and
 only plain elements split.
 
+## Amendment — a leading zero is part of the key
+
+An all-digit subscript is a literal key, leading zeros and all, and that
+stays (the owner, 2026-11-20, Gitea #602 item 4). bash evaluates an indexed
+array's subscript as arithmetic, where a leading zero means octal, so the
+two shells part here:
+
+```sh
+s=hello; a=(x y z); a[010]=q
+echo "[${s[00]-unset}] [${a[01]-unset}]"
+echo "${!a[*]}"
+```
+
+```output
+[unset] [unset]
+0 1 2 010
+```
+
+bash prints `[hello] [y]` and `0 1 2 8`, and refuses `a[08]` outright
+("value too great for base"). The reason to keep the literal key is the
+one this record began with: a map holds whatever keys its data has, and
+JSON's are text -- `{"007": "bond"}` from `json parse` has the key `007`,
+which reading the subscript as a number would make unreachable, and
+writing it would land at element 7. A script that means element 0 writes
+`0`; leading zeros in real indices are rare, and nothing in this tree or
+the catalogue writes one.
+
+A negative subscript on a **scalar** is bash's error, since there is no
+array to count back in (Gitea #602): the expansion is empty, a test of it
+is false, and the command goes on, as in bash.
+
+```sh
+s=hello
+echo "[${s[-1]}]"
+echo "[${s[0]}]"
+```
+
+```output
+hibr: s: bad array subscript
+[]
+[hello]
+```
+
+On an array a negative subscript still counts back from the highest key,
+and one that counts past the first is an unset element, where bash says
+"bad array subscript" there too; `${#s[-1]}` reports the error and goes
+on, where bash abandons the command.
+
 ---
 
 [← decisions](README.md)

@@ -84,7 +84,7 @@ int rd_gone(const char *who);
 #endif
 void v_del(sh *s, const char *k);
 void v_env(sh *s);
-int v_shadowed(vec *extra, const char *k);
+int v_envat(vec *extra, const char *k);
 char **v_envp(sh *s, vec *extra);
 void envfree(char **e);
 const char *sh_ifs(sh *s);
@@ -362,11 +362,14 @@ int b_strict(sh *s, int ac, char **av);
 unsigned lx_line(lex *l);
 node *fn_hfind(sh *s, const char *nm);
 
-struct sav { char *k, *v; unsigned ex; var *w; size_t kc; };
+struct sav { char *k, *v; unsigned ex, sc, fix; var *w; size_t kc; };
 struct sav *asv_new(const char *k);
 void asv_put(struct sav *sv);
 
-void asg_keep(sh *s, vec *old, const char *k);
+const char *asg_keep(sh *s, vec *old, const char *k, int sc);
+void asg_push(sh *s, vec *asg, vec *old, vec *env, int sc);
+void asg_fix(const char *k);
+void asg_arrfix(sh *s, struct sav *sv);
 int asg_hide(sh *s, vec *old, const char *k);
 int asg_wasex(vec *old);
 long pf_arg(const char *arg, int uns);
