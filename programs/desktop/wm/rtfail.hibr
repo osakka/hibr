@@ -382,6 +382,11 @@ fn dt_rvcarried(...pids) {
 
 	for p in "${pids[@]}"; do
 		[[ $p =~ ^[0-9]+$ ]] || continue
+		# Ended and waited for before the exec: nothing is left of it.
+		if [ ! -e "/proc/$p" ]; then
+			dt_log "app runtime: process $p, carried across the restart, had ended before it"
+			continue
+		fi
 		v=
 		while read -r k v; do
 			[ "$k" = PPid: ] && break

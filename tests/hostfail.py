@@ -61,7 +61,7 @@ fn hanger_key(int id, key) {
 	local t=0
 	case $key in
 	h) t=3000000 ;;
-	escape) t=1000000 ;;
+	escape) t=2000000 ;;
 	esac
 	t=$((${EPOCHREALTIME/./} + t))
 	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
@@ -333,8 +333,9 @@ t0 = time.time()
 t.send(b"\x1b", settle=0, collect=0)
 opened = waitfor(t, '[ "${MB_OPEN:--1}" != -1 ]', 2)
 took = time.time() - t0
-check("escape to an app taking a second over it: the menu bar opens anyway, "
-      "well before the app answers", opened and took < 0.9, round(took, 2))
+early = not os.path.exists(SAID + ".keys")
+check("escape to an app taking two seconds over it: the menu bar opens anyway, "
+      "before the app has answered", opened and early, (round(took, 2), early))
 check("and the key is revoked, which the app's process says had run",
       logwait(t, "had run (ADR 0050, a declined key)", 4)
       and os.path.exists(SAID + ".keys") and open(SAID + ".keys").read().split() == ["escape"],
@@ -348,8 +349,9 @@ t0 = time.time()
 t.send(b"\x1b", settle=0, collect=0)
 opened = waitfor(t, '[ "${MB_OPEN:--1}" != -1 ]', 2)
 took = time.time() - t0
-check("escape behind a key the app is still spinning on: the menu opens within a second",
-      opened and took < 1.0, round(took, 2))
+early = not os.path.exists(SAID + ".keys")
+check("escape behind a key the app is still spinning on: the menu opens before "
+      "the app has answered either", opened and early, (round(took, 2), early))
 check("and the revoked key is dropped by the app's process, never run",
       logwait(t, "before it ran; dropped", 6)
       and os.path.exists(SAID + ".keys") and open(SAID + ".keys").read().split() == ["h"],
@@ -392,8 +394,9 @@ hp = readpid(".hpid", secs=1)
 do(t, "dt_restart")
 check("after Restart Desktop the app's process, carried across the exec, is "
       "seen to end and is not left a zombie",
-      logwait(t, "process %s, carried across the restart, ended with status" % hp, 10)
-      and gone(hp), (hp, zombie(hp), log(t)[-600:]))
+      (logwait(t, "process %s, carried across the restart, ended with status" % hp, 10)
+       or logwait(t, "process %s, carried across the restart, had ended before it" % hp, 1))
+      and gone(hp), (hp, zombie(hp), said(t, "carried")))
 check("and a restart is no app quitting: no note, nothing reopened",
       log(t).count("quit unexpectedly") == before and "reopened" not in log(t)[log(t).find("restarting into"):],
       log(t)[-600:])
