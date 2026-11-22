@@ -130,8 +130,17 @@ fn tbunb_popkey(key) {
 fn tbunb_popmouse(act, int r, int c) {
 	printf 'popmouse %%s %%s\n' "$$" "$act" >> %s
 	[ "$act" = press ] || return 0
-	local t=$((${EPOCHREALTIME/./} + 400000))
-	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
+	# 400 ms on the processor, as a stall is judged, however loaded the box.
+	local s t0 end=$((${EPOCHREALTIME/./} + 4000000))
+	local -a f
+	read -r s < /proc/$$/stat
+	f=(${s##*) })
+	t0=$((f[11] + f[12]))
+	while [ "${EPOCHREALTIME/./}" -lt "$end" ]; do
+		read -r s < /proc/$$/stat
+		f=(${s##*) })
+		[ $((f[11] + f[12] - t0)) -lt 40 ] || break
+	done
 }
 ''' % (SAID, SAID, SAID))
 # A second bundle, which declares the first's shared pane too (as Calendar
