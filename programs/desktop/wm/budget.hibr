@@ -48,6 +48,10 @@ strict
 
 DT_SLOWMS="${DT_SLOWMS-50}"
 DT_HOLDMS="${DT_HOLDMS-150}"
+# What a held callback held, as a held: line names it: the desktop, or in an
+# app's own process that process (runtime.hibr sets it as it starts), whose
+# stall holds its own windows and not the desktop.
+DT_HOLDWHAT="the desktop"
 # Nanoseconds this process had waited for a processor when the loop last
 # woke, from /proc/<pid>/schedstat (the loop reads it, wm/session.hibr). A
 # callback's stall is its wall time less what the machine kept it waiting
@@ -180,7 +184,7 @@ fn dt_slow(name, int us, app = "", rd = "") {
 			fi
 		fi
 		if [ -n "$held" ]; then
-			dt_log "held: $name held the desktop $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
+			dt_log "held: $name held $DT_HOLDWHAT $ms ms (a stall is $DT_HOLDMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		else
 			dt_log "slow: $name took $ms ms$waited (a frame is $DT_SLOWMS ms)$named${DT_SPENTWHY:+ -- $DT_SPENTWHY}"
 		fi

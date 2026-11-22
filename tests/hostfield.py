@@ -19,9 +19,12 @@ the desktop registers it (dt_app) and never sources it.
 - A copy longer than one line of the wire can carry is refused with a
   note, and the window's app goes on; a cut that long is not made, so its
   text stays where it was.
-- A process kept with no window, stuck in a ticker that never returns, is
-  a `held:` line in the log, judged from outside by its processor time,
-  and left running; one kept for a quiet ticker and a job is never named.
+- A process kept with no window, stuck in a ticker that never returns --
+  spinning, or blocked where nothing answers -- is a `held:` line in the
+  log, judged from outside by its processor time or by where it waits,
+  and left running; one kept for a quiet ticker and a job, or idle in its
+  own wait with a ticker that asks for nothing, is never named. A ticker
+  that stalls and returns is named by its own process, as that process.
 """
 import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,7 +34,7 @@ MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 TERM = tree("programs/desktop/apps/term.hibr")
 SAID = scratch("hostfield-said")
-APPS = {n: scratch("hostfield-%s.hibr" % n) for n in ("fdapp", "mnapp", "keyapp", "bigapp", "cutapp", "spcapp", "spinapp", "calmapp")}
+APPS = {n: scratch("hostfield-%s.hibr" % n) for n in ("fdapp", "mnapp", "keyapp", "bigapp", "cutapp", "spcapp", "spinapp", "calmapp", "blkapp", "idleapp")}
 
 # A field and nothing else -- no _menus, no _copy, no _selall -- focused
 # only once tab has been pressed. Its value is written out on each draw.
@@ -183,6 +186,35 @@ spinapp_tick() {
 command -v dt_ticker > /dev/null && dt_ticker spinapp_tick
 fn spinapp_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "spin"
+}
+""" % {"s": SAID})
+# A ticker that, once a file says block, opens a pipe nothing writes to and
+# waits there, using no processor, until the test writes to it.
+open(APPS["blkapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app blkapp "Block" 6 30
+blkapp_tick() {
+	local x
+	echo "$$" > %(s)s.bpid
+	if [ -f %(s)s.block ]; then
+		command rm -f %(s)s.block
+		read -r x < %(s)s.fifo
+		echo done > %(s)s.unblocked
+	fi
+	dt_want 200
+}
+command -v dt_ticker > /dev/null && dt_ticker blkapp_tick
+fn blkapp_draw(int id, int h, int w, int row, int col) {
+	console put -p "w$id" 1 1 "block"
+}
+""" % {"s": SAID})
+# A ticker that asks for nothing: kept with no window, its process sits in
+# its own wait with no processor and no wakes, as a blocked one does.
+open(APPS["idleapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app idleapp "Idle" 6 30
+idleapp_tick() {
+	echo "$$" > %(s)s.ipid
+}
+command -v dt_ticker > /dev/null && dt_ticker idleapp_tick
+fn idleapp_draw(int id, int h, int w, int row, int col) {
+	console put -p "w$id" 1 1 "idle"
 }
 """ % {"s": SAID})
 # A quiet ticker and a job that sleeps, kept with no window.
@@ -521,9 +553,10 @@ spid = read(".spid")
 # of a bigger one is not said again (dt_slow).
 expect(r"held: spinapp_tick held")
 open(SAID + ".stall", "w").close()
-check("an app process's ticker that stalls a second and returns is a held: line, from its own timing",
+check("an app process's ticker that stalls a second and returns is a held: line, from its own timing, "
+      "naming that process and not the desktop",
       until(t, ".stalled", lambda s: s == "done", 6) and
-      until(t, "", lambda s: "held: spinapp_tick held" in log(t), 6),
+      until(t, "", lambda s: "held: spinapp_tick held spinapp's own process" in log(t), 6),
       log(t)[-800:])
 do(t, "dt_del $S")
 time.sleep(2.5)
@@ -544,5 +577,36 @@ until(t, ".cjob", lambda s: s != "", 12)
 check("one kept for a quiet ticker and a job that sleeps is never named (control)",
       read(".cjob") == "0" and "resident:calmapp" not in log(t), (read(".cjob"), log(t)[-800:]))
 
+
+# --- A process kept with no window, blocked rather than busy ---------------
+os.mkfifo(SAID + ".fifo")
+host(t, "blkapp")
+host(t, "idleapp")
+do(t, "BK := dt_new Block 6 30 12 60 blkapp")
+do(t, "IW := dt_new Idle 6 30 12 2 idleapp")
+until(t, ".bpid", lambda s: s != "")
+until(t, ".ipid", lambda s: s != "")
+bpid, ipid = read(".bpid"), read(".ipid")
+do(t, "dt_del $BK; dt_del $IW")
+time.sleep(2.5)
+expect(r"held: resident:blkapp")
+open(SAID + ".block", "w").close()
+check("a process kept with no window whose ticker is blocked, opening a pipe nothing writes to, is a held: "
+      "line judged from outside, naming where it waits",
+      until(t, "", lambda s: "held: resident:blkapp" in log(t) and "wait_for_partner" in log(t), 14), log(t)[-800:])
+t.collect(4.5)                                     # two looks more
+blocked = alive(bpid) and log(t).count("held: resident:blkapp") == 1
+try:
+    fd = os.open(SAID + ".fifo", os.O_WRONLY | os.O_NONBLOCK)
+    os.write(fd, b"go\n")
+    os.close(fd)
+except OSError:
+    pass
+check("and it is left running, said once while it waits, and its ticker goes on once the pipe is written",
+      blocked and until(t, ".unblocked", lambda s: s == "done", 6),
+      (alive(bpid), log(t).count("held: resident:blkapp"), read(".unblocked")))
+check("one kept with no window idle in its own wait, its ticker asking for nothing, is never named (control)",
+      alive(ipid) and "resident:idleapp" not in log(t), log(t)[-800:])
+
 t.close()
-report(22)
+report(25)

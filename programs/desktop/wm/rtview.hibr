@@ -608,7 +608,7 @@ dt_rvtick() {
 				dt_rvended "$p" "$?"
 			fi
 			unset DT_RTENDPID["$p"] DT_RTENDAPP["$p"] DT_RTENDWHY["$p"] DT_RTENDOWE["$p"] DT_RTENDHIT["$p"]
-			unset DT_RVRESON["$p"] DT_RVRESAT["$p"] DT_RVRESHELD["$p"]
+			unset DT_RVRESON["$p"] DT_RVRESAT["$p"] DT_RVRESHELD["$p"] DT_RVRESWAIT["$p"]
 		elif [ "$now" -ge "${DT_RTENDPID["$p"]}" ]; then
 			# Still running a program of its own with no window: left.
 			dt_rvbusy "$p" "$now" && continue

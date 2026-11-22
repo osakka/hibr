@@ -1215,6 +1215,8 @@ dt_rtrun() {
 # on its own), and each part its bundle declares (`# part:`), since a
 # bundle is one process; its cells channel; its loop.
 if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "$#" = 2 ]; then
+	DT_HOLDWHAT=${1##*/}
+	DT_HOLDWHAT="${DT_HOLDWHAT%.hibr}'s own process"
 	dt_rtopen "$1" || { dt_log "app runtime: $1: $DT_RTSAID"; exit 1; }
 	for f in "${DT_TICKERS[@]}"; do
 		DT_RTBASETICK["$f"]=1

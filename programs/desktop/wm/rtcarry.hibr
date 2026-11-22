@@ -134,30 +134,45 @@ fn dt_rvbusy(int p, int now) {
 	return 0
 }
 
-# A process kept with no window, judged from outside by its processor time
-# between two looks (schedstat), as a window's late input is judged under
-# cpu (wm/rtfail.hibr's dt_rvlate). Its own tickers and callbacks that
-# return are timed inside it, as in the desktop (dt_spent); what only the
-# outside can see is one that never returns, which wants the processor for
-# the whole time between two looks: on it or waiting its turn for nine
-# tenths of that time, and on it for DT_HOLDMS at least, so a loaded box
-# that gives it less of a turn hides nothing. That is a `held:` line in the
-# log, once until it calms down. A process at its work in a program of its
-# own spends nothing here and is never named. Never ended or paused for it,
-# never charged to the person: it has no window, and nobody at the screen
-# waits on it (ADR 0050, the Requirement).
-declare -gA DT_RVRESON DT_RVRESAT DT_RVRESHELD
+# A process kept with no window, judged from outside at each look, as a
+# window's late input is judged under cpu (wm/rtfail.hibr's dt_rvlate). Its
+# own tickers and callbacks that return are timed inside it, as in the
+# desktop (dt_spent); what only the outside can see is one that never
+# returns. Either it wants the processor for the whole time between two
+# looks (schedstat) -- on it or waiting its turn for nine tenths of that
+# time, and on it for DT_HOLDMS at least, so a loaded box that gives it less
+# of a turn hides nothing -- or it is blocked: waiting somewhere other than
+# its loop's own wait (wchan, dt_rvownwait) at two looks in a row, with
+# under a hundredth of the time between them on the processor and at most
+# one voluntary context switch, which is the one block it went into -- a
+# read nothing answers, a connect, a program it waits on. Either is a
+# `held:` line in the log, once until it calms down. Idle in its own wait it
+# is never named, however long, and a job's program runs beside it, not in
+# it. Never ended or paused for it, never charged to the person: it has no
+# window, and nobody at the screen waits on it (ADR 0050, the Requirement).
+declare -gA DT_RVRESON DT_RVRESAT DT_RVRESHELD DT_RVRESWAIT
 fn dt_rvresjudge(int p, int now) {
-	local on= wt= prev=${DT_RVRESON["$p"]-} at=${DT_RVRESAT["$p"]-} ms want el c ap=
+	local on= wt= sw= wc= st= prev=${DT_RVRESON["$p"]-} pw=${DT_RVRESWAIT["$p"]-} at=${DT_RVRESAT["$p"]-} ms want el c ap= why=
 
 	read -r on wt _ 2> /dev/null < "/proc/$p/schedstat" || [ -n "$wt" ] || return 0
+	read -r wc 2> /dev/null < "/proc/$p/wchan"
+	read -r -d '' st 2> /dev/null < "/proc/$p/status"
+	sw=${st#*$'\n'voluntary_ctxt_switches:}
+	sw=${sw%%$'\n'*}
+	sw=${sw//[!0-9]/}
 	DT_RVRESON["$p"]="$on $wt"
+	DT_RVRESWAIT["$p"]="${sw:-x} $wc"
 	DT_RVRESAT["$p"]=$now
 	[ -n "$prev" ] && [ -n "$at" ] || return 0
 	ms=$(((on - ${prev% *}) / 1000000))
 	want=$(((on + wt - ${prev% *} - ${prev#* }) / 1000000))
 	el=$((now - at))
-	if [ "$ms" -lt "$DT_HOLDMS" ] || [ $((want * 10)) -lt $((el * 9)) ]; then
+	if [ "$ms" -ge "$DT_HOLDMS" ] && [ $((want * 10)) -ge $((el * 9)) ]; then
+		why="has not stopped for $el ms: $ms ms on the processor (a stall is $DT_HOLDMS ms)"
+	elif ! dt_rvownwait "$wc" && ! dt_rvownwait "${pw#* }" && [ $((ms * 100)) -lt "$el" ] &&
+		[[ ${pw%% *} =~ ^[0-9]+$ ]] && [[ $sw =~ ^[0-9]+$ ]] && [ $((sw - ${pw%% *})) -le 1 ]; then
+		why="has waited in $wc, outside its own wait, for $el ms at least without returning (a stall is $DT_HOLDMS ms)"
+	else
 		unset DT_RVRESHELD["$p"]
 		return 0
 	fi
@@ -166,6 +181,16 @@ fn dt_rvresjudge(int p, int now) {
 	for c in "${!DT_RTCPID[@]}"; do
 		[ "${DT_RTCPID["$c"]}" != "$p" ] || ap=${DT_RTC["$c"]-}
 	done
-	dt_log "held: resident:${ap:-$p} has no window and has not stopped for $el ms: $ms ms on the processor (a stall is $DT_HOLDMS ms); left running"
+	dt_log "held: resident:${ap:-$p} has no window and $why; left running"
 	return 0
+}
+
+# Whether a process's wchan is its loop's own wait -- the console's pselect,
+# which the kernel shows as poll_schedule_timeout or do_select -- or no
+# wait at all (running, or nothing read): what a blocked one is not.
+fn dt_rvownwait(wc = "") {
+	case $wc in
+	"" | 0 | poll_schedule_timeout* | do_select | do_sys_poll | ep_poll) return 0 ;;
+	esac
+	return 1
 }
