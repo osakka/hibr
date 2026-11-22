@@ -12,8 +12,10 @@
 strict
 
 # The protocol's number: a change to what crosses the wire changes it, and
-# a process speaking another is refused at its hello.
-DT_RTPROTO=7
+# a process speaking another is refused at its hello. 8: a view's frame
+# carries where its app's pictures are, `p SLOT ROW COL H W` and `x SLOT`
+# (ADR 0050, "Pictures, by hold").
+DT_RTPROTO=8
 
 # The desktop's state shared with every app process that reads it (ADR
 # 0050, one path): named once, in the file that owns it, with dt_share --
