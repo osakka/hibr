@@ -862,6 +862,10 @@ dt_run() {
 		# (wm/rtfail.hibr); and while one is awaited, this joins it. Its
 		# first entry is never empty, so asking for that is the cheaper
 		# test, every pass.
+		# A held key's answer is looked for here as well as in the
+		# tickers, which a pass with an outline up skips: input held
+		# behind it would otherwise wait for a release held behind it.
+		[ -z "$DT_RVHOLD" ] || dt_rttick
 		[ -z "$DT_RVHELD" ] || [ -n "$DT_RVHOLD" ] || dt_rvdrain
 		if [ -n "$k" ] && dt_saverseen; then
 			if [ -z "$DT_RVHOLD" ]; then

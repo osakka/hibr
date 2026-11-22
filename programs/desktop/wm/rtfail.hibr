@@ -44,6 +44,9 @@ declare -gA DT_RVLATE DT_RVMARK
 DT_RVHOLD=
 DT_RVHOLDK=
 DT_RVHELD=()
+# The key whose decline runs the desktop's own action, while the one call
+# that does that is made (wm/input.hibr); empty for every other call.
+DT_RVFALL=
 # How soon after a reopen at once an app ending again is kept instead.
 DT_RVLOOPSECS="${DT_RVLOOPSECS-10}"
 

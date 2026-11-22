@@ -1508,10 +1508,17 @@ fn dt_event(k) {
 	fi
 	if [ -n "$DT_FOCUS" ] && [ -n "${DT[$DT_FOCUS]["key"]}" ]; then
 		DT_NOTEWIN=$DT_FOCUS
+		# The one call whose decline runs dt_keyrest below: a window
+		# drawn by its app's own process holds that action for the app's
+		# answer (wm/rtfail.hibr), and no other caller of a window's _key
+		# has an action to hold.
+		DT_RVFALL=$k
 		if dt_wincall "$DT_FOCUS" "${DT[$DT_FOCUS]["key"]}" "$k"; then
+			DT_RVFALL=
 			[ -n "$DT_KEYHELD" ] && DT_KH[$DT_FOCUS]["$DT_KEYHELD"]=$k
 			return 0
 		fi
+		DT_RVFALL=
 		[ -n "$DT_KEYHELD" ] && DT_KH[$DT_FOCUS]["$DT_KEYHELD"]=$k
 		DT_NOTEWIN=
 	fi

@@ -228,13 +228,17 @@ fn dt_rvcall(int id, cb, ...args) {
 	case $kind in
 	key)
 		seq := dt_rvinput "$id" key
-		# One the desktop also acts on once a window declines it: the
-		# desktop's action and everything the person does after it wait
-		# for the app's answer, or DT_HOLDMS, never longer -- then the
-		# action runs and, if no answer came, the key is revoked, so it is
-		# never done twice (dt_rvunhold). Answered "taken" here, since
-		# nothing more may be done with it now.
-		if dt_rvwithheld "${args[0]-}"; then
+		# One the desktop also acts on once a window declines it, from
+		# the one call whose decline does that (DT_RVFALL, wm/input.hibr):
+		# the desktop's action and everything the person does after it
+		# wait for the app's answer, or DT_HOLDMS, never longer -- then
+		# the action runs and, if no answer came, the key is revoked, so
+		# it is never done twice (dt_rvunhold). Answered "taken" here,
+		# since nothing more may be done with it now. A key from anywhere
+		# else -- a paste typed in, an input method's word, a repeat -- has
+		# no action to hold and is sent as any input is.
+		if [ -n "$DT_RVFALL" ] && [ "$DT_RVFALL" = "${args[0]-}" ] && dt_rvwithheld "${args[0]-}"; then
+			DT_RVFALL=
 			DT_RVHOLD=$seq
 			DT_RVHOLDK=${args[0]-}
 			dt_want "$DT_HOLDMS"

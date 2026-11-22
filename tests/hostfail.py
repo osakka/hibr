@@ -34,6 +34,7 @@ SAID = scratch("hostfail-said")
 VICTIM = scratch("hostfail-victim.hibr")
 HANGER = scratch("hostfail-hanger.hibr")
 GOOD = scratch("hostfail-good.hibr")
+DECLINER = scratch("hostfail-decliner.hibr")
 
 # The victim draws how many keys it was given and its pid; x makes it exit
 # with status 3. The hanger spins 3 s on h and 1 s on escape, then writes
@@ -68,6 +69,21 @@ fn hanger_key(int id, key) {
 	return 0
 }
 ''' % (SAID, SAID))
+# The decliner writes down each key it is given and declines escape after a
+# tenth of a second, inside DT_HOLDMS, as vi declining it to Menu Bar does.
+open(DECLINER, "w").write(r'''command -v dt_app > /dev/null && dt_app decliner "Decliner" 6 40
+fn decliner_draw(int id, int h, int w, int row, int col) {
+	console put -p "w$id" 1 1 "decliner"
+	echo "$$" > %s.dpid
+}
+fn decliner_key(int id, key) {
+	printf '%%s\n' "$key" >> %s.dkeys
+	[ "$key" = escape ] || return 0
+	local t=$((${EPOCHREALTIME/./} + 100000))
+	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
+	return 1
+}
+''' % (SAID, SAID))
 open(GOOD, "w").write(r'''declare -gA GD
 fn gd_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "got: ${GD[$id]:-none}"
@@ -84,6 +100,7 @@ dt_open
 DT_NOTEMS=60000
 DT_LOADING=%s dt_app victim "Victim" 6 40
 DT_LOADING=%s dt_app hanger "Hanger" 6 40
+DT_LOADING=%s dt_app decliner "Decliner" 6 40
 DT_LOADING=%s . %s
 DT_LOADING=
 tst_go() {
@@ -107,7 +124,7 @@ expect(r"held: input:hanger")
 def session():
     p = scratch("hostfail.hibr")
     mark = scratch("hostfail-do")
-    open(p, "w").write(SESSION % (load(MOD), WM, VICTIM, HANGER, GOOD, GOOD, mark, mark, mark))
+    open(p, "w").write(SESSION % (load(MOD), WM, VICTIM, HANGER, DECLINER, GOOD, GOOD, mark, mark, mark))
     term = Term(p, rows=30, cols=100, settle=0.6, env={"DT_BARTIME": "12:00"})
     term.mark = mark
     return term
@@ -209,7 +226,7 @@ def hosted(t, app, var, r, c, old=None, pidfile=".vpid", text="alive 0"):
     return readpid(pidfile, old=old)
 
 
-for f in (".vpid", ".hpid", ".keys"):
+for f in (".vpid", ".hpid", ".dpid", ".keys", ".dkeys"):
     if os.path.exists(SAID + f):
         os.unlink(SAID + f)
 
@@ -339,6 +356,35 @@ check("and the revoked key is dropped by the app's process, never run",
       (said(t, "revoke", "runtime", "hosted:"), open(SAID + ".keys").read() if os.path.exists(SAID + ".keys") else None))
 do(t, "dt_mclose")
 
+# -- Only the one call whose decline runs the desktop's action holds it: a
+# desktop key reaching a window's _key from anywhere else -- typed in by a
+# paste, an input method -- is plain input, never held, never declined.
+if os.path.exists(SAID + ".keys"):
+    os.unlink(SAID + ".keys")
+got = result(t, 'dt_wincall "$H" hanger_key q; echo "${DT_RVHOLD:-none}"')
+time.sleep(0.6)
+t.collect(0.2)
+check("a desktop key typed into a hosted window from elsewhere is sent, never held",
+      got == "none" and "hosted: key q declined" not in log(t)
+      and os.path.exists(SAID + ".keys") and open(SAID + ".keys").read().split() == ["q"],
+      (got, said(t, "hosted:", "revoke")))
+
+# -- What is typed behind a held key waits for its answer and goes where
+# the key's action sends it: escape declined opens the menu bar, and the
+# down arrow typed with it moves in the menu, never reaching the app.
+hosted(t, "decliner", "D", 21, 2, pidfile=".dpid", text="decliner")
+t.collect(0.3)
+if os.path.exists(SAID + ".dkeys"):
+    os.unlink(SAID + ".dkeys")
+t.send(b"\x1b\x1b[B", settle=0.3, collect=0.3)
+opened = waitfor(t, '[ "${MB_OPEN:--1}" != -1 ]', 2)
+time.sleep(0.4)
+t.collect(0.2)
+dk = open(SAID + ".dkeys").read().split() if os.path.exists(SAID + ".dkeys") else None
+check("input typed behind a held key waits for its answer and goes where the "
+      "key's action sends it", opened and dk == ["escape"], (opened, dk, said(t, "hosted:")))
+do(t, "dt_mclose")
+
 # -- Restart Desktop: the app's process ends with the socket it spoke on,
 # and the desktop after the exec finds it by its pid and sees it end.
 before = log(t).count("quit unexpectedly")
@@ -354,10 +400,10 @@ check("and a restart is no app quitting: no note, nothing reopened",
 
 t.quit(b"q", 1.5)
 t.close()
-for f in (VICTIM, HANGER, GOOD, t.mark, scratch("hostfail.hibr")):
+for f in (VICTIM, HANGER, DECLINER, GOOD, t.mark, scratch("hostfail.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-for f in (".pend", ".vpid", ".hpid", ".keys"):
+for f in (".pend", ".vpid", ".hpid", ".dpid", ".keys", ".dkeys"):
     if os.path.exists(SAID + f):
         os.unlink(SAID + f)
-report(24)
+report(26)
