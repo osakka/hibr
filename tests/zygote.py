@@ -14,7 +14,7 @@ desktop; its program is a writer of numbered lines (TW_CMD, from the
 environment every app process inherits), so what reaches the screen can be
 counted and the program found by its pid.
 """
-import os, sys, time, re, signal
+import os, sys, time, re, signal, shutil
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
 from screen import Term, check, report, load, tree, scratch, expect
@@ -73,6 +73,7 @@ MARK = scratch("zygote-do")
 KEEPER = scratch("zygote-keeper.hibr")
 OPENS = scratch("zygote-keeper.opens")
 open(KEEPER, "w").write(r"""command -v dt_app > /dev/null && dt_app keeper "Keeper" 6 30
+command -v dt_rtsend > /dev/null && dt_notep low "keeper read"
 declare -gA KP
 fn keeper_open(int id, arg = "") {
 	KP[$id]=k$RANDOM$RANDOM
@@ -92,7 +93,7 @@ open(p, "w").write(SESSION.replace(
 os.chdir(HERE)
 t = Term(p, rows=30, cols=110, settle=0.6,
          env={"DT_BARTIME": "12:00", "TW_CMD": WRITER, "ZY_MARK": "carried",
-              "DT_RTENDSECS": "2"})
+              "DT_RTENDSECS": "2", "DT_RTLAUNCHSECS": "5"})
 
 
 def do(cmd):
@@ -294,6 +295,9 @@ sc = t.until("kept " + kval, tries=50, step=0.1)
 check("a window kept with its process is not opened again: what only its process held is there",
       keeperpid() == kpid and len(opens()) == 1 and sc.find("kept " + kval) is not None,
       (kpid, keeperpid(), opens(), sc.text()))
+nk = result('n=0; for k in "${!DT_NOTEQ[@]}"; do [ "${DT_NOTEQ[$k]["text"]-}" = "keeper read" ] && n=$((n + 1)); done; echo $n')
+check("and the note its file gave as it was read is not given a second time",
+      nk == "0", (nk, log()[-600:]))
 
 # The app's own file newer than its process: that process is replaced by a
 # fresh one from the same zygote, the window carried to it.
@@ -361,6 +365,30 @@ check("and the other app's process is replaced too, its window opened afresh the
       keeperpid() not in ("", kpid) and len(opens()) == 2 and opens()[1][0] == keeperpid(),
       (kpid, keeperpid(), opens()))
 do("dt_del %s" % kid)
+apid, zpid = napid2, nzpid
+
+# A module the zygote mapped replaced at its path -- as apt and `make`
+# replace one, a new file renamed over the old -- with nothing else newer:
+# what the processes run is not what is on disk, and they are replaced.
+os.utime(TERM, (time.time() - 100, time.time() - 100))
+mod = tree("build/mods/zygote.so")
+shutil.copy2(mod, mod + ".new")
+os.rename(mod + ".new", mod)
+last = max(lines()) if lines() else -1
+n0 = len(log())
+do("dt_restart")
+deadline = time.time() + 20
+nzpid = napid2 = ""
+while time.time() < deadline:
+    t.collect(0.2)
+    nzpid = result('echo "$DT_RTZPID"')
+    napid2 = hostpid()
+    if nzpid and nzpid != zpid and napid2 and napid2 != apid and "taken up" in log()[n0:]:
+        break
+check("with a module the zygote mapped replaced on disk, the zygote and the process are replaced",
+      nzpid and nzpid != zpid and napid2 and napid2 != apid and stat(napid2) is not None
+      and stat(napid2)["ppid"] == int(nzpid) and ptyof(ppid) in masters(napid2),
+      (zpid, nzpid, apid, napid2, log()[n0:][-1000:]))
 apid, zpid = napid2, nzpid
 
 # The program's end is still the window's: ended by a signal, its status
@@ -440,6 +468,76 @@ check("closing a window kept after a crash hangs its program up",
 check("and no app process or zygote is left a zombie",
       not any(stat(x) and stat(x)["state"] == "Z" for x in (apid, zpid, apid2, apid3)),
       [(x, stat(x)) for x in (apid, zpid, apid2, apid3)])
+
+# A process a restart kept that never joins the restarted desktop is taken
+# for one that crashed (Decision 7): its window kept with Reopen offered,
+# never blank and saying it did not start, and its program kept for Reopen.
+# Stopped the moment it has said it stays, it cannot join.
+for f in (PIDF,):
+    if os.path.exists(f):
+        os.unlink(f)
+do("dt_rthost term")
+waitfor('[ -n "${DT_RTHOST[term]-}" ]')
+do("T4 := dt_new Terminal 14 52 3 3 term")
+tid4 = result('echo "$T4"')
+ppid4 = program()[0]
+apid4 = hostpid()
+waitfor('[ "${DT[%s]["prog"]-}" = %s ]' % (tid4, ppid4 or "x"), 5)
+n0 = len(open(t.log, errors="replace").read()) if os.path.exists(t.log) else 0
+do("dt_restart")
+stopped = False
+deadline = time.time() + 8
+while time.time() < deadline:
+    if "kept across the desktop's restart" in log()[n0:]:
+        try:
+            os.kill(int(apid4), signal.SIGSTOP)
+            stopped = True
+        except (ValueError, OSError):
+            pass
+        break
+    time.sleep(0.005)
+deadline = time.time() + 20
+while time.time() < deadline and not (result('echo "${DT_RVC[%s]-none}"' % tid4) == "-"
+                                       and "its windows: keep" in log()[n0:]):
+    t.collect(0.3)
+kept4 = result('echo "${DT_RVC[%s]-none}"' % tid4)
+check("a kept process that never joins is taken for one that crashed: its window kept, "
+      "Reopen offered, its program kept",
+      stopped and kept4 == "-" and "did not start" not in log()[n0:]
+      and "its windows: keep" in log()[n0:] and ppid4 and not gone(ppid4),
+      (stopped, kept4, stat(ppid4), log()[n0:][-900:]))
+try:
+    os.kill(int(apid4), signal.SIGKILL)
+except (ValueError, OSError):
+    pass
+do("dt_rvreopen term")
+deadline = time.time() + 15
+apid5 = ""
+while time.time() < deadline:
+    t.collect(0.2)
+    apid5 = hostpid()
+    if apid5 and apid5 != apid4 and ptyof(ppid4) in masters(apid5):
+        break
+check("and Reopen takes the same program back",
+      apid5 and apid5 != apid4 and ptyof(ppid4) in masters(apid5) and not gone(ppid4),
+      (apid4, apid5, ptyof(ppid4), masters(apid5)))
+
+# A restart that fails after its app processes were asked to stay tells
+# them they are not kept: one does not then wait for a desktop to join when
+# its own goes away, but ends with it.
+do('dt_rswrite() { return 1; }')
+n0 = len(log())
+do("dt_restart")
+untold = waitlog("the desktop's restart did not happen; not kept", n0, 8)
+do("dt_rtclose")
+deadline = time.time() + 10
+t1 = time.time()
+while time.time() < deadline and not gone(apid5):
+    t.collect(0.1)
+ended = time.time() - t1
+check("a restart that failed after asking processes to stay lets them go: one ends at once "
+      "when its desktop does, not after waiting to join",
+      untold and gone(apid5) and ended < 4, (untold, round(ended, 1), stat(apid5), log()[n0:][-600:]))
 
 # An app process with no window left, at work of its own when its time to
 # end came, is looked at again; found idle then, its work has only just
@@ -665,4 +763,4 @@ t.close()
 for f in (p, p2, MARK, SAID, SAID + ".pend", WRITER, PIDF, PULSE, COUNT, ECHO, ELAT, FIFO, LIVE, LCOUNT, TERM, KEEPER, OPENS):
     if os.path.exists(f):
         os.unlink(f)
-report(35)
+report(40)

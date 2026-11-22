@@ -106,10 +106,12 @@ dt_restart() {
 
 	if [ ! -x "$HIBR" ] || [ ! -r "$DT_SELF0" ]; then
 		dt_notep high "Cannot restart: no hibr at %s, or no %s" "${HIBR:-?}" "$DT_SELF0"
+		dt_rsuncarry
 		return 1
 	fi
 	[ -d "$DT_RSDIR" ] || mkdir -p "$DT_RSDIR" 2> /dev/null || {
 		dt_notep high "Cannot restart: %s cannot be made" "$DT_RSDIR"
+		dt_rsuncarry
 		return 1
 	}
 	# A window drawn by its app's own process keeps its state there first
@@ -133,6 +135,7 @@ dt_restart() {
 	fi
 	if ! dt_rswrite "$f" 1; then
 		dt_notep high "Cannot restart: the state could not be written"
+		dt_rsuncarry
 		return 1
 	fi
 	dt_rslog "restarting into $HIBR: ${#DT[@]} windows kept in $f"
@@ -163,6 +166,7 @@ dt_restart() {
 	export -n DT_RESTORE
 	DT_RESTORE=
 	dt_open
+	dt_rsuncarry
 	dt_notep high "Restart failed: %s would not run" "$HIBR"
 	return 1
 }
@@ -185,6 +189,7 @@ dt_rskeep() {
 		return 0
 	fi
 	exec {x}<&"$DT_RTZFD"
+	DT_RSZDUP=$x
 	json set DT_RS .zfd "$x"
 	json set DT_RS .zpid "$DT_RTZPID"
 	json set DT_RS .zstamp "$DT_RTZSTAMP" -s
@@ -204,6 +209,37 @@ dt_rskeep() {
 			json set DT_RS ".kept.$t.pty" "$x" -s
 		done
 	done
+	return 0
+}
+
+# A restart that did not happen after its app processes were asked to stay
+# (dt_rvstashall): each still connected is told it is not kept (`carry`
+# naming nothing), so it ends with its desktop when that goes rather than
+# waiting to join one that never comes; one whose connection the restart
+# had already let go finds this desktop listening, is refused at once and
+# ends (runtime.hibr's dt_rtrejoin). The copies made to cross the exec are
+# closed.
+DT_RSZDUP=
+dt_rsuncarry() {
+	local c x gone=
+
+	for c in "${!DT_RSKEEPC[@]}"; do
+		if [ -n "${DT_RTC["$c"]+x}" ]; then
+			x := dt_rtline call 0 - carry ""
+			dt_rtsay "$c" "$x"
+		else
+			gone=1
+		fi
+	done
+	for x in "${DT_RSKEEPF[@]}" $DT_RSZDUP; do
+		exec {x}>&-
+	done
+	[ "${#DT_RSKEEPC[@]}" = 0 ] || dt_rslog "restart did not happen: ${#DT_RSKEEPC[@]} app processes told they are not kept"
+	DT_RSKEEPC=()
+	DT_RSKEEPF=()
+	DT_RSZDUP=
+	DT_RSZKEEP=
+	[ -z "$gone" ] || dt_rtlisten
 	return 0
 }
 
@@ -381,6 +417,7 @@ dt_restore() {
 			DT_RTLTIME["$t"]=$EPOCHSECONDS
 			DT_RTLPID["$t"]=${DT_RS["kept"]["$t"]["pid"]-}
 			DT_RTLSTAMP["$t"]=${DT_RS["kept"]["$t"]["stamp"]-}
+			DT_RTLKEPT["$t"]=1
 			x=${DT_RS["kept"]["$t"]["pty"]-}
 			[ -z "$x" ] || DT_RTPTYC["$x"]=$ap
 			[ -z "$x" ] || ! command -v console > /dev/null || console watch -i "$x" 2> /dev/null

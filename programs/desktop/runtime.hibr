@@ -193,6 +193,7 @@ fn dt_rtopen(app) {
 				;;
 			refused)
 				console unwatch "$DT_RTFD"
+				DT_RTREFUSED=1
 				DT_RTSAID := dt_rtdec "${w[1]-}"
 				return 1
 				;;
@@ -296,8 +297,12 @@ fn dt_rtsend(verb, name, ...args) {
 	esac
 	l := dt_rtline "$verb" "$name" "${args[@]}"
 	# What its file says as it is read -- a bar item it puts there, a hook
-	# -- is said again to a restarted desktop it is kept for (dt_rtrejoin).
-	[ -z "${DT_LOADING-}" ] || DT_RTLOADL+=("$l")
+	# -- is said again to a restarted desktop it is kept for (dt_rtrejoin):
+	# what it registers. A note or a notification is an event, said once.
+	case $name in
+	dt_note* | dt_notify*) ;;
+	*) [ -z "${DT_LOADING-}" ] || DT_RTLOADL+=("$l") ;;
+	esac
 	# A plain send: the desktop never blocks reading, so this never waits
 	# on it, and a full buffer is the right brake on an app that floods.
 	# A desktop that has gone is a status, never a signal.
@@ -481,12 +486,18 @@ fn dt_rtcall(seq, target, name, ...args) {
 	if [ "$target" = - ] && [ "$name" = carry ]; then
 		# Restart Desktop keeps this process (ADR 0050): its code is what
 		# is on disk, so it stays, and joins the restarted desktop with the
-		# launch this names once its connection ends (dt_rtrejoin).
+		# launch this names once its connection ends (dt_rtrejoin). Named
+		# nothing, the restart did not happen, and nothing is kept.
 		DT_RTCARRY=${args[0]-}
-		dt_log "app runtime: kept across the desktop's restart"
-		[ "$seq" = 0 ] && return 0
-		k := dt_rtline took "$seq" 0 - "" ""
-		send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+		if [ "$seq" != 0 ]; then
+			k := dt_rtline took "$seq" 0 - "" ""
+			send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+		fi
+		if [ -n "$DT_RTCARRY" ]; then
+			dt_log "app runtime: kept across the desktop's restart"
+		else
+			dt_log "app runtime: the desktop's restart did not happen; not kept"
+		fi
 		return 0
 	fi
 	if [ "$target" = - ]; then
@@ -1197,6 +1208,7 @@ dt_rtcells() {
 # taken up again. Status 1 when the desktop has not taken it back within
 # DT_RTREJOINMS, and it ends as a process whose desktop went does.
 DT_RTCARRY=
+DT_RTREFUSED=
 DT_RTREJOINMS="${DT_RTREJOINMS-15000}"
 dt_rtrejoin() {
 	local t=$DT_RTCARRY end now l v
@@ -1214,14 +1226,22 @@ dt_rtrejoin() {
 	while :; do
 		# The hello spent the first token and took the name with it.
 		declare -g DT_RTTOKEN=$t
+		DT_RTREFUSED=
 		dt_rtopen "${DT_RTZAPP:-${DT_RTPFX[0]-}}" && break
-		# Refused -- the restarted desktop has not yet said whose this
-		# launch is -- the connection goes, and it is tried again.
 		if [ -n "$DT_RTFD" ]; then
 			unset DT_RTBUF["$DT_RTFD"] DT_RTMORE["$DT_RTFD"]
 			exec {DT_RTFD}>&-
 			DT_RTFD=
 		fi
+		# Refused, it is done: a restarted desktop knows the launch before
+		# it listens, so one that refuses it is not the desktop this
+		# process was kept for -- a restart that failed after all.
+		if [ -n "$DT_RTREFUSED" ]; then
+			dt_log "app runtime: rejoining: $DT_RTSAID"
+			return 1
+		fi
+		# Not reached, or not answered yet -- the desktop is still
+		# starting -- it is tried again until DT_RTREJOINMS.
 		now=$((${EPOCHREALTIME/./} / 1000))
 		[ "$now" -lt "$end" ] || { dt_log "app runtime: rejoining: $DT_RTSAID"; return 1; }
 		# Quiet: a terminal's program writing meanwhile keeps in its own

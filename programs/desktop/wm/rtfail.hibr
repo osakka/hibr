@@ -196,6 +196,31 @@ dt_rvdrain() {
 	return 0
 }
 
+# An app process a restart kept that never joined the restarted desktop
+# (ADR 0050): the windows restored for it, never bound, are those of an app
+# that crashed (Decision 7) -- handed to dt_rvdrop as the connection it never
+# made (-1), so they are kept with Reopen offered, reopened at once or
+# closed, as the person chose, its terminals' programs kept while a window
+# names them, and the process, still there or not, ended and said once. One
+# with no window is ended as one with no window left is.
+fn dt_rvlost(ap, pid = "", why = "") {
+	local id n=0
+
+	for id in "${!DT_RVC[@]}"; do
+		[ -z "${DT_RVC[$id]}" ] && [ -n "${DT_RVHELD[$id]+x}" ] && [ "${DT[$id]["app"]-}" = "$ap" ] || continue
+		DT_RVC[$id]=-1
+		unset DT_RVHELD[$id]
+		n=$((n + 1))
+	done
+	if [ "$n" -gt 0 ]; then
+		dt_rvdrop -1 "$ap" "$pid" "$why"
+	elif [ -n "$pid" ]; then
+		DT_RTENDPID["$pid"]=$((${EPOCHREALTIME/./} / 1000 + DT_RTENDSECS * 1000))
+		dt_want 100
+	fi
+	return 0
+}
+
 # A request connection going: its cells channel with it, and what becomes
 # of its windows. At Quit or a restart (why closing), or with none open,
 # they go with it. An app that has gone with windows open is the person's to

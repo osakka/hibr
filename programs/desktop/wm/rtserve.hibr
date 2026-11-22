@@ -68,6 +68,9 @@ declare -gA DT_RTEXIT DT_RTPTYC
 # connection.
 DT_RTZSTAMP=
 declare -gA DT_RTLSTAMP DT_RTCSTAMP
+# The launches a restart kept a process under (wm/restart.hibr): one that
+# never joins is taken for a process that crashed (dt_rvlost).
+declare -gA DT_RTLKEPT
 # Set while the desktop owns any terminal's program, so a pass with none
 # asks the pty module nothing; and when one may have been left held by no
 # app process whose window has gone -- a process that ended, a window
@@ -486,14 +489,19 @@ dt_rtlaunches() {
 		[ -n "$why" ] || continue
 		dt_log "app runtime: ${DT_RTLAUNCH["$t"]} started from ${DT_RTLFILE["$t"]:-nothing} $why; its launch is void"
 		[ "${#DT_RVP[@]}${#DT_RVB[@]}" = 00 ] || dt_rvxvoid "${DT_RTLAUNCH["$t"]}"
+		# A process a restart kept that never joined has gone as far as
+		# its windows are concerned: an app that crashed (Decision 7) --
+		# they are kept, Reopen offered, its terminals' programs kept.
+		if [ -n "${DT_RTLKEPT["$t"]-}" ]; then
+			dt_rvlost "${DT_RTLAUNCH["$t"]}" "$p" "it was kept across the restart and $why"
 		# A note from a ticker asks for the frame that shows it, or it
 		# expires before anything draws.
-		if [ -n "${DT_RTLFILE["$t"]-}" ]; then
+		elif [ -n "${DT_RTLFILE["$t"]-}" ]; then
 			dt_notep normal "%s did not start" "${DT_RTLAUNCH["$t"]}"
 			dt_want 30
 		fi
 		[ -z "${DT_RTLSTAMP["$t"]-}" ] || command rm -f -- "${DT_RTLSTAMP["$t"]}"
-		unset DT_RTLAUNCH["$t"] DT_RTLFILE["$t"] DT_RTLTIME["$t"] DT_RTLPID["$t"] DT_RTLSTAMP["$t"]
+		unset DT_RTLAUNCH["$t"] DT_RTLFILE["$t"] DT_RTLTIME["$t"] DT_RTLPID["$t"] DT_RTLSTAMP["$t"] DT_RTLKEPT["$t"]
 	done
 	return 0
 }
@@ -649,16 +657,25 @@ dt_rtzread() {
 # Whether the code an app process runs is what is on disk now (ADR 0050, the
 # owner, 2026-11-22), which decides whether Restart Desktop keeps it or
 # replaces it with a fresh one: hibr itself, the same file the zygote it was
-# forked from runs -- the question DT_UPNEW asks of the desktop -- and the
-# desktop's own files that zygote read, none newer than its start; then,
-# for the process on connection c, each file of its app's own (its file and
-# its parts), none newer than its launch. Status 0 when current. Where
-# /proc is not, nothing is known current, and every process is replaced.
+# forked from runs -- the question DT_UPNEW asks of the desktop -- and every
+# library it mapped, a module above all, still the file at its path (one
+# replaced there, as apt and `make` replace them, the kernel names
+# ` (deleted)` in its maps); and the desktop's own files that zygote read,
+# none newer than its start; then, for the process on connection c, each
+# file of its app's own (its file and its parts), none newer than its
+# launch. Status 0 when current. Where /proc is not, nothing is known
+# current, and every process is replaced.
 dt_rtcurrent() {
-	local f
+	local f line
 
 	[ -n "$DT_RTZFD" ] && [ -n "$DT_RTZPID" ] && [ -e "$DT_RTZSTAMP" ] || return 1
 	[ "/proc/$DT_RTZPID/exe" -ef "$HIBR" ] || return 1
+	[ -r "/proc/$DT_RTZPID/maps" ] || return 1
+	while read -r line; do
+		case $line in
+		*.so" (deleted)" | *.so.[0-9]*" (deleted)") return 1 ;;
+		esac
+	done < "/proc/$DT_RTZPID/maps"
 	for f in "$DT_HERE"/*.hibr "$DT_HERE"/wm/*.hibr "$DT_HERE"/widgets/*.hibr "$DT_HERE"/lib/*.hibr; do
 		[ "$f" -nt "$DT_RTZSTAMP" ] && return 1
 	done
@@ -971,7 +988,7 @@ fn dt_rtmsg(int c, line) {
 		who=${DT_RTLAUNCH["$x"]}
 		DT_RTCPID["$c"]=${DT_RTLPID["$x"]-}
 		DT_RTCSTAMP["$c"]=${DT_RTLSTAMP["$x"]-}
-		unset DT_RTLSTAMP["$x"]
+		unset DT_RTLSTAMP["$x"] DT_RTLKEPT["$x"]
 		DT_RTCFILE["$c"]=
 		[ -z "${DT_RTLFILE["$x"]-}" ] || DT_RTCFILE["$c"] := dt_rtkindrel "${DT_RTLFILE["$x"]}"
 		unset DT_RTLAUNCH["$x"] DT_RTLFILE["$x"] DT_RTLTIME["$x"] DT_RTLPID["$x"]
