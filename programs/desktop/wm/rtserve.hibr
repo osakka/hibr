@@ -161,12 +161,16 @@ declare -gA DT_RTPEND
 # Whose an entry of a name shared by owner is: the values its owner fields
 # hold (dt_share -o, one or more), the empty ones left out, each between
 # tabs -- an owner may be an installable's file, whose path may hold a
-# blank. Empty for none.
+# blank. Empty for none. This file is strict, where a bare expansion is
+# one word, so the fields are walked one at a time -- without the
+# here-string read -ra would need, which costs twice the walk.
 fn dt_rtownof(name, key) {
-	local f o=
+	local f o= r=${DT_SHAREOWN["$name"]-}
 	local -n m=$name
 
-	for f in ${DT_SHAREOWN["$name"]}; do
+	while [ -n "$r" ]; do
+		f=${r%% *}
+		r=${r:${#f}+1}
 		[ -z "${m["$key"]["$f"]-}" ] || o+=$'\t'"${m["$key"]["$f"]}"
 	done
 	[ -z "$o" ] || o+=$'\t'
