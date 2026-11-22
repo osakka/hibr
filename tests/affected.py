@@ -90,7 +90,7 @@ SUITE_MODS = {
     "native": ["frames", "console", "hold", "pty", "blitfr"],
     "holdlock": ["console", "hold", "pty", "term"],
     "holdseam": ["frames", "console", "img", "hold", "pty", "term", "blitfr"],
-    "hostpix": ["console", "img", "hold", "pty", "term", "blitfr"],
+    "hostpix": ["frames", "console", "img", "hold", "pty", "term", "blitfr"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it
     # here is what makes a change to it reach this suite.
@@ -110,7 +110,7 @@ DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_sessio
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt", "archives", "holdrenew", "native",
                                          "traymod", "rtchan", "onset", "stale", "audience", "appseam", "inputlat", "saverload", "superdrag", "hoverwant", "hosted", "hostfail", "hostmenus", "hostkinds", "hostedit", "hostconv", "hostfield", "regread",
-                                         "keepawake", "natscale", "widgetroles")
+                                         "keepawake", "natscale", "widgetroles", "hostpix")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 
