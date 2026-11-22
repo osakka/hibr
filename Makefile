@@ -51,7 +51,7 @@ MODS = $(B)/mods/sys.so $(B)/mods/http.so $(B)/mods/ls.so $(B)/mods/prompt.so \
        $(B)/mods/vw.so $(B)/mods/archive.so $(B)/mods/mermaid.so \
        $(B)/mods/pdf.so $(B)/mods/fetch.so $(B)/mods/copy.so \
        $(B)/mods/proctab.so $(B)/mods/contain.so $(B)/mods/frames.so $(B)/mods/inspect.so \
-       $(B)/mods/dirwatch.so $(B)/mods/dbus.so $(B)/mods/varwatch.so
+       $(B)/mods/dirwatch.so $(B)/mods/dbus.so $(B)/mods/varwatch.so $(B)/mods/zygote.so
 
 # darwin.c reaches Mach headers (mach/mach.h and kin) that only exist on
 # Darwin at all, so it is not in MODS above and never built, or even asked
@@ -67,7 +67,7 @@ PROMPT_SRC = $(wildcard mods/prompt/*.c) mods/inflate.c mods/inftab.c mods/gfxas
 # the decoder is six kilobytes of code it would not call.
 CONSOLE_SRC = $(wildcard mods/console/*.c) mods/deflate.c mods/inftab.c \
 	      mods/png.c mods/gfxask.c mods/blitfr.c mods/b64.c mods/boxscale.c
-PTY_SRC = $(wildcard mods/pty/*.c)
+PTY_SRC = $(wildcard mods/pty/*.c) mods/fdmsg.c
 TERM_SRC = $(wildcard mods/term/*.c) mods/b64.c
 HOLD_SRC = $(wildcard mods/hold/*.c) mods/gfxask.c mods/blitfr.c
 CAT_SRC = $(wildcard mods/cat/*.c)
@@ -169,7 +169,7 @@ $(B)/.recheck: src/recheck.c include/re.h | $(B)/mods
 $(B)/mods/prompt.so: $(PROMPT_SRC) include/hibr.h mods/prompt/pr.h mods/inflate.h mods/gfxask.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PROMPT_SRC)
 
-$(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h | $(B)/mods
+$(B)/mods/pty.so: $(PTY_SRC) include/hibr.h mods/pty/tt.h mods/fdmsg.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(PTY_SRC)
 
 $(B)/mods/term.so: $(TERM_SRC) include/hibr.h mods/b64.h mods/term/tm.h mods/pty.h mods/display.h mods/term.h | $(B)/mods
@@ -202,6 +202,10 @@ $(B)/mods/frames.so: mods/frames.c include/hibr.h mods/display.h mods/blitfr.h |
 
 $(B)/mods/proctab.so: mods/proctab.c mods/procs.c include/hibr.h mods/procs.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/proctab.c mods/procs.c
+
+# Messages with descriptors, shared with pty (mods/fdmsg.c, ADR 0050).
+$(B)/mods/zygote.so: mods/zygote.c mods/fdmsg.c include/hibr.h mods/fdmsg.h | $(B)/mods
+	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ mods/zygote.c mods/fdmsg.c
 
 $(B)/mods/hvi.so: $(HVI_SRC) include/hibr.h mods/hvi/vi.h mods/display.h | $(B)/mods
 	$(CC) $(CFLAGS) $(SOFLAGS) -o $@ $(HVI_SRC)

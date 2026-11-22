@@ -45,6 +45,33 @@ driven through a terminal of its own.
 | `pty adopt <fd> <pid> [rows cols]` | take over a pty this process already has open -- after an `exec`, which keeps the master descriptor (it is not close-on-exec) and the program as this process's child; the id lands in `$RET` |
 | `pty release <id>` | forget it without ending the program or closing the descriptor |
 | `pty list` | every open id |
+| `pty via <fd>` | from now on a program this process starts is started by the process at the far end of channel `fd`, as **its** child, and only its master handed over (below); `-` lets the channel go, no word says which it is |
+| `pty pump` | take what that process has said -- a program ended, and with what -- never waiting; fails once it has gone |
+| `pty serve <fd> <owner>` | the other end: do what the process on channel `fd` asks, for the app named `owner`, never waiting; what was done comes back a line each (`spawned`, `adopted`, `closed`), and status 1 once the channel has ended |
+| `pty reap [ms]` | every program served that has ended is waited for and its process told; with `ms`, one no process has held for that long is hung up; fails when none is left to serve |
+| `pty owned` | every program served and still running, `fd pid owner` a line: what a restart carries across its exec |
+| `pty adopt -o <owner> <fd> <pid> [rows cols]` | take one of those back after the exec, held by no process until one of `owner`'s asks for it |
+
+## A program another process owns
+
+An app in a process of its own (ADR 0050) shows a terminal window, but the
+program in it is the **desktop's** child: the app's process is replaced at
+every Restart Desktop and may crash, and a program whose parent has gone is
+reparented to init -- `waitpid` then answers `ECHILD`, which reads as the
+program having ended while it runs, and its status is lost. So in a process
+with a channel (`pty via`) `spawn` and `adopt` are asked of the process at
+the far end, which starts the program -- every rule above kept: the size on
+the master before the fork, a session and a controlling terminal, signals
+reset -- in the asking process's directory and with its environment, closes
+every other descriptor in the child, and hands the master over by
+descriptor (`mods/fdmsg.c`). The asking process reads and writes the master
+itself; no byte of the program's goes through the owner. `alive` and
+`status` are what the owner last said, `signal` and `close` are asked of
+it, and `-x` stays this process's own child, since it means "ends with me".
+A program the asking process lets go of, or loses when it ends, is held by
+nobody until a process of the same app asks for it by its pid -- the fresh
+one a restart starts -- or `pty reap`'s time passes and it is hung up, as
+closing its window would. `tests/999-farpty.t` drives both ends.
 
 ## What it is for
 

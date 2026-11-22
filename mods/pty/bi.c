@@ -39,7 +39,8 @@ int m_pty(sh *s, int ac, char **av)
 
 	if (ac < 2) {
 		lg(HIBR_LERR, "usage: pty spawn|read|drain|write|resize|size|"
-			      "alive|wait|signal|fd|pid|close|adopt|release|list ...");
+			      "alive|wait|signal|fd|pid|close|adopt|release|list|"
+			      "via|pump|serve|reap|owned ...");
 		return 2;
 	}
 	if (!strcmp(sub, "spawn")) {
@@ -70,7 +71,7 @@ int m_pty(sh *s, int ac, char **av)
 			lg(HIBR_LERR, "pty spawn: size must be positive");
 			return 2;
 		}
-		p = tt_spawn(s, rows, cols, av + i);
+		p = cx ? tt_local(s, rows, cols, av + i) : tt_spawn(s, rows, cols, av + i);
 		if (!p)
 			return HIBR_FAIL;
 		/* -x: no program this process starts afterwards inherits the
@@ -190,6 +191,8 @@ int m_pty(sh *s, int ac, char **av)
 		p = tt_arg(sub, av[2]);
 		if (!p)
 			return HIBR_FAIL;
+		if (p->far == 2)
+			return tt_farsignal(p, atoi(av[3])) ? HIBR_OK : HIBR_FAIL;
 		return kill((pid_t)p->pid, atoi(av[3])) == 0 ? HIBR_OK
 							     : HIBR_FAIL;
 	}
@@ -224,6 +227,24 @@ int m_pty(sh *s, int ac, char **av)
 		if (!p)
 			return HIBR_FAIL;
 		tt_drop(p);
+		return HIBR_OK;
+	}
+	if (!strcmp(sub, "adopt") && ac > 3 && !strcmp(av[2], "-o")) {
+		if (ac < 6) {
+			lg(HIBR_LERR, "usage: pty adopt -o owner fd pid [rows cols]");
+			return 2;
+		}
+		if (ac > 7) {
+			rows = atoi(av[6]);
+			cols = atoi(av[7]);
+		}
+		p = tt_adoptown(atoi(av[4]), atol(av[5]), rows, cols, av[3]);
+		if (!p)
+			return HIBR_FAIL;
+		s_init(&o);
+		s_num(&o, (long)p->id);
+		tt_ret(s, o.p);
+		s_free(&o);
 		return HIBR_OK;
 	}
 	if (!strcmp(sub, "adopt")) {
@@ -264,6 +285,43 @@ int m_pty(sh *s, int ac, char **av)
 		tt_ret(s, o.p ? o.p : "");
 		s_free(&o);
 		return HIBR_OK;
+	}
+	if (!strcmp(sub, "via")) {
+		if (ac < 3) {
+			s_init(&o);
+			s_num(&o, (long)tt_viafd());
+			tt_ret(s, o.p);
+			s_free(&o);
+			return tt_viafd() >= 0 ? HIBR_OK : HIBR_FAIL;
+		}
+		return tt_viaset(!strcmp(av[2], "-") ? -1 : atoi(av[2])) ? HIBR_OK : HIBR_FAIL;
+	}
+	if (!strcmp(sub, "pump"))
+		return tt_pump() ? HIBR_OK : HIBR_FAIL;
+	if (!strcmp(sub, "serve") || !strcmp(sub, "reap") || !strcmp(sub, "owned")) {
+		s_init(&o);
+		r = HIBR_OK;
+		if (!strcmp(sub, "serve")) {
+			if (ac < 4) {
+				lg(HIBR_LERR, "usage: pty serve fd owner");
+				s_free(&o);
+				return 2;
+			}
+			r = tt_serve(atoi(av[2]), av[3], &o);
+		} else if (!strcmp(sub, "reap")) {
+			r = !tt_reap(&o);
+			if (ac > 2)
+				tt_orphans(atol(av[2]), &o);
+		} else {
+			tt_owned(&o);
+		}
+		if (o.n && o.p[o.n - 1] == '\n')
+			o.p[--o.n] = 0;
+		hibr_ret(s, o.p ? o.p : "");
+		if (!s->bind && o.n)
+			printf("%s\n", o.p);
+		s_free(&o);
+		return r;
 	}
 	lg(HIBR_LERR, "pty: %s: unknown subcommand", sub);
 	return HIBR_FAIL;
@@ -379,6 +437,8 @@ int tt_ini(sh *s)
 void tt_fini(sh *s)
 {
 	tt_all();
+	tt_viaset(-1);
+	tt_unserveall();
 	hibr_unprovide(s, "pty");
 }
 

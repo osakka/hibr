@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "tt.h"
+#include "../fdmsg.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -70,13 +71,34 @@ int tt_resize(tt_p *p, int rows, int cols)
    behave differently in a pipe. */
 tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 {
+	if (tt_viafd() >= 0)
+		return tt_farspawn(rows, cols, 0, 0, av);
+	return tt_local(s, rows, cols, av);
+}
+
+/* The same, always this process's own child, whatever channel it has: what
+   `pty spawn -x` means, a program that ends with this process. */
+tt_p *tt_local(sh *s, int rows, int cols, char **av)
+{
+	(void)s;
+	return tt_spawnx(rows, cols, 0, 0, 0, av, 0);
+}
+
+/* Start a program on a new terminal as this process's child. With cwd, the
+   child goes there first; with env, that is its whole environment, and
+   every descriptor above the standard three is closed, since the program is
+   being started for another process (an app's, ADR 0050) and must hold
+   nothing of this one's -- the terminal under another number, its sockets,
+   other programs' masters. */
+tt_p *tt_spawnx(int rows, int cols, int xpix, int ypix, const char *cwd,
+		char **av, char **env)
+{
 	struct winsize w;
 	tt_p *p;
 	int m, sl;
 	char *nm;
 	long pid;
 
-	(void)s;
 	m = posix_openpt(O_RDWR | O_NOCTTY);
 	if (m < 0) {
 		lg(HIBR_LERR, "pty: %s", strerror(errno));
@@ -104,6 +126,8 @@ tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 	memset(&w, 0, sizeof w);
 	w.ws_row = (unsigned short)rows;
 	w.ws_col = (unsigned short)cols;
+	w.ws_xpixel = (unsigned short)(xpix > 0 ? xpix : 0);
+	w.ws_ypixel = (unsigned short)(ypix > 0 ? ypix : 0);
 	ioctl(m, TIOCSWINSZ, &w);
 	fflush(0);
 	pid = (long)fork();
@@ -127,6 +151,12 @@ tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 		dup2(sl, 2);
 		if (sl > 2)
 			close(sl);
+		if (env) {
+			fm_closeall(0, 0);
+			environ = env;
+		}
+		if (cwd && *cwd && chdir(cwd) < 0 && chdir("/") < 0)
+			_exit(127);
 		signal(SIGHUP, SIG_DFL);
 		signal(SIGINT, SIG_DFL);
 		signal(SIGQUIT, SIG_DFL);
@@ -146,6 +176,9 @@ tt_p *tt_spawn(sh *s, int rows, int cols, char **av)
 	p->pid = pid;
 	p->rows = rows;
 	p->cols = cols;
+	p->xpix = w.ws_xpixel;
+	p->ypix = w.ws_ypixel;
+	p->chan = -1;
 	v_add(&tt_list, p);
 	lg(HIBR_LINF, "pty %d is pid %ld running %s", p->id, pid, av[0]);
 	return p;
@@ -230,6 +263,8 @@ int tt_alive(tt_p *p)
 
 	if (p->done)
 		return 0;
+	if (p->far == 2)
+		return tt_faralive(p);
 	r = (long)waitpid((pid_t)p->pid, &w, WNOHANG);
 	if (r == p->pid) {
 		p->done = 1;
@@ -269,8 +304,10 @@ int tt_wait(tt_p *p, int ms)
 /* Stop the program if it is still going, and release the pty. */
 void tt_drop(tt_p *p)
 {
-	size_t i;
-
+	if (p->far == 2) {
+		tt_fardrop(p);
+		return;
+	}
 	if (!p->done) {
 		kill((pid_t)p->pid, SIGKILL);
 		waitpid((pid_t)p->pid, 0, 0);
@@ -278,6 +315,16 @@ void tt_drop(tt_p *p)
 	}
 	if (p->fd >= 0)
 		close(p->fd);
+	tt_unlist(p);
+	lg(HIBR_LDBG, "pty %d released", p->id);
+	tt_free(p);
+}
+
+/* Take a pty out of the list, by identity. */
+void tt_unlist(tt_p *p)
+{
+	size_t i;
+
 	for (i = 0; i < tt_list.n; i++)
 		if (tt_list.p[i] == (void *)p) {
 			memmove(tt_list.p + i, tt_list.p + i + 1,
@@ -285,7 +332,12 @@ void tt_drop(tt_p *p)
 			tt_list.n--;
 			break;
 		}
-	lg(HIBR_LDBG, "pty %d released", p->id);
+}
+
+/* Free a pty's record and what it owns, its descriptor left alone. */
+void tt_free(tt_p *p)
+{
+	free(p->owner);
 	free(p);
 }
 
@@ -296,6 +348,8 @@ tt_p *tt_adopt(int fd, long pid, int rows, int cols)
 {
 	tt_p *p;
 
+	if (tt_viafd() >= 0)
+		return tt_faradopt(pid, rows, cols);
 	if (fd < 0 || pid <= 0 || !isatty(fd)) {
 		lg(HIBR_LERR, "pty adopt: %d is not an open terminal", fd);
 		return 0;
@@ -308,6 +362,7 @@ tt_p *tt_adopt(int fd, long pid, int rows, int cols)
 	p->pid = pid;
 	p->rows = rows;
 	p->cols = cols;
+	p->chan = -1;
 	v_add(&tt_list, p);
 	if (kill((pid_t)pid, 0) < 0)
 		lg(HIBR_LINF, "pty %d adopted, pid %ld already gone", p->id, pid);
@@ -320,24 +375,28 @@ tt_p *tt_adopt(int fd, long pid, int rows, int cols)
    a process about to exec and adopt it again. */
 void tt_release(tt_p *p)
 {
-	size_t i;
-
-	for (i = 0; i < tt_list.n; i++)
-		if (tt_list.p[i] == (void *)p) {
-			memmove(tt_list.p + i, tt_list.p + i + 1,
-				(tt_list.n - i - 1) * sizeof *tt_list.p);
-			tt_list.n--;
-			break;
-		}
+	tt_unlist(p);
 	lg(HIBR_LDBG, "pty %d let go, pid %ld left running on fd %d", p->id,
 	   p->pid, p->fd);
-	free(p);
+	tt_free(p);
 }
 
 /* Release every pty, for the module finaliser. */
 void tt_all(void)
 {
-	while (tt_list.n)
-		tt_drop((tt_p *)tt_list.p[tt_list.n - 1]);
+	tt_p *p;
+
+	while (tt_list.n) {
+		p = (tt_p *)tt_list.p[tt_list.n - 1];
+		/* Another process's child is its to end: this process going
+		   lets it go, held by nobody until one asks for it again. */
+		if (p->far == 2) {
+			close(p->fd);
+			tt_unlist(p);
+			tt_free(p);
+			continue;
+		}
+		tt_drop(p);
+	}
 	v_free(&tt_list);
 }

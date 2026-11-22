@@ -1,0 +1,28 @@
+0
+the fork has its own $$
+started where the client is, with its environment
+exit 3: 3
+exit 4 with its terminal still held open: 4
+ended by TERM: 143
+-x is the client's own child: 6
+the zygote read its fork's status: 0
+a program its client let go of runs on, held by nobody
+a fresh client takes it back by its pid, running
+and reads the status its parent read: 143
+the second fork ended: 0
+one held by nobody for its time is hung up
+spawned sh
+ended 3
+spawned sh
+ended 4
+spawned sleep
+ended 143
+spawned sh
+closed
+closed
+closed
+adopted
+ended 143
+closed
+spawned sleep
+hung up: demo
