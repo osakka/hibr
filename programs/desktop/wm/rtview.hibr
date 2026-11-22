@@ -337,6 +337,11 @@ fn dt_rvforget(int id) {
 	for i in "${!DT_RVC[@]}"; do
 		[ "${DT_RVC[$i]}" = "$c" ] && return 0
 	done
+	# Nor while it still draws a pane, a module, a saver or a bar item
+	# (wm/rtkinds.hibr).
+	for i in "${!DT_RVX[@]}"; do
+		[ "${DT_RVX["$i"]}" = "$c" ] && return 0
+	done
 	p=${DT_RTCPID["$c"]-}
 	[ -z "$p" ] || DT_RTENDPID["$p"]=$((${EPOCHREALTIME/./} / 1000 + DT_RTENDSECS * 1000))
 	return 0

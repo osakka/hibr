@@ -373,7 +373,7 @@ fn dt_rvxforget(name) {
 		[ "${DT_RVC[$i]-}" = "$c" ] || [ "${DT_RVX["$i"]-}" = "$c" ] && return 0
 	done
 	p=${DT_RTCPID["$c"]-}
-	[ -z "$p" ] || DT_RTENDPID["$p"]=$((EPOCHSECONDS + DT_RTENDSECS))
+	[ -z "$p" ] || DT_RTENDPID["$p"]=$((${EPOCHREALTIME/./} / 1000 + DT_RTENDSECS * 1000))
 	return 0
 }
 
