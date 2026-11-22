@@ -183,7 +183,7 @@ SHARED, SECRET, OWNER = sharedset()
 #   kept     the settings file's parse: the kept-settings slice
 CONVERT = {}
 for _n in """DT_PX DT_PY DT_DND DT_KEYBASE DT_KEYCODE DT_KEYMODS
-        DT_KEYPHASE DT_PHASEWIN DT_NATFOCUSES DT_NATCH DT_NATCW CS_CLICKC DT_BARWCOL
+        DT_KEYPHASE DT_PHASEWIN DT_NATFOCUSES CS_CLICKC DT_BARWCOL
         DT_POPH""".split():
     CONVERT[_n] = "call"
 for _n in "DT_OWLIST DT_OVLIST".split():
