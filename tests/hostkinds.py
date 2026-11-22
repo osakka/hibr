@@ -243,9 +243,8 @@ check("the Shadow module's own process says hello and what it has",
       waitfor(t, '[ -n "${DT_RVPC[shadow]-}" ]'), log(t)[-800:])
 ok, why = agree(t, u, strip)
 check("the hosted strip module's slot is cell for cell, glyphs and pens, the "
-      "in-process one", ok, why)
-check("and the desktop never defined its functions",
-      result(t, 'command -v shadow_draw || echo none') == "none")
+      "in-process one, and the desktop never defined its functions",
+      ok and result(t, 'command -v shadow_draw || echo none') == "none", why)
 spid = result(t, 'echo "${DT_RTCPID[${DT_RVPC[shadow]}]-}"')
 r = striprow(t)
 col = "".join(t.screen().g[r]).find("Shadow") if r is not None else -1
@@ -269,13 +268,13 @@ check("the Date & Time pane's own process says what it has",
 do(t, "P := dt_launch panel datetime")
 do(u, "P := dt_launch panel datetime")
 ok, why = agree(t, u, lambda term: geom(term, "P"), secs=8)
-check("the hosted pane's body is cell for cell the in-process one", ok, why)
+check("the hosted pane's body is cell for cell the in-process one, and the "
+      "desktop never defined its functions",
+      ok and result(t, 'command -v datetime_draw || echo none') == "none", why)
 check("its view is bound in the panel's window, at generation 1",
       result(t, 'echo "${DT_RVXP[p$P]-} ${DT_RVXGEN[p$P]-} ${DT_RVXARGS[p$P]%% *}"')
       .split() == ["datetime", "1", "w" + result(t, 'echo "$P"')],
       result(t, 'echo "${DT_RVXP[p$P]-} ${DT_RVXGEN[p$P]-} ${DT_RVXARGS[p$P]-}"'))
-check("and the desktop never defined its functions",
-      result(t, 'command -v datetime_draw || echo none') == "none")
 dpid = result(t, 'echo "${DT_RTCPID[${DT_RVPC[datetime]}]-}"')
 do(t, "dt_resize $P 28 90")
 do(u, "dt_resize $P 28 90")
@@ -353,8 +352,10 @@ def mac(secs=5):
 
 
 first = mac()
-check("the saver's Mac is on the screen, drawn by its own process", first is not None,
-      t.screen().text())
+calls = result(t, 'echo "$HK_CALLS"')
+check("the saver's Mac is on the screen, drawn by its own process: the "
+      "desktop made no call of the saver's own, which it has read",
+      first is not None and calls == "0", (calls, t.screen().text()))
 moved = False
 deadline = time.time() + 4
 while time.time() < deadline and first:
@@ -363,9 +364,9 @@ while time.time() < deadline and first:
     if "[====]" in s and s != first:
         moved = True
         break
-check("and its frames keep coming, each shown as it changes", moved, t.screen().text())
-check("the desktop made no call of the saver's own, which it has read",
-      result(t, 'echo "$HK_CALLS"') == "0", result(t, 'echo "$HK_CALLS"'))
+calls = result(t, 'echo "$HK_CALLS"')
+check("and its frames keep coming, each shown as it changes, still none of "
+      "them drawn here", moved and calls == "0", (calls, t.screen().text()))
 t.send(b"z", settle=0.3, collect=0.3)
 check("a key ends it, and its process, with no view left, goes by itself",
       waitend(t, vpid) and "[====]" not in t.screen().text(),
@@ -381,11 +382,11 @@ check("the panel closing lets its pane's process go",
       waitend(t, tpid) and "process %s had no window" % tpid not in log(t),
       (tpid, log(t)[-600:]))
 do(t, "CS_SHOW=0; cs_relist")
-check("the strip turned off lets its module's process go",
-      waitend(t, spid), (spid, log(t)[-600:]))
-check("and the desktop holds none of their views or prefixes",
-      result(t, 'echo "${#DT_RVX[@]} ${#DT_RVP[@]} ${#DT_RVFN[@]}"') == "0 0 0",
-      result(t, 'echo "${!DT_RVX[@]} / ${!DT_RVP[@]} / ${!DT_RVFN[@]}"'))
+gone = waitend(t, spid)
+check("the strip turned off lets its module's process go, and the desktop "
+      "holds none of their views or prefixes",
+      gone and waitfor(t, '[ "${#DT_RVX[@]} ${#DT_RVP[@]} ${#DT_RVFN[@]}" = "0 0 0" ]', 3),
+      (spid, result(t, 'echo "${!DT_RVX[@]} / ${!DT_RVP[@]} / ${!DT_RVFN[@]}"'), log(t)[-600:]))
 
 u.close()
 t.close()
@@ -393,4 +394,4 @@ for f in (TPANE, t.mark, u.mark, SAID + ".pend", SAID + ".tp",
           scratch("hostkinds-hosted.hibr"), scratch("hostkinds-inproc.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(27)
+report(23)
