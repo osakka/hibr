@@ -119,8 +119,19 @@ def carriage(desk=DESK):
     views |= set(w.split(":")[0] for arm in re.findall(r"^\s*([a-z0-9| :]+)\)", m.group(0) if m else "", re.M)
                  for w in arm.replace(" ", "").split("|") if w)
     runs = set(re.findall(r"\b(dt_[a-z]+)\b", rt))
+    # A tree whose dt_appfn itself sends a hosted owner's call across routes
+    # every call through the seam by owner -- a told kind, an ask, a handed
+    # callback, a hook -- but never a pushed one: a frame cannot wait on a
+    # call, so a kind met by a push is carried only where it is pushed.
+    seam = code("\n".join(src("wm/seam.hibr", desk)))
+    m = re.search(r"^dt_appfn\(\).*$", seam, re.M)
+    byowner = bool(m and re.search(r"\bdt_rv|DT_RTHOST", m.group(0)))
+    met = {}
     sites = collections.defaultdict(list)
     for l in open(os.path.join(desk, "seamcalls.tsv")):
+        if l.startswith("#kind"):
+            c = l.rstrip("\n").split("\t")
+            met[c[1]] = c[2]
         if l.startswith("#") or not l.strip():
             continue
         f, ln, fn, seam, cb, kind = l.rstrip("\n").split("\t")[:6]
@@ -132,12 +143,15 @@ def carriage(desk=DESK):
             ok = True
         else:
             ok = bool(re.search(r"DT_RV[A-Z]*\[|\$hv\b", code(fnspan(src(f, desk), int(ln)))))
-        sites[kind].append(ok)
+        sites[kind].append(ok or ("owner" if byowner and seam != "sv_call" else False))
     # A kind dt_rvhas refuses by name is refused however it is called; one
     # whose sites route a hosted window in some places and not others is
     # partly carried, which is a need (the unrouted sites are named).
     out = {}
     for k, v in sites.items():
+        if met.get(k) == "push":
+            v = [x is True for x in v]
+        v = [bool(x) for x in v]
         out[k] = "yes" if all(v) and k.lstrip("_") not in refused else ("partly" if any(v) else "no")
     for k in refused:
         out["_" + k] = "no"
@@ -362,7 +376,7 @@ class Audit:
 
     def calls(self, f):
         try:
-            facts = records(f, "calls", arguments=("dt_app", "dt_note", "dt_notep", "dt_notify", "dt_notifyp")
+            facts = records(f, "calls", arguments=("dt_app", "dt_note", "dt_notep", "dt_notify", "dt_notifyp", "dt_has", "command")
                             + tuple(PICTURES)).get("calls", [])
         except Exception as e:
             return None
@@ -395,6 +409,16 @@ class Audit:
             if facts is None:
                 need["change:unreadable"].append(os.path.basename(f))
                 continue
+            # What each function asks is there before it calls it (dt_has,
+            # command -v): a name it guards may live in another installable
+            # this audit does not read, so it is no vanished function.
+            guarded = set()
+            for c in facts:
+                w = [x.get("text") for x in (c.get("arguments") or [])]
+                if c.get("name") == "dt_has" and w:
+                    guarded.add((c.get("owner") or "", w[0]))
+                if c.get("name") == "command" and w[:1] == ["-v"] and len(w) > 1:
+                    guarded.add((c.get("owner") or "", w[1]))
             for c in facts:
                 n = c.get("name") or c.get("command") or c.get("word")
                 if isinstance(n, dict):
@@ -436,7 +460,8 @@ class Audit:
                             need["handed"].append(n)
                         elif r != "hook:dt_ticker":
                             need[r].append(n)
-                elif (n not in self.defined and "_" in n and n.split("_", 1)[0] + "_" in self.prefixes
+                elif (n not in self.defined and (c.get("owner") or "", n) not in guarded
+                      and "_" in n and n.split("_", 1)[0] + "_" in self.prefixes
                       and c.get("known") == "syntax" and re.fullmatch(r"[a-z][a-z0-9]*_[a-z0-9_]+", n)):
                     need["change:calls a platform function no file defines:" + n].append(
                         "%s:%s" % (os.path.basename(f), c.get("line", "?")))
@@ -516,8 +541,11 @@ def main():
             desk = os.path.join(os.path.abspath(d), "programs", "desktop")
             c, v = carriage(desk)
             more = sorted(k for k in c if c[k] != base.get(k) and c[k] != "no")
-            print("%s: views %s; carried beyond this tree: %s" % (d, " ".join(sorted(v)), " ".join(
-                "%s(%s)" % (k, c[k]) for k in more) or "nothing"))
+            ow = re.search(r"^dt_appfn\(\).*(dt_rv|DT_RTHOST)", open(os.path.join(desk, "wm/seam.hibr")).read(), re.M)
+            print("%s: views %s; carried beyond this tree: %s%s" % (d, " ".join(sorted(v)), " ".join(
+                "%s(%s)" % (k, c[k]) for k in more) or "nothing",
+                " -- its dt_appfn sends every hosted owner's call across, which is counted as carried for every "
+                "kind not met by a push: a route, not proof each kind's answer is handled" if ow else ""))
         return 0
     if "--root" in args:
         base = os.path.abspath(args[args.index("--root") + 1])
