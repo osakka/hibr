@@ -69,6 +69,7 @@ fn mnapp_open(int id, arg = "") {
 }
 fn mnapp_draw(int id, int h, int w, int row, int col) {
 	dt_textdraw "$id" 1 1 30 "${MN["$id"]}" "${MN["$id.c"]}" "${MN["$id.on"]}"
+	echo "${MN["$id.on"]}" > %(s)s.mn$id
 }
 fn mnapp_key(int id, k) {
 	[ "${MN["$id.on"]}" = 0 ] && [ "$k" = tab ] || return 1
@@ -82,7 +83,7 @@ mnapp_menus() {
 	dt_menu "Tools"
 	dt_item "Ping" p true
 }
-""")
+""" % {"s": SAID})
 # No field and no _selall: every key it is given is written out.
 open(APPS["keyapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app keyapp "Keys" 6 30
 fn keyapp_draw(int id, int h, int w, int row, int col) {
@@ -389,6 +390,11 @@ for f in os.listdir(os.path.dirname(SAID)):
     if f.startswith(os.path.basename(SAID) + "."):
         os.unlink(os.path.join(os.path.dirname(SAID), f))
 
+# Open issue 1 (dt_holdsess is not in an app's own process), reached here by
+# a job started there (dt_jobname); and a 2 MiB cut held on purpose, which
+# its process takes past the stall mark to measure, make and put back.
+expect(r"dt_holdsess: command not found")
+expect(r"held: input:(big|cut)app has not answered")
 t = session("hosted", REG)
 
 # --- A field in a hosted window, and the Edit menu ------------------------
@@ -420,10 +426,15 @@ check("after typing in it, Undo is offered", m.get("Undo") == "0", (m, read(".fi
 host(t, "mnapp")
 do(t, "MA := dt_new MenuA 6 40 14 2 mnapp")
 do(t, "MW := dt_new MenuB 6 40 14 60 mnapp")
-waitfor(t, '[ -n "${DT_RVC[$MA]-}" ] && [ -n "${DT_RVC[$MW]-}" ]', 8)
+ma, mw = result(t, 'echo "$MA"'), result(t, 'echo "$MW"')
+until(t, ".mn" + ma, lambda s: s == "0", 8)       # each opened in its process and drawn
+until(t, ".mn" + mw, lambda s: s == "0", 8)
 do(t, "dt_raise $MA")
 t.send(b"\t", settle=0.4, collect=0.4)            # into the first window's field
-waitfor(t, '[ "${DT_RVMENU["menus:mnapp"]["id"]-}" = "$MA" ] && [ "${DT_RVMENU["menus:mnapp"]["field"]-}" = 1 ]', 6)
+until(t, ".mn" + ma, lambda s: s == "1", 6)
+check("tab into the first window's field: its process says the field is live, with its menus",
+      waitfor(t, '[ "${DT_RVMENU["menus:mnapp"]["id"]-}" = "$MA" ] && [ "${DT_RVMENU["menus:mnapp"]["field"]-}" = 1 ]', 6),
+      (read(".mn" + ma), read(".mn" + mw), result(t, 'echo "focus=$DT_FOCUS MA=$MA MW=$MW id=${DT_RVMENU["menus:mnapp"]["id"]-} field=${DT_RVMENU["menus:mnapp"]["field"]-}"')))
 do(t, "TST_STRAY=1; dt_raise $MW")
 waitfor(t, '[ "${DT_RVMENU["menus:mnapp"]["id"]-}" = "$MW" ]', 6)
 t.collect(1.5)
@@ -436,7 +447,9 @@ do(t, "dt_raise $MA")
 waitfor(t, '[ "${DT_RVMENU["menus:mnapp"]["id"]-}" = "$MA" ] && [ "${DT_RVMENU["menus:mnapp"]["field"]-}" = 1 ]', 6)
 bar, m = result(t, "tst_bar"), edit(t)
 check("and back in the first window, its field is live again: Copy offered, with the app's menus",
-      "Tools" in bar.split(";") and m.get("Copy") == "0" and read(".stray") == "", (bar, m, read(".stray")))
+      "Tools" in bar.split(";") and m.get("Copy") == "0" and read(".stray") == "",
+      (bar, m, read(".stray"), read(".mn" + ma),
+       result(t, 'echo "focus=$DT_FOCUS id=${DT_RVMENU["menus:mnapp"]["id"]-} field=${DT_RVMENU["menus:mnapp"]["field"]-}"')))
 do(t, "TST_STRAY=; dt_del $MA; dt_del $MW")
 
 # --- Select All with no field and no _selall ------------------------------
@@ -480,20 +493,22 @@ do(t, "dt_del $X")
 
 # --- Long as text, or long only on the wire -------------------------------
 host(t, "spcapp")
+# Both open before either closes: an app with no ticker ends its process
+# with its last window, and a window opened as it ends is not this test's.
+do(t, "P := dt_new Spaces 6 30 3 90 spcapp")
+until(t, ".spc" + result(t, 'echo "$P"'), lambda s: s == "400000", 15)
 do(t, "L := dt_new Letters 6 30 3 60 spcapp")
 until(t, ".spc" + result(t, 'echo "$L"'), lambda s: s == "300000", 15)
 t.send(b"\x1bc", settle=0.5, collect=0.5)          # Copy
 check("a copy of 300,000 characters reaches the clipboard whole (control)",
       waitfor(t, '[ "${#DT_CLIP}" = 300000 ]', 10), result(t, 'echo "${#DT_CLIP}"'))
-do(t, "dt_del $L")
-do(t, "P := dt_new Spaces 6 30 3 60 spcapp")
-until(t, ".spc" + result(t, 'echo "$P"'), lambda s: s == "400000", 15)
+do(t, "dt_raise $P")
 t.send(b"\x1bc", settle=0.5, collect=0.5)          # Copy
 check("a copy of 400,000 spaces, three times that on the wire, is refused with a note, the connection kept",
       waitfor(t, '[ "${DT_NOTEQ[$((DT_NOTE_NEXT - 1))]["text"]-}" = "Too much to copy at once: 400000 characters" ]', 10)
       and result(t, 'echo "${DT_RVC[$P]-none}"') not in ("-", "none", ""),
       (lastnote(t), result(t, 'echo "[${DT_RVC[$P]-none}]"'), log(t)[-600:]))
-do(t, "dt_del $P")
+do(t, "dt_del $L; dt_del $P")
 
 # --- A process kept with no window ----------------------------------------
 host(t, "spinapp")
@@ -530,4 +545,4 @@ check("one kept for a quiet ticker and a job that sleeps is never named (control
       read(".cjob") == "0" and "resident:calmapp" not in log(t), (read(".cjob"), log(t)[-800:]))
 
 t.close()
-report(21)
+report(22)
