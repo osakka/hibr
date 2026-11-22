@@ -129,7 +129,6 @@ local	dt_rowtext	wm/menubuild.hibr	8	2	told	-	dt_rowtext(text)	-	-
 local	dt_keyis	wm/keymatch.hibr	7	3	waited	-	dt_keyis(what, key)	-	-
 local	dt_imgm	wm/picmode.hibr	6	6	told	-	dt_imgm(mode = "")	-	-
 local	dt_pname	wm/prayertimes.hibr	6	4	asked	-	dt_pname(int i)	-	-
-local	dt_live	wm/loop.hibr	6	2	told	-	dt_live(int id, on = "")	-	-
 local	dt_putruns	widgets/putruns.hibr	6	6	told	-	dt_putruns(int id, int row, int col, text, runs, int off, int room, face, pens)	-	-
 local	tb_snap	widgets/textarea.hibr	6	2	told	-	tb_snap(int id, kind)	-	-
 local	tb_changed	widgets/textarea.hibr	6	2	told	-	tb_changed(int id)	-	-
@@ -300,6 +299,7 @@ request	dt_baristop	wm/bar.hibr	8	8	told	-	dt_baristop(name, fn)	-	-
 request	dt_vwcopy	wm/vault.hibr	7	3	told	-	dt_vwcopy(field, id)	-	-
 request	dt_baripop	wm/bar.hibr	7	7	told	-	dt_baripop(name, who, int h, int w)	-	-
 request	dt_resize	wm/windows.hibr	6	4	waited	-	dt_resize(int id, int h, int w)	-	-
+request	dt_live	wm/loop.hibr	6	2	told	-	dt_live(int id, on = "")	-	-
 request	dt_termhere	wm/handlers.hibr	6	2	told	-	dt_termhere(dir)	-	-
 request	dt_fileop	wm/copying.hibr	6	2	told	-	dt_fileop(op, dst, ...rest)	-	-
 request	dt_openlink	wm/apps.hibr	6	4	told	-	dt_openlink(u)	-	-
@@ -382,6 +382,7 @@ request	dt_clipkeep	wm/clip.hibr	2	2	told	-	dt_clipkeep(text, kind = text)	-	-
 request	dt_noteseen	wm/notify.hibr	2	2	told	-	dt_noteseen()	0.99.555	-
 request	dt_notehist_run	wm/notify.hibr	2	2	waited	-	dt_notehist_run(int hid)	-	-
 request	dt_appunvia	wm/apps.hibr	1	1	told	-	dt_appunvia(via)	-	-
+request	dt_winprog	wm/rtfail.hibr	1	1	told	-	dt_winprog(int id, int pid)	0.99.558	-
 request	dt_termrun	wm/handlers.hibr	1	1	told	-	dt_termrun(how = "", arg = "", ...cmd)	0.99.558	-
 request	fp_drop	wm/filepick.hibr	1	1	told	-	fp_drop(int id)	0.99.555	-
 request	fp_set	wm/filepick.hibr	1	1	told	-	fp_set(int id, ...pairs)	0.99.555	-

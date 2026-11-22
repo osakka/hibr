@@ -61,6 +61,13 @@ DT_RVQUIETC=
 # waiting for its app processes, and has had what it waited for.
 declare -gA DT_RVKEEP DT_RVRESUME
 DT_RVKEEPMS="${DT_RVKEEPMS-2000}"
+# What a restart keeps (dt_rvstashall): each app process's connection and the
+# launch it joins the desktop after the exec with, and whether the zygote.
+declare -gA DT_RSKEEPC
+DT_RSZKEEP=
+# A window restored for an app process a restart kept, which already holds
+# it: bound to that process again, never opened there (dt_rvbind).
+declare -gA DT_RVHELD
 DT_RSKEEPING=
 DT_RSKEPT=
 
@@ -164,7 +171,10 @@ fn dt_rvbind(int id) {
 	# app was started again -- its _open is told there, with nothing for
 	# one that was not just made: that process holds nothing of it yet, as
 	# a window a restart could not carry is opened fresh in-process.
-	[ -z "$new" ] || [ -n "${DT_RVOPEN[$id]+x}" ] || DT_RVOPEN[$id]=
+	# A window a restart kept with its process holds all of it there
+	# already, and is opened again nowhere (DT_RVHELD).
+	[ -z "$new" ] || [ -n "${DT_RVOPEN[$id]+x}" ] || [ -n "${DT_RVHELD[$id]+x}" ] || DT_RVOPEN[$id]=
+	unset DT_RVHELD[$id]
 	DT_RVC[$id]=$c
 	DT_RVARGS[$id]=$a
 	DT_RVDIRTY[$id]=1
@@ -178,7 +188,7 @@ fn dt_rvbind(int id) {
 	dt_rtsay "$c" "$x"
 	if [ -n "${DT_RVRESUME[$id]+x}" ]; then
 		DT_RVSEQ=$((DT_RVSEQ + 1))
-		DT_RVKEEP[$DT_RVSEQ]="resume $id $((${EPOCHREALTIME/./} / 1000 + DT_RTPTYSECS * 1000))"
+		DT_RVKEEP[$DT_RVSEQ]="resume $id $((${EPOCHREALTIME/./} / 1000 + DT_RTLAUNCHSECS * 1000))"
 		dt_rvsend "$id" "$DT_RVSEQ" resume "${DT_RVRESUME[$id]}"
 		unset DT_RVRESUME[$id] DT_RVOPEN[$id]
 		dt_want 100
@@ -194,11 +204,33 @@ fn dt_rvbind(int id) {
 # dt_rtstash). Status 0 when something was asked, and the restart waits for
 # the answers (dt_rvkept) or DT_RVKEEPMS, never longer; 1 when nothing was.
 fn dt_rvstashall(dir) {
-	local id c n=0
+	local id c n=0 x
 
+	# Kept, or replaced: decided per process, by one rule (the owner,
+	# 2026-11-22) -- one whose code is what is on disk stays, its
+	# connection to join the desktop after the exec (`call SEQ - carry
+	# TOKEN`, runtime.hibr's dt_rtrejoin), and with any kept the zygote
+	# stays too; every other one's windows keep their state for a fresh
+	# process (stash). Its terminals' programs live on either way.
+	DT_RSKEEPC=()
+	DT_RSZKEEP=
+	if dt_rtcurrent; then
+		DT_RSZKEEP=1
+		for c in "${!DT_RTC[@]}"; do
+			[ "${DT_RTC["$c"]}" != - ] && dt_rtappcurrent "$c" || continue
+			x := dt_rttoken
+			DT_RSKEEPC["$c"]=$x
+			DT_RVSEQ=$((DT_RVSEQ + 1))
+			DT_RVKEEP[$DT_RVSEQ]="carry $c $((${EPOCHREALTIME/./} / 1000 + DT_RVKEEPMS))"
+			x := dt_rtline call "$DT_RVSEQ" - carry "$x"
+			dt_rtsay "$c" "$x" || continue
+			n=$((n + 1))
+		done
+	fi
 	for id in "${!DT_RVC[@]}"; do
 		c=${DT_RVC[$id]}
 		[ -n "$c" ] && [ "$c" != - ] && [ -n "${DT_RTC["$c"]+x}" ] || continue
+		[ -z "${DT_RSKEEPC["$c"]+x}" ] || continue
 		DT_RVSEQ=$((DT_RVSEQ + 1))
 		DT_RVKEEP[$DT_RVSEQ]="stash $id $((${EPOCHREALTIME/./} / 1000 + DT_RVKEEPMS))"
 		dt_rvsend "$id" "$DT_RVSEQ" stash "$dir"
@@ -206,28 +238,32 @@ fn dt_rvstashall(dir) {
 	done
 	[ "$n" -gt 0 ] || return 1
 	DT_RSKEEPING=1
-	dt_rslog "restart: waits for $n windows drawn by their apps' processes to keep their state"
+	dt_rslog "restart: waits for $n answers from apps' processes, ${#DT_RSKEEPC[@]} of them kept"
 	dt_want 100
 	return 0
 }
 
-# An answer to a stash or a resume, or its time up (st empty). The last
-# stash answered lets the restart go on; the last resume, the files the
-# windows were carried in go.
+# An answer to a carry, a stash or a resume, or its time up (st empty). A
+# process that did not take its carry is replaced after all, its windows
+# opened fresh. The last carry or stash answered lets the restart go on;
+# the last resume, the files the windows were carried in go.
 fn dt_rvkept(seq, st = "") {
 	local kind id k
 
 	read -r kind id _ <<< "${DT_RVKEEP["$seq"]}"
 	unset DT_RVKEEP["$seq"]
 	if [ -z "$st" ]; then
-		dt_rslog "window $id ($kind): its app's process did not answer in time"
+		dt_rslog "${kind/carry/process} $id ($kind): its app's process did not answer in time"
 	elif [ "$st" != 0 ]; then
-		dt_rslog "window $id ($kind): its app's process answered $st"
+		dt_rslog "${kind/carry/process} $id ($kind): its app's process answered $st"
 	fi
+	[ "$kind" != carry ] || [ "$st" = 0 ] || unset DT_RSKEEPC["$id"]
 	for k in "${DT_RVKEEP[@]}"; do
-		[ "${k%% *}" = "$kind" ] && return 0
+		case $kind:${k%% *} in
+		resume:resume | stash:stash | stash:carry | carry:stash | carry:carry) return 0 ;;
+		esac
 	done
-	if [ "$kind" = stash ] && [ -n "$DT_RSKEEPING" ]; then
+	if [ "$kind" != resume ] && [ -n "$DT_RSKEEPING" ]; then
 		DT_RSKEEPING=
 		DT_RSKEPT=1
 		dt_restart

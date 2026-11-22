@@ -411,18 +411,17 @@ check("input typed behind a held key waits for its answer and goes where the "
       "key's action sends it", opened and dk == ["escape"], (opened, dk, said(t, "hosted:")))
 do(t, "dt_mclose")
 
-# -- Restart Desktop: the app's process ends with the socket it spoke on,
-# waited for by its zygote, and the desktop after the exec finds the zygote
-# -- its own child, the app processes' parent -- by its pid and sees it end.
+# -- Restart Desktop keeps an app process whose code is what is on disk (the
+# owner, 2026-11-22): it joins the restarted desktop, and its zygote -- the
+# desktop's own child, the app processes' parent -- is kept with it.
 before = log(t).count("quit unexpectedly")
 hp = readpid(".hpid", secs=1)
 zp = result(t, 'echo "$DT_RTZPID"')
 do(t, "dt_restart")
-check("after Restart Desktop the app's process ends and is not left a zombie, "
-      "and its zygote, carried across the exec, is seen to end",
-      (logwait(t, "process %s, carried across the restart, ended with status" % zp, 10)
-       or logwait(t, "process %s, carried across the restart, had ended before it" % zp, 1))
-      and gone(hp) and gone(zp), (hp, zombie(hp), zp, zombie(zp), said(t, "carried")))
+check("after Restart Desktop an app process whose code is current is kept and "
+      "joins the restarted desktop, its zygote kept with it",
+      logwait(t, "joined the restarted desktop", 10) and not gone(hp) and not gone(zp)
+      and result(t, 'echo "$DT_RTZPID"') == zp, (hp, zombie(hp), zp, zombie(zp), log(t)[-800:]))
 check("and a restart is no app quitting: no note, nothing reopened",
       log(t).count("quit unexpectedly") == before and "reopened" not in log(t)[log(t).find("restarting into"):],
       log(t)[-600:])

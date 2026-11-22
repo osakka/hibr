@@ -235,7 +235,9 @@ fn tw_fit(int id, int h, int w) {
 	tsess := dt_holdsess
 	pt := dt_procfull term "$tsess" "$id" "$pt"
 	if [ -z "${TW[$id]["t"]}" ]; then
-		if [ -n "${TW[$id]["argvn"]}" ]; then
+		if [ -n "${DT[$id]["prog"]-}" ] && [ -z "${TW[$id]["took"]-}" ] && tw_takeback "$id" "$h" "$w"; then
+			:
+		elif [ -n "${TW[$id]["argvn"]}" ]; then
 			n=${TW[$id]["argvn"]}
 			i=0
 			while [ "$i" -lt "$n" ]; do
@@ -261,6 +263,12 @@ fn tw_fit(int id, int h, int w) {
 		[ -n "$DT_CURSOR" ] && term cursor "${TW[$id]["t"]}" "$DT_CURSOR"
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
+		# Said to the desktop, which owns it when this window is drawn by
+		# the app's own process (ADR 0050): kept for Reopen should that
+		# process go, as the window's record names it.
+		local prog
+		prog := term pid "${TW[$id]["t"]}"
+		[ -z "$prog" ] || [ "$prog" = "${DT[$id]["prog"]-}" ] || dt_winprog "$id" "$prog"
 		# console key's own wait now watches this pty's master fd
 		# alongside real input, so the desktop wakes the instant the
 		# program inside writes something -- a key's echo included --
@@ -281,6 +289,22 @@ fn tw_fit(int id, int h, int w) {
 		TW[$id]["h"]=$h
 		TW[$id]["w"]=$w
 	fi
+	return 0
+}
+
+# The program the desktop kept for this window when its app's process went
+# (ADR 0050): taken back by its pid, once, as Reopen opens the window again,
+# not started afresh. Status 1 when it cannot be, and a new one is started.
+fn tw_takeback(int id, int h, int w) {
+	local p t
+
+	TW[$id]["took"]=1
+	p := pty adopt -1 "${DT[$id]["prog"]}" "$h" "$w" 2> /dev/null || return 1
+	if ! t := term adopt -r "$h" -c "$w" "$p"; then
+		pty close "$p"
+		return 1
+	fi
+	TW[$id]["t"]=$t
 	return 0
 }
 

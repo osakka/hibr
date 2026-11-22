@@ -331,17 +331,30 @@ fn dt_rvended(int pid, st = "") {
 	return 0
 }
 
+# The program a hosted window shows, said by its app's process once it has
+# started one there (a Terminal's): the desktop owns it (ADR 0050), and keeps
+# it while the window's record names it -- after the app crashed too, for
+# Reopen to take back. Only an app's own process names one; a window drawn
+# here has its program as this process's own child.
+fn dt_winprog(int id, int pid) {
+	[ -n "${DT_RTFROM-}" ] && [ -n "${DT[$id]["row"]+x}" ] || return 0
+	DT[$id]["prog"]=$pid
+	return 0
+}
+
 # Start an app whose process has gone again: what Reopen does, from the
 # note or at once. Its kept windows give way to fresh ones in the same
-# places, since what they held was the process's and went with it; with
-# none left it opens as a launch does.
+# places, since what they held was the process's and went with it -- all
+# but the program a window showed, which the desktop kept (dt_winprog) and
+# the fresh window is given to take back; with none left it opens as a
+# launch does.
 fn dt_rvreopen(ap) {
-	local id g h w r c t
+	local id g h w r c t n p
 	local -a geo
 
 	for id in "${!DT_RVC[@]}"; do
 		[ "${DT_RVC[$id]}" = - ] && [ "${DT[$id]["app"]-}" = "$ap" ] || continue
-		geo+=("${DT[$id]["h"]} ${DT[$id]["w"]} ${DT[$id]["row"]} ${DT[$id]["col"]}")
+		geo+=("${DT[$id]["h"]} ${DT[$id]["w"]} ${DT[$id]["row"]} ${DT[$id]["col"]} ${DT[$id]["prog"]--}")
 		DT_RVCLOSE[$id]=done
 		dt_del "$id"
 	done
@@ -355,8 +368,9 @@ fn dt_rvreopen(ap) {
 		return 0
 	fi
 	for g in "${geo[@]}"; do
-		read -r h w r c <<< "$g"
-		dt_new "${DT_APPS["$ap"]["title"]}" "$h" "$w" "$r" "$c" "$ap"
+		read -r h w r c p <<< "$g"
+		n := dt_new "${DT_APPS["$ap"]["title"]}" "$h" "$w" "$r" "$c" "$ap" || continue
+		[ "$p" = - ] || DT[$n]["prog"]=$p
 	done
 	return 0
 }

@@ -167,12 +167,52 @@ dt_restart() {
 	return 1
 }
 
+# What a restart keeps across its exec (ADR 0050), written into the state:
+# the zygote, when its code is current, its channel crossing as an
+# inheritable copy; each app process kept with it, by the launch it joins
+# the restarted desktop with -- its app, pid and stamp, and its terminals'
+# channel crossing the same way (DT_RSKEEPF, the old descriptor to the
+# copy). Otherwise the zygote is one more of this desktop's children the
+# desktop after it sees end (dt_rvcarried).
+declare -gA DT_RSKEEPF
+dt_rskeep() {
+	local c t ap fd x j
+
+	DT_RSKEEPF=()
+	if [ -z "$DT_RSZKEEP" ] || [ -z "$DT_RTZFD" ]; then
+		j := dt_rvpids
+		json set DT_RS .hosts "$j" -s
+		return 0
+	fi
+	exec {x}<&"$DT_RTZFD"
+	json set DT_RS .zfd "$x"
+	json set DT_RS .zpid "$DT_RTZPID"
+	json set DT_RS .zstamp "$DT_RTZSTAMP" -s
+	json parse DT_RS["kept"] "{}"
+	for c in "${!DT_RSKEEPC[@]}"; do
+		[ -n "${DT_RTC["$c"]+x}" ] || continue
+		t=${DT_RSKEEPC["$c"]}
+		ap=${DT_RTC["$c"]}
+		json set DT_RS ".kept.$t.app" "$ap" -s
+		json set DT_RS ".kept.$t.pid" "${DT_RTCPID["$c"]-}" -s
+		json set DT_RS ".kept.$t.stamp" "${DT_RTCSTAMP["$c"]-}" -s
+		json set DT_RS ".kept.$t.file" "${DT_APPS["$ap"]["src"]-}" -s
+		for fd in "${!DT_RTPTYC[@]}"; do
+			[ "${DT_RTPTYC["$fd"]}" = "$ap" ] || continue
+			exec {x}<&"$fd"
+			DT_RSKEEPF["$fd"]=$x
+			json set DT_RS ".kept.$t.pty" "$x" -s
+		done
+	done
+	return 0
+}
+
 # Write the desktop down as dt_restore reads it. carry 1 is a restart: each
 # app's _stash runs, and a terminal's program crosses the exec. carry 0 is a
 # snapshot for after a crash or a stop, when nothing can cross: no _stash,
 # and the file says so, so those windows reopen fresh.
 fn dt_rswrite(f, int carry, why = "restart") {
-	local id ap m j k l
+	local id ap m j k l c n r w
 	local -a ms
 
 	k := console consumed
@@ -213,6 +253,11 @@ fn dt_rswrite(f, int carry, why = "restart") {
 		# hands the window to it to take up.
 		if [ -n "${DT_RVC[$id]+x}" ]; then
 			json set DT_RS ".hosted.$id" "$ap" -s
+			# Its process kept, which still holds it (dt_rvstashall):
+			# bound to it again, never opened or taken up.
+			c=${DT_RVC[$id]}
+			[ "$carry" = 1 ] && [ -n "$c" ] && [ -n "${DT_RSKEEPC["$c"]+x}" ] &&
+				json set DT_RS ".keepw.$id" "${DT_RSKEEPC["$c"]}" -s
 		elif [ "$carry" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
 			dt_appfn "$ap" "${ap}_stash" "$id" "$DT_RSDIR"
 		fi
@@ -240,15 +285,21 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	# children across the exec, so the desktop after it finds each by its
 	# pid and sees it end (dt_rvcarried) rather than leaving it a zombie.
 	if [ "$carry" = 1 ]; then
-		j := dt_rvpids
-		json set DT_RS .hosts "$j" -s
+		dt_rskeep
 		# And every terminal's program the desktop owns for an app's
-		# process, "fd pid app" a line: its master crosses the exec, and
-		# the desktop after it holds it until that app's fresh process
+		# process, "fd pid id chan rows cols app" a line: its master
+		# crosses the exec, and the desktop after it holds it for the
+		# process that held it, kept, or until that app's fresh process
 		# asks for it by its pid.
 		if [ -n "$DT_RTZPID" ] && command -v pty > /dev/null; then
 			j := pty owned
-			json set DT_RS .ptys "$j" -s
+			l=
+			while read -r m n k c r w ap; do
+				[ -n "$ap" ] || continue
+				c=${DT_RSKEEPF["$c"]:--1}
+				l+="$m $n $k $c $r $w $ap"$'\n'
+			done <<< "$j"
+			json set DT_RS .ptys "${l%$'\n'}" -s
 		fi
 	fi
 	# Through a file of this process's own, then renamed: a desktop and
@@ -280,7 +331,7 @@ fn dt_rslog(text) {
 # Called from dt_open, before a session file's own windows; DT_RESTORED
 # tells a session file that would open some that they are already there.
 dt_restore() {
-	local f=$DT_RESTORE id ap m j p e
+	local f=$DT_RESTORE id ap m j p e t x k c r w
 	local -a ms ps
 
 	[ -n "$f" ] || return 0
@@ -314,13 +365,44 @@ dt_restore() {
 	# The terminals' programs the desktop owned for app processes (ADR
 	# 0050): each held, by no process yet, until its app's fresh process
 	# asks for it.
+	# The zygote and the app processes kept (ADR 0050): the zygote's channel
+	# taken up where the exec left it, and each kept process expected back
+	# by the launch it was given, joining as a fresh one says hello.
+	if [ -n "${DT_RS["zfd"]-}" ] && need zygote 2> /dev/null; then
+		DT_RTZFD=${DT_RS["zfd"]}
+		DT_RTZPID=${DT_RS["zpid"]}
+		DT_RTZSTAMP=${DT_RS["zstamp"]-}
+		DT_RTZOK=1
+		command -v console > /dev/null && console watch -i "$DT_RTZFD" 2> /dev/null
+		for t in "${!DT_RS["kept"][@]}"; do
+			ap=${DT_RS["kept"]["$t"]["app"]}
+			DT_RTLAUNCH["$t"]=$ap
+			DT_RTLFILE["$t"]=${DT_RS["kept"]["$t"]["file"]-}
+			DT_RTLTIME["$t"]=$EPOCHSECONDS
+			DT_RTLPID["$t"]=${DT_RS["kept"]["$t"]["pid"]-}
+			DT_RTLSTAMP["$t"]=${DT_RS["kept"]["$t"]["stamp"]-}
+			x=${DT_RS["kept"]["$t"]["pty"]-}
+			[ -z "$x" ] || DT_RTPTYC["$x"]=$ap
+			[ -z "$x" ] || ! command -v console > /dev/null || console watch -i "$x" 2> /dev/null
+			# Its panes, modules, savers and bar items are its process's,
+			# as when it was first started (wm/rtkinds.hibr).
+			if [ -n "${DT_APPS["$ap"]["src"]-}" ]; then
+				dt_rvpendapp "$ap"
+			elif [ -n "${DT_RTLFILE["$t"]}" ]; then
+				dt_rvpendfile "${DT_RTLFILE["$t"]}"
+			fi
+			dt_rslog "app process ${DT_RTLPID["$t"]:-?} ($ap) kept"
+		done
+		dt_rtlisten
+	fi
 	if [ -n "${DT_RS["ptys"]-}" ] && need pty 2> /dev/null; then
-		while read -r m p e; do
+		while read -r m p k c r w e; do
 			[ -n "$e" ] || continue
-			pty adopt -o "$e" "$m" "$p" > /dev/null 2>&1 && DT_RTPTYN=1
+			pty adopt -o "$e" "$m" "$p" "$r" "$w" "$k" "$c" > /dev/null 2>&1 && DT_RTPTYN=1
 		done <<< "${DT_RS["ptys"]}"
-		# Listening is what serves and hangs them up, whether or not a
-		# window of theirs comes back.
+		# Listening is what serves them; each held by no process is kept
+		# while a window names it (dt_rtptytick).
+		DT_RTPTYLONE=1
 		[ -z "$DT_RTPTYN" ] || dt_rtlisten
 	fi
 	for id in "${!DT_RS["win"][@]}"; do
@@ -351,7 +433,9 @@ dt_restore() {
 			dt_rvnew "$id" "$ap"
 			dt_hooks "$id" "$ap"
 			DT[$id]["autoclose"]=
-			if [ "${DT_RS["fresh"]}" = 1 ]; then
+			if [ -n "${DT_RS["keepw"]["$id"]-}" ]; then
+				DT_RVHELD[$id]=1
+			elif [ "${DT_RS["fresh"]}" = 1 ]; then
 				DT_RVOPEN[$id]=
 			else
 				DT_RVRESUME[$id]=$DT_RSDIR

@@ -48,7 +48,7 @@ for _n in """dt_log dt_cut dt_rep dt_isdbl dt_dblclear dt_shortname dt_procfull
         dt_watchstop dt_watchlines dt_buson dt_busoff dt_keepstate dt_needs
         dt_vwstate dt_vwcopy dt_vwlock dt_vwacct dt_vwuntil dt_vwjob dt_vw dt_vwget
         dt_vwpick dt_vwhost dt_vwmatch dt_vwsyncnow dt_signmark dt_pwlocal
-        dt_pwitems dt_live dt_size dt_fieldedit dt_edit dt_isblank dt_jobname
+        dt_pwitems dt_size dt_fieldedit dt_edit dt_isblank dt_jobname
         dt_isdark dt_hoveron dt_natcell dt_kblabel dt_keyphases dt_appnames
         dt_stale dt_passmark""".split():
     OVERRIDE[_n] = "local"
@@ -71,6 +71,12 @@ for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loc
         dt_rslog dt_rscarry dt_rsclaim dt_wallretry dt_wallforget
         cs_modwidth dt_progput dt_proghide dt_progdrop dt_statadd dt_pwcrit""".split():
     OVERRIDE[_n] = "request"
+# A window playing video is the desktop's to know, whose frames it holds to
+# DT_LIVEMS, and its own process's too, which holds its draws the same way:
+# told to the desktop and kept where it is said (runtime.hibr, dt_rtsend).
+OVERRIDE["dt_live"] = "request"
+# The program a hosted window shows is the desktop's to keep (wm/rtfail.hibr).
+OVERRIDE["dt_winprog"] = "request"
 for _n in "dt_wintitle dt_ext dt_chromeoff".split():
     OVERRIDE[_n] = "local"
 # The desktop laying itself out again, its Copy/Cut/Paste dispatcher, and a

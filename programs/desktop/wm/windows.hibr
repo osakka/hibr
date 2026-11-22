@@ -154,6 +154,9 @@ fn dt_del(int id) {
 	command -v dt_searchfree > /dev/null && dt_searchfree "$id"
 	[ -n "$DT_PHASEUSED" ] && dt_keyletgo "$id"
 	unset DT_LIVE["$id"]
+	# A terminal's program the desktop owns for it may now be named by
+	# no window (wm/rtserve.hibr).
+	[ -z "${DT[$id]["prog"]-}" ] || DT_RTPTYLONE=1
 
 	DT_NOTEWIN=$id
 	[ -n "$hv" ] || [ -z "${DT[$id]["close"]}" ] || dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["close"]} "$id"

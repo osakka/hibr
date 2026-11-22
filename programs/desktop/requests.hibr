@@ -340,6 +340,11 @@ dt_launched() {
 	dt_rtsend tell dt_launched "$@"
 }
 
+# Told to the desktop, wm/loop.hibr.
+fn dt_live(int id, on = "") {
+	dt_rtsend tell dt_live "$id" "$on"
+}
+
 # Told to the desktop, wm/locations.hibr.
 fn dt_location(scheme, prefix, app = "") {
 	dt_rtsend tell dt_location "$scheme" "$prefix" "$app"
@@ -758,6 +763,11 @@ fn dt_wantclose(int id) {
 # Told to the desktop, wm/windows.hibr.
 fn dt_wincolours(int id, bg, fg) {
 	dt_rtsend tell dt_wincolours "$id" "$bg" "$fg"
+}
+
+# Told to the desktop, wm/rtfail.hibr.
+fn dt_winprog(int id, int pid) {
+	dt_rtsend tell dt_winprog "$id" "$pid"
 }
 
 # Told to the desktop, wm/workspaces.hibr.

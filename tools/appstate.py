@@ -444,6 +444,13 @@ def reach():
         r = reached(fn, {fn})
         for n in names:
             byname[n] |= r
+    # The app runtime is every app process's own loop: what it reads, in a
+    # function or not -- DT_TERMMS for its hold, DT_LIVEMS for a live
+    # window's -- it reads in every process, so every process is sent it.
+    for d in inspect("vars", [os.path.join(DESK, "runtime.hibr")]):
+        for v in d.get("vars", []):
+            if v.get("access") == "read" and v.get("declared") not in ("local", "param"):
+                star.add(v["name"])
     return star, byname
 
 

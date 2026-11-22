@@ -977,9 +977,30 @@ long cw_flush(void)
 	return n;
 }
 
-/* Make this console an app's own, its records to fd. */
+/* Make this console an app's own, its records to fd. Opened again, it is a
+   channel to another desktop -- one restarted, which kept this app's
+   process (ADR 0050), however its descriptor is numbered -- that has been
+   told nothing yet: every link and translucency is named to it again, every
+   picture said again, and every view sent whole. */
 int cw_open(int fd)
 {
+	size_t i;
+
+	if (cw_afd >= 0) {
+		for (i = 1; i <= CN_CWLINKS; i++)
+			if (cw_lown[i])
+				cw_ldirty[i] = 1;
+		for (i = 1; i <= CN_CWTS; i++)
+			if (cw_ats[i].on)
+				cw_ats[i].dirty = 1;
+		for (i = 0; i < cw_pics.n; i++)
+			((cw_pic *)cw_pics.p[i])->said = 0;
+		for (i = 0; i < cw_avs.n; i++) {
+			((cw_av *)cw_avs.p[i])->sent = 0;
+			((cw_av *)cw_avs.p[i])->drawn = 1;
+		}
+		cw_regrant = 1;
+	}
 	cw_afd = fd;
 	cn_hl = 1;
 	if (!cn_back.c)

@@ -271,6 +271,16 @@ fn dt_rtsend(verb, name, ...args) {
 	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
 	case $verb in
 	tell)
+		# A window playing video is the desktop's to know, which holds
+		# its frames to DT_LIVEMS, and this process's too, which holds its
+		# draws the same way (dt_rtdraw): kept here as well as told.
+		if [ "$name" = dt_live ]; then
+			if [ -n "${args[1]-}" ]; then
+				DT_LIVE["${args[0]-}"]=1
+			else
+				unset DT_LIVE["${args[0]-}"]
+			fi
+		fi
 		# A list of choices goes up built, with the words its namer gives
 		# each value, just before the request that opens it.
 		[ "$name" != dt_context_open ] || [ "${args[0]-}" != widget ] || dt_rtpoplist "${args[1]-}"
@@ -285,6 +295,9 @@ fn dt_rtsend(verb, name, ...args) {
 		;;
 	esac
 	l := dt_rtline "$verb" "$name" "${args[@]}"
+	# What its file says as it is read -- a bar item it puts there, a hook
+	# -- is said again to a restarted desktop it is kept for (dt_rtrejoin).
+	[ -z "${DT_LOADING-}" ] || DT_RTLOADL+=("$l")
 	# A plain send: the desktop never blocks reading, so this never waits
 	# on it, and a full buffer is the right brake on an app that floods.
 	# A desktop that has gone is a status, never a signal.
@@ -292,6 +305,7 @@ fn dt_rtsend(verb, name, ...args) {
 		{ dt_log "app runtime: the desktop has gone"; return 1; }
 	return 0
 }
+DT_RTLOADL=()
 
 # An asked request: `ask SEQ NAME WORDS...`, and this process waits for its
 # answer (owner, 2026-11-19: DT_RTASKMS, 2000 ms). Only the desktop's
@@ -461,6 +475,17 @@ fn dt_rtcall(seq, target, name, ...args) {
 		DT_RTDROPPED["$seq"]=1
 		dt_log "app runtime: the desktop revoked call $seq ($name of window $target) before it ran; dropped"
 		k := dt_rtline took "$seq" 125 - "" ""
+		send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+		return 0
+	fi
+	if [ "$target" = - ] && [ "$name" = carry ]; then
+		# Restart Desktop keeps this process (ADR 0050): its code is what
+		# is on disk, so it stays, and joins the restarted desktop with the
+		# launch this names once its connection ends (dt_rtrejoin).
+		DT_RTCARRY=${args[0]-}
+		dt_log "app runtime: kept across the desktop's restart"
+		[ "$seq" = 0 ] && return 0
+		k := dt_rtline took "$seq" 0 - "" ""
 		send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
 		return 0
 	fi
@@ -839,7 +864,7 @@ fn dt_rtview(name, gen, h, w, kind = "", ...args) {
 # the desktop times a window's draw. A pane, a strip module and a saver are
 # drawn as the desktop draws them (dt_rtkind).
 dt_rtdraw() {
-	local v kind id dh dw or oc ap drew= t0 t now held= dirty= ia
+	local v kind id dh dw or oc ap drew= t0 t now held= dirty= ia hm hold=
 
 	now=${EPOCHREALTIME/./}
 	for v in "${!DT_RTV[@]}"; do
@@ -860,12 +885,17 @@ dt_rtdraw() {
 		# (a key, a click, a view bound) is never held, and neither is the
 		# answer to it: a window's output within DT_ANSWERMS of the input
 		# it was given (a terminal's echo), as the desktop draws the
-		# focused window's at once (dt_answer).
+		# focused window's at once (dt_answer). A window playing video
+		# (dt_live) is held to DT_LIVEMS instead, as the desktop holds
+		# its frames (dt_holdms); 0 holds it like any other output.
 		if [ -z "${DT_RTVNEW["$v"]+x}" ]; then
 			ia=${DT_RTINAT["$v"]:-0}
-			if [ $((now - DT_RTDRAWN)) -lt $((${DT_TERMMS:-70} * 1000)) ] &&
+			hm=${DT_TERMMS:-70}
+			[ -z "${DT_LIVE[$id]-}" ] || [ "${DT_LIVEMS:-0}" -le 0 ] || [ "$DT_LIVEMS" -ge "$hm" ] || hm=$DT_LIVEMS
+			if [ $((now - DT_RTDRAWN)) -lt $((hm * 1000)) ] &&
 			   [ $((now - ia)) -ge $((${DT_ANSWERMS:-300} * 1000)) ]; then
 				held=1
+				[ -n "$hold" ] && [ "$hold" -le "$hm" ] || hold=$hm
 				continue
 			fi
 			dirty=1
@@ -898,7 +928,7 @@ dt_rtdraw() {
 	# still ends the wait at once.
 	if [ -n "$held" ]; then
 		DT_RTQUIET=1
-		dt_want $(((DT_RTDRAWN + ${DT_TERMMS:-70} * 1000 - now) / 1000 + 1))
+		dt_want $(((DT_RTDRAWN + hold * 1000 - now) / 1000 + 1))
 	fi
 	return 0
 }
@@ -1156,6 +1186,63 @@ dt_rtcells() {
 	return 0
 }
 
+# Restart Desktop kept this process (ADR 0050, the owner, 2026-11-22): its
+# code is what is on disk, so it stays, and its connection ended with the
+# desktop's exec. It joins the restarted desktop: the socket is listened at
+# again under the same name; the launch the old desktop named (DT_RTCARRY)
+# says whose it is; the hello sends it every shared name again; what its
+# file said as it was read is said again; and over a cells channel of its
+# own every view it drew is bound again and drawn whole. Its windows, their
+# state and its terminals' programs are as they were -- nothing is opened or
+# taken up again. Status 1 when the desktop has not taken it back within
+# DT_RTREJOINMS, and it ends as a process whose desktop went does.
+DT_RTCARRY=
+DT_RTREJOINMS="${DT_RTREJOINMS-15000}"
+dt_rtrejoin() {
+	local t=$DT_RTCARRY end now l v
+
+	DT_RTCARRY=
+	unset DT_RTBUF["$DT_RTFD"] DT_RTMORE["$DT_RTFD"]
+	exec {DT_RTFD}>&-
+	DT_RTFD=
+	if [ -n "$DT_RTCFD" ]; then
+		console unwatch "$DT_RTCFD" 2> /dev/null
+		exec {DT_RTCFD}>&-
+		DT_RTCFD=
+	fi
+	end=$((${EPOCHREALTIME/./} / 1000 + DT_RTREJOINMS))
+	while :; do
+		# The hello spent the first token and took the name with it.
+		declare -g DT_RTTOKEN=$t
+		dt_rtopen "${DT_RTZAPP:-${DT_RTPFX[0]-}}" && break
+		# Refused -- the restarted desktop has not yet said whose this
+		# launch is -- the connection goes, and it is tried again.
+		if [ -n "$DT_RTFD" ]; then
+			unset DT_RTBUF["$DT_RTFD"] DT_RTMORE["$DT_RTFD"]
+			exec {DT_RTFD}>&-
+			DT_RTFD=
+		fi
+		now=$((${EPOCHREALTIME/./} / 1000))
+		[ "$now" -lt "$end" ] || { dt_log "app runtime: rejoining: $DT_RTSAID"; return 1; }
+		# Quiet: a terminal's program writing meanwhile keeps in its own
+		# buffer, rather than waking this wait at once each time.
+		console key -q 100 > /dev/null
+	done
+	for l in "${DT_RTLOADL[@]}"; do
+		send "$DT_RTFD" "$l" 2> /dev/null || return 1
+	done
+	for v in "${!DT_RTV[@]}"; do
+		DT_RTVNEW["$v"]=1
+	done
+	dt_rtcells || return 1
+	for v in "${!DT_RTV[@]}"; do
+		console cells again "$v" 2> /dev/null
+	done
+	console watch -i "$DT_RTFD" || return 1
+	dt_log "app runtime: joined the restarted desktop"
+	return 0
+}
+
 # A window being carried to a fresh process (a Restart Desktop, ADR 0050):
 # the app's own _stash, then each map it keeps the window's state in,
 # written beside what _stash saved as rt-ID.json, which the fresh process
@@ -1357,6 +1444,11 @@ dt_rtrun() {
 		[ -n "${DT_RTMORE["$DT_RTFD"]+x}" ] && dt_want 0
 		if [ "$st" = 1 ]; then
 			console unwatch "$DT_RTFD"
+			if [ -n "$DT_RTCARRY" ]; then
+				dt_rtrejoin && continue
+				dt_log "app runtime: the restarted desktop did not take this process back; this app ends"
+				return 0
+			fi
 			dt_log "app runtime: the desktop has gone; this app ends with it"
 			return 0
 		fi
