@@ -39,12 +39,12 @@ widgets/text.hibr	986	dt_editwin	dt_wincall	"$cb"	_edit	status	tested	ask
 wm/appmode.hibr	44	dt_modehook	dt_hookfn	"$fn"	hook:DT_MODEHOOKS	none	-	tell
 wm/appmode.hibr	67	dt_modetick	dt_hookfn	"$f"	hook:DT_MODEHOOKS	none	-	tell
 wm/apps.hibr	33	dt_runatstart	dt_hookfn	"$f"	hook:DT_ATSTART	none	-	tell
-wm/apps.hibr	499	dt_unload	dt_hookfn	"${DT_UNLOADFN["$f"]}"	hook:DT_UNLOADFN	none	-	ask
-wm/apps.hibr	517	dt_reinstate	dt_hookfn	"${DT_RELOADFN["$f"]}"	hook:DT_RELOADFN	none	-	tell
-wm/apps.hibr	607	dt_rescan	dt_hookfn	"${DT_RESCANFN["$f"]}"	hook:dt_rescan	none	-	tell
-wm/apps.hibr	815	dt_launch	dt_appfn	"${DT_APPS[$n]["via"]}_launch"	_launch	none	-	tell
-wm/apps.hibr	829	dt_launch	dt_appfn	"${n}_launch"	_launch	none	-	tell
-wm/apps.hibr	839	dt_launch	dt_appfn	"${n}_size"	_size	value	:=	push
+wm/apps.hibr	595	dt_unload	dt_hookfn	"${DT_UNLOADFN["$f"]}"	hook:DT_UNLOADFN	none	-	ask
+wm/apps.hibr	613	dt_reinstate	dt_hookfn	"${DT_RELOADFN["$f"]}"	hook:DT_RELOADFN	none	-	tell
+wm/apps.hibr	703	dt_rescan	dt_hookfn	"${DT_RESCANFN["$f"]}"	hook:dt_rescan	none	-	tell
+wm/apps.hibr	911	dt_launch	dt_appfn	"${DT_APPS[$n]["via"]}_launch"	_launch	none	-	tell
+wm/apps.hibr	925	dt_launch	dt_appfn	"${n}_launch"	_launch	none	-	tell
+wm/apps.hibr	935	dt_launch	dt_appfn	"${n}_size"	_size	value	:=	push
 wm/ask.hibr	97	dt_askok	dt_appfn	"${DTA[$id]["then"]}"	handed	status	tested	ask
 wm/ask.hibr	153	dtask_close	dt_appfn	"$c"	handed	none	-	ask
 wm/bar.hibr	106	dt_barrescan	dt_appfn	"$h"	bar:stop	none	-	tell
@@ -127,9 +127,9 @@ wm/vault.hibr	420	dt_vwpick	dt_appfn	"$callback"	handed	none	-	ask
 wm/vault.hibr	509	vwp_choose	dt_appfn	"$cb"	handed	status	tail	ask
 wm/vault.hibr	526	dt_vwfill	dt_appfn	"$cb"	_signin	value	:=	ask
 wm/vault.hibr	553	dt_vwfilled	dt_appfn	"$cb"	_signfill	none	-	tell
-wm/windows.hibr	44	dt_new	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
-wm/windows.hibr	155	dt_del	dt_appfn	${DT[$id]["close"]}	_close	none	-	ask
-wm/windows.hibr	1196	dt_closereq	dt_wincall	"$cb"	_canclose	status	tested	ask
+wm/windows.hibr	48	dt_new	dt_appfn	${DT[$id]["open"]}	_open	none	-	tell
+wm/windows.hibr	159	dt_del	dt_appfn	${DT[$id]["close"]}	_close	none	-	ask
+wm/windows.hibr	1149	dt_closereq	dt_wincall	"$cb"	_canclose	status	tested	ask
 #kind	_about	tell	-
 #kind	_appname	push	its registered name
 #kind	_awake	push	asleep: the saver may start

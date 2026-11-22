@@ -8,10 +8,10 @@ DT_ACTIVE	73	0	wm/settings.hibr	shared
 DT_SELINK	61	0	wm/settings.hibr	shared
 DT_FOCUS	58	0	wm/state.hibr	shared
 DT_SCROLLWHEEL	43	0	widgets/scrollbar.hibr	shared
-DT_DLGC	38	0	wm/windows.hibr	answer
-DT_DLGH	38	0	wm/windows.hibr	answer
-DT_DLGR	38	0	wm/windows.hibr	answer
-DT_DLGW	38	0	wm/windows.hibr	answer
+DT_DLGC	38	0	wm/winfacts.hibr	local
+DT_DLGH	38	0	wm/winfacts.hibr	local
+DT_DLGR	38	0	wm/winfacts.hibr	local
+DT_DLGW	38	0	wm/winfacts.hibr	local
 DT_ROWS	35	0	wm/bar.hibr	shared
 DTJ	22	12	wm/jobs.hibr	local
 DT_WELL	34	0	wm/settings.hibr	shared
@@ -124,7 +124,7 @@ DT_IMEP	3	0	wm/ime.hibr	local
 DT_PX	3	0	wm/loop.hibr	call
 DT_PY	3	0	wm/loop.hibr	call
 DT_SHOTDIR	3	0	wm/shot.hibr	shared
-MB_CY	3	0	wm/menus.hibr	call
+MB_CY	3	0	wm/menus.hibr	shared
 BD_COL	2	0	widgets/bidi.hibr	local
 BD_SRC	2	0	widgets/bidi.hibr	local
 BD_VIS	2	0	widgets/bidi.hibr	local
@@ -162,7 +162,7 @@ DT_CLIPKEEP	2	0	wm/clip.hibr	shared
 DT_CLIPMAX	2	0	wm/clip.hibr	shared
 DT_CLIPOP	0	2	wm/state.hibr	arg
 DT_COLOURS	2	0	wm/wallpaper.hibr	shared
-DT_CONFJ	2	0	wm/settings.hibr	kept
+DT_CONFJ	2	0	wm/settings.hibr	shared
 DT_CYCLE	2	0	wm/settings.hibr	shared
 DT_DAVSAVE	2	0	wm/remote.hibr	shared
 DT_DAVTIMEOUT	2	0	wm/servers.hibr	shared
@@ -301,8 +301,8 @@ DT_WDAYS	2	0	wm/lang.hibr	local
 DT_WEEKSTART	2	0	wm/lang.hibr	shared
 DT_ZOOMFILL	2	0	wm/settings.hibr	shared
 DT_ZOOMFILLS	2	0	wm/settings.hibr	shared
-MB_CTXID	2	0	wm/menus.hibr	call
-MB_CTXWHO	2	0	wm/menus.hibr	call
+MB_CTXID	2	0	wm/menus.hibr	shared
+MB_CTXWHO	2	0	wm/menus.hibr	shared
 PM	2	0	wm/programs.hibr	shared
 PMOWN	2	0	wm/programs.hibr	shared
 SV_LIST	2	0	savers/saver.hibr	shared
@@ -332,4 +332,4 @@ DT_PHASEWIN	1	0	wm/keyphase.hibr	call
 FP	1	0	wm/filepick.hibr	shared
 HIBR_DAV_TIMEOUT	0	1	wm/servers.hibr	request
 HIBR_GLYPHS	1	0	wm/glyphs.hibr	local
-MB_CX	1	0	wm/menus.hibr	call
+MB_CX	1	0	wm/menus.hibr	shared

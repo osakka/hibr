@@ -235,11 +235,6 @@ dt_deskscan() {
 	dt_rtsend tell dt_deskscan "$@"
 }
 
-# Told to the desktop, wm/windows.hibr.
-fn dt_dlgat(int h, int w, int? m = "") {
-	dt_rtsend tell dt_dlgat "$h" "$w" "$m"
-}
-
 # Told to the desktop, wm/files.hibr.
 dt_dnd() {
 	dt_rtsend tell dt_dnd "$@"

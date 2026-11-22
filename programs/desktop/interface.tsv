@@ -38,6 +38,7 @@ local	dt_button	widgets/button.hibr	59	8	told	-	dt_button(id, int r, int c, labe
 local	dt_focus	widgets/button.hibr	56	33	asked	-	dt_focus(cur, int dir, ...tags)	-	-
 local	dt_textkey	widgets/text.hibr	56	42	asked	-	dt_textkey(text, int cur, key)	-	-
 local	dt_jobfile	wm/jobs.hibr	55	26	asked	-	dt_jobfile(int n, which = "out")	-	-
+local	dt_dlgat	wm/winfacts.hibr	55	38	told	-	dt_dlgat(int h, int w, int? m = "")	-	-
 local	dt_job	wm/jobs.hibr	52	26	asked	-	dt_job(kind, tag, then, ...cmd)	-	-
 local	pe_f	lib/pim.hibr	52	2	asked	-	pe_f(int i, f)	-	-
 local	dt_droplist	widgets/dropdown.hibr	49	19	told	dt_droplist > dt_dropat > dt_context_open	dt_droplist(int id, int r, int c, cb, ...rest)	-	-
@@ -115,7 +116,7 @@ local	dt_split	widgets/split.hibr	8	4	asked	-	dt_split(var, int w, int min = 8, 
 local	bd_row	widgets/bidi.hibr	8	2	waited	-	bd_row(line, int a, int b)	-	-
 local	dt_davok	wm/servers.hibr	8	4	waited	-	dt_davok()	-	-
 local	dt_openers	wm/openfacts.hibr	8	4	told	-	dt_openers(path, kind = "", all = "")	-	3@0.99.555
-local	dt_davserver	wm/servers.hibr	8	4	told	dt_davserver > dt_dlgat	dt_davserver(name = "")	-	-
+local	dt_davserver	wm/servers.hibr	8	4	told	dt_davserver > dt_new	dt_davserver(name = "")	-	-
 local	dt_sysdir	wm/state.hibr	8	2	asked	-	dt_sysdir(kind)	-	-
 local	dt_pwlocal	wm/powerlist.hibr	8	6	waited	-	dt_pwlocal()	-	-
 local	dt_watchstart	wm/state.hibr	8	6	told	-	dt_watchstart(...cmd)	-	-
@@ -252,7 +253,6 @@ request	dt_retitle	wm/windows.hibr	64	25	waited	-	dt_retitle(int id, title)	-	-
 request	dt_new	wm/windows.hibr	64	41	asked	-	dt_new(title, int h, int w, int row, int col, ap = "", arg = "")	-	-
 request	dt_filepick	wm/filepick.hibr	57	24	told	-	dt_filepick(mode, title, types, dir, name, callback, for, oncancel = "")	-	-
 request	dt_close_focused	wm/windows.hibr	56	53	told	-	dt_close_focused()	-	-
-request	dt_dlgat	wm/windows.hibr	55	38	told	-	dt_dlgat(int h, int w, int? m = "")	-	-
 request	dt_baritem	wm/bar.hibr	55	17	told	-	dt_baritem(name, text = "", ...cmd)	-	-
 request	dt_confirm	wm/confirm.hibr	47	36	told	-	dt_confirm(msg, cmd, owner = "")	-	-
 request	dt_save	wm/settings.hibr	46	10	told	-	dt_save()	-	-

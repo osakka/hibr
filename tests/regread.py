@@ -33,6 +33,12 @@ FILES = [f for f in appstate.installables() if f.startswith(DESK + os.sep)] + so
 # The registries a registration writes, and whether each is a map.
 REGS = "DT_APPS CP_PANES CS_MODS DT_BARI DT_BARIN DT_OPENERS DT_OVN DT_KEEPSTATE DT_APPACT DT_ATSTART DT_BARHOOKS".split()
 
+# The registrations the desktop reads, asked of it (dt_regnames).
+_o = subprocess.run([HIBR, "-c", '. "$1" 2> /dev/null; dt_regnames; printf "%s" "$DT_REGNAMES"', "x",
+                     os.path.join(DESK, "desktop.hibr")], capture_output=True, text=True,
+                    env=dict(os.environ, HIBR_MODPATH=MODS)).stdout
+NAMES = json.loads(_o) if _o.startswith("[") else []
+
 # One desktop, loaded as a session loads it, one file loaded the given way,
 # and what the registries gained, as JSON; and whether the file ran.
 BODY = r'''
@@ -82,8 +88,7 @@ def running(f):
     """Whether the file makes a registration from inside a function of its
     own (Archives declares the kinds its tools read, which only running can
     tell): what the desktop cannot read, and leaves to the file's process."""
-    names = [l.split("\t")[1] for l in open(os.path.join(DESK, "interface.tsv")) if l.startswith("declare\t")]
-    names += ["cp_pane", "dt_opener", "dt_openerverb"]
+    names = NAMES
     env = dict(os.environ, HIBR_MODPATH=MODS)
     p = subprocess.run([HIBR, "-c", 'need inspect; inspect calls "$1" -j', "x", f], capture_output=True, text=True, env=env)
     return any(c.get("owner") and c["name"] in names for c in json.loads(p.stdout).get("calls", []))
@@ -92,8 +97,7 @@ def running(f):
 def dynamic(f):
     """The file's top-level registrations whose words are not written out,
     as the parser reports them: (name, line)."""
-    names = [l.split("\t")[1] for l in open(os.path.join(DESK, "interface.tsv")) if l.startswith("declare\t")]
-    names += ["cp_pane", "dt_opener", "dt_openerverb"]
+    names = NAMES
     env = dict(os.environ, HIBR_MODPATH=MODS)
     p = subprocess.run([HIBR, "-c", 'need inspect; inspect calls "$1" --arguments "$2" -j', "x", f, json.dumps(names)],
                        capture_output=True, text=True, env=env)

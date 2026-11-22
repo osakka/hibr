@@ -22,7 +22,8 @@ DT_RTPROTO=7
 # variable changes (no writer marks anything), its shape travels with it,
 # and who reads it comes from the parser (mirrors.hibr). -s marks a secret,
 # never sent to a file the inventory has not read; -o FIELD a map whose
-# entries each belong to the app their FIELD names, sent to that app alone.
+# entries each belong to the app their FIELD names, sent to that app alone
+# -- given more than once, to each app any of those fields names.
 declare -gA DT_SHARED DT_SHAREOWN
 dt_share() {
 	local sec= own= n
@@ -30,7 +31,7 @@ dt_share() {
 	while :; do
 		case ${1-} in
 		-s) sec=1; shift ;;
-		-o) own=$2; shift 2 ;;
+		-o) own+="${own:+ }$2"; shift 2 ;;
 		*) break ;;
 		esac
 	done

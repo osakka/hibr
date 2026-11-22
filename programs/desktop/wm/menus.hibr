@@ -1765,5 +1765,9 @@ fn dt_mkey(k) {
 }
 
 # What of this file's state every app process that reads it is sent (ADR
-# 0050, wm/rtwire.hibr).
+# 0050, wm/rtwire.hibr). Where a context menu opened, and for whom, reach
+# an app's process before the call that builds it or runs one of its rows
+# (the pass is forced before every call), so it reads the place it was
+# clicked as it does in the desktop.
 dt_share DT_APPS DT_TRASHN
+dt_share MB_CX MB_CY MB_CTXWHO MB_CTXID

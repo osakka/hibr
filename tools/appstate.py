@@ -133,7 +133,7 @@ for _n in "DT_APPNAMEV DT_WHY DT_IMGARG DT_WLINES DT_WFD DT_WPTY DT_BUSFD DT_PW 
 # The answer of a function the app interface holds (wm/winfacts.hibr,
 # wm/orders.hibr), worked out in each process on its copy of what the
 # desktop shares: the process's own.
-for _n in "DTW_R DTW_C DTW_H DTW_W CS_MOD_ORD DT_BTNL DT_BARREAD".split():
+for _n in "DTW_R DTW_C DTW_H DTW_W CS_MOD_ORD DT_BTNL DT_BARREAD DT_DLGR DT_DLGC DT_DLGH DT_DLGW".split():
     BYNAME[_n] = "local"
 
 
@@ -182,13 +182,12 @@ SHARED, SECRET, OWNER = sharedset()
 #   answer   comes back as the answer of the asked request that set it
 #   kept     the settings file's parse: the kept-settings slice
 CONVERT = {}
-for _n in """DT_PX DT_PY MB_CX MB_CY MB_CTXID MB_CTXWHO DT_DND DT_KEYBASE DT_KEYCODE DT_KEYMODS
+for _n in """DT_PX DT_PY DT_DND DT_KEYBASE DT_KEYCODE DT_KEYMODS
         DT_KEYPHASE DT_PHASEWIN DT_NATFOCUSES DT_NATCH DT_NATCW CS_CLICKC DT_BARWCOL
         DT_POPH""".split():
     CONVERT[_n] = "call"
-for _n in "DT_DLGR DT_DLGC DT_DLGH DT_DLGW DT_OWLIST DT_OVLIST".split():
+for _n in "DT_OWLIST DT_OVLIST".split():
     CONVERT[_n] = "answer"
-CONVERT["DT_CONFJ"] = "kept"
 KINDS = ("apps", "system", "control-panel", "control-strip", "menubar", "savers")
 
 

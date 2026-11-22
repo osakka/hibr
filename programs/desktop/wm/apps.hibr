@@ -312,6 +312,22 @@ command -v dt_ticker > /dev/null && dt_ticker dt_shadownote
 # read an installable this way once apps run in processes of their own
 # (the flip); until then a test session's hosted apps are registered so.
 DT_REGNAMES=
+# The registrations read, as a JSON list, worked out once: every
+# declaration interface.tsv names, and the registrations an installable's
+# own process also makes as requests -- a pane, a bar item and its parts,
+# an opener -- which the desktop must know before any such process runs.
+# The one list; tools/hostaudit.py and tests/regread.py ask it here.
+dt_regnames() {
+	local i j x='"cp_pane","dt_opener","dt_openerverb"'
+
+	[ -z "$DT_REGNAMES" ] || return 0
+	while IFS=$'\t' read -r i j _; do
+		case $i:$j in
+		declare:* | request:dt_bari*) x+=",\"$j\"" ;;
+		esac
+	done < "$DT_HERE/interface.tsv"
+	DT_REGNAMES="[$x]"
+}
 fn dt_regread(file) {
 	local i j n st=0 x k ln
 	local -a w lines
@@ -319,13 +335,7 @@ fn dt_regread(file) {
 
 	[ -r "$file" ] || { dt_log "registrations: cannot read $file"; return 1; }
 	need inspect 2> /dev/null || { dt_log "registrations: no inspect module, so $file cannot be read"; return 1; }
-	if [ -z "$DT_REGNAMES" ]; then
-		x='"cp_pane","dt_opener","dt_openerverb"'
-		while IFS=$'\t' read -r i j _; do
-			[ "$i" = declare ] && x+=",\"$j\""
-		done < "$DT_HERE/interface.tsv"
-		DT_REGNAMES="[$x]"
-	fi
+	dt_regnames
 	r := inspect calls "$file" --arguments "$DT_REGNAMES" 2> /dev/null ||
 		{ dt_log "registrations: $file could not be read"; return 1; }
 	# Each top-level default, by name: the line as written, matched whole.

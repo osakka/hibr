@@ -644,8 +644,14 @@ dt_keep() {
 # A kept setting is shared with every app process that reads it (ADR 0050):
 # kept is shared, never a second list.
 dt_share "${DT_KEEP[@]}"
-# The window table, each window to the app it belongs to.
-dt_share -o app DT
+# The window table, each window to the app it belongs to and to the app
+# whose own process asked for it (rtown, set by dt_new): a dialog a pane's
+# process opens is that process's to read, whoever's app draws it.
+dt_share -o app -o rtown DT
+# The settings file as it was read, for an app that asks whether a setting
+# was ever saved (a role a release added, an old name taken over): read
+# only, and only by the files that read it.
+dt_share DT_CONFJ
 # The lists of choices a pane offers, the key tables, and where the log is.
 dt_share DT_APPGONES DT_BANDS DT_BTNS DT_DLGBTNS DT_FULLENDS DT_ICONPENS DT_SHADOWSHAPES
 dt_share DT_TITLEBARS DT_ZOOMFILLS WP_GLYPHS WP_MODES WS_ALIGNS WS_FRAMES

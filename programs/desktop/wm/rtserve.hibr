@@ -134,16 +134,32 @@ DT_RTQSECS="${DT_RTQSECS-2}"
 declare -gA DT_RTPENDB DT_RTPENDT
 declare -gA DT_RTPEND
 
+# Whose an entry of a name shared by owner is: the values its owner fields
+# hold (dt_share -o, one or more), the empty ones left out, each between
+# tabs -- an owner may be an installable's file, whose path may hold a
+# blank. Empty for none.
+fn dt_rtownof(name, key) {
+	local f o=
+	local -n m=$name
+
+	for f in ${DT_SHAREOWN["$name"]}; do
+		[ -z "${m["$key"]["$f"]-}" ] || o+=$'\t'"${m["$key"]["$f"]}"
+	done
+	[ -z "$o" ] || o+=$'\t'
+	ret "$o"
+}
+
 # A shared name as JSON, the whole of it; for one shared by owner (dt_share
-# -o) only the entries that belong to app.
+# -o) only the entries that belong to app: one of its owner fields names it.
 fn dt_rtwhole(name, app = "") {
-	local j k f=${DT_SHAREOWN["$name"]-}
+	local j k o f=${DT_SHAREOWN["$name"]-}
 	local -A cp
 
 	if [ -n "$f" ]; then
 		local -n m=$name
 		for k in "${!m[@]}"; do
-			[ "${m["$k"]["$f"]-}" = "$app" ] || continue
+			o := dt_rtownof "$name" "$k"
+			[[ $o == *$'\t'"$app"$'\t'* ]] || continue
 			j := dt_rtentry "$name" "$k"
 			json parse cp["$k"] "$j"
 		done
@@ -290,7 +306,7 @@ fn dt_rtsend1(e) {
 	if [ -n "$k" ]; then
 		local -n mp=$n
 		own=
-		[ -z "$f" ] || own=${mp["$k"]["$f"]-}
+		[ -z "$f" ] || own := dt_rtownof "$n" "$k"
 		if [ -n "${mp["$k"]+x}" ] || [ "${#mp["$k"][@]}" -gt 0 ]; then
 			x := dt_rtentry "$n" "$k"
 			x := dt_rtline jsonk "$n" "$k" "$x"
@@ -308,7 +324,7 @@ fn dt_rtsend1(e) {
 			# to every reader (unsetting a key it never had is nothing),
 			# and the whole to each, filtered.
 			if [ -n "$k" ]; then
-				[ -z "$own" ] || [ "$own" = "${DT_RTC["$c"]}" ] || continue
+				[ -z "$own" ] || [[ $own == *$'\t'"${DT_RTC["$c"]}"$'\t'* ]] || continue
 			else
 				x := dt_rtcode "$n" "${DT_RTC["$c"]}"
 			fi
@@ -656,14 +672,16 @@ fn dt_rtmay(name) {
 	return 0
 }
 
-# Whether a window is the app's own: one of its windows, or a dialog the
-# desktop opened for one of them (a file picker).
+# Whether a window is the app's own: one of its windows, one its process
+# asked for (rtown), or a dialog the desktop opened for one of them (a file
+# picker).
 fn dt_rtowns(who, id) {
 	local f
 
 	[[ $id =~ ^[0-9]+$ ]] || return 1
 	dt_iswin "$id" || return 1
 	dt_rvappof "$who" "${DT[$id]["app"]-}" && return 0
+	[ "${DT[$id]["rtown"]-}" = "$who" ] && return 0
 	f=${FP[$id]["for"]-}
 	[ -n "$f" ] && dt_iswin "$f" && dt_rvappof "$who" "${DT[$f]["app"]-}"
 }

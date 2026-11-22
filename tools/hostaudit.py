@@ -66,10 +66,17 @@ PICTURES = {"img": ("draw", "keep", "pic"), "media": ("draw", "frame"), "web": (
 # spine, 2026-11-21). Organisational, so by hand; whether a kind IS carried
 # is never written here.
 # What the desktop reads of an installable rather than runs (dt_regread):
-# every declaration interface.tsv names, a pane and an opener.
-REGNAMES = tuple(sorted(set(["cp_pane", "dt_opener", "dt_openerverb"] + [
-    l.split("\t")[1] for l in open(os.path.join(DESK, "interface.tsv"))
-    if l.startswith("declare\t")])))
+# its own list (dt_regnames, wm/apps.hibr), asked of it, never a second one.
+def regnames():
+    hibr = os.environ.get("HIBR", os.path.join(ROOT, "build", "hibr"))
+    env = dict(os.environ, HIBR_MODPATH=os.path.join(ROOT, "build", "mods"))
+    out = subprocess.run([hibr, "-c", '. "$1" 2> /dev/null; command -v dt_regnames > /dev/null || exit 0; '
+                          'dt_regnames; printf "%s" "$DT_REGNAMES"', "x", os.path.join(DESK, "desktop.hibr")],
+                         capture_output=True, text=True, env=env).stdout
+    return tuple(sorted(json.loads(out))) if out.startswith("[") else ()
+
+
+REGNAMES = regnames()
 TRACK = {"view": "views", "pane": "views", "strip": "views", "bar": "views", "saver": "views",
          "row": "views", "menus": "menus", "context": "menus", "titlemenu": "menus",
          "handed": "menus", "list": "menus"}
