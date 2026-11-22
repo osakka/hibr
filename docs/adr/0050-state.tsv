@@ -325,6 +325,8 @@ DT_KEYBASE	1	0	wm/keyphase.hibr	call
 DT_KEYCODE	1	0	wm/keyphase.hibr	call
 DT_KEYMODS	1	0	wm/keyphase.hibr	call
 DT_KEYPHASE	1	0	wm/keyphase.hibr	call
+DT_LCD	1	0	wm/settings.hibr	shared
+DT_LCDINK	1	0	wm/settings.hibr	shared
 DT_NRMARKMS	1	0	wm/settings.hibr	shared
 DT_NRPTRMS	1	0	wm/settings.hibr	shared
 DT_NRSHOW	1	0	wm/settings.hibr	shared
