@@ -184,6 +184,10 @@ said
 DT_OPENHAVE=()
 dt_openneedset
 said
+dt_unload %(desk)s/apps/archives.hibr
+said
+dt_reinstate %(desk)s/apps/archives.hibr
+said
 '''
 d = tempfile.mkdtemp(prefix="regread-arc-")
 os.makedirs(d + "/bin")
@@ -200,5 +204,8 @@ check("Archives' openers are read: with no program on the PATH it offers the kin
 check("and once unzip is on the PATH, a rescan offers Show Contents and Extract for a zip",
       len(arc) > 1 and arc[1] == " tar tgz tar.gz zip |archives hvi|Extract Here,Extract To...,Compress,",
       (arc, p.stderr[-400:]))
+check("and a rescan that finds Archives gone takes every opener and verb of it away, and one that finds it "
+      "back puts them back as they were",
+      len(arc) > 3 and arc[2] == "|hvi|" and arc[3] == arc[1] and "|archives hvi|" in arc[3], (arc, p.stderr[-400:]))
 shutil.rmtree(os.path.dirname(FIXTURE), ignore_errors=True)
-report(6)
+report(7)
