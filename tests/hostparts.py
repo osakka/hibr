@@ -524,4 +524,4 @@ for d in ("apps", "control-panel", "menubar", ""):
         os.rmdir(os.path.join(ROOT, d))
     except OSError:
         pass
-report(24)
+report(26)
