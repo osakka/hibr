@@ -786,7 +786,7 @@ for prog in ("sudo", "pkexec", "systemctl", "timedatectl", "nmcli", "bluetoothct
 DROPRUN = r"""cp_save() { :; }; dt_save() { :; }
 dt_droplist() { DR_OPEN=1; shift 4; DR_VALS=("$@"); }
 DR_SEP=$'\x1f'
-dr_rows() { unset CP[1]; DR_N := ${DR_P}_rows 1; PW[1]["n"]=$DR_N; }
+dr_rows() { DR_N := cp_rowsbuild 1 "$DR_P"; PW[1]["n"]=$DR_N; }
 dr_find() { local i=0; DR_I=-1; while [ "$i" -lt "$DR_N" ]; do [ "${CP[1][$i]["key"]}" = "$1" ] && { DR_I=$i; return 0; }; i=$((i + 1)); done; }
 dr_cur() { DR_C=${CP[1][$DR_I]["val"]-}; [ -n "${CP[1][$DR_I]["ons"]-}" ] && DR_C=${CP[1][$DR_I]["ons"]%%$DR_SEP*}; return 0; }
 dr_rows
