@@ -513,9 +513,11 @@ int hd_appctl(vec *cls, int tid, int fd, const char *p, size_t n)
 	return 0;
 }
 
-/* A producer connection went: an app's takes its kept frames with it (its
-   grants stay the desktop's to end), and a granter's takes every grant it
-   made. */
+/* A producer connection went. An app's ended: a picture granted an id keeps
+   its last frame, since the desktop may keep its window showing it until
+   the person closes it (ADR 0050, Decision 7) -- the desktop's ungrant or
+   revoke ends it -- and one never granted goes. A granter's takes every
+   grant it made. */
 void hd_appgone(int fd)
 {
 	struct hd_app *ap = hd_appof(fd);
@@ -524,12 +526,9 @@ void hd_appgone(int fd)
 	if (ap) {
 		long pid = ap->pid;
 
-		for (i = 0; i < hd_naslot; i++)
-			if (hd_aslots[i].pid == pid && hd_aslots[i].f.fd >= 0) {
-				close(hd_aslots[i].f.fd);
-				hd_aslots[i].f.fd = -1;
-				hd_aslots[i].kind = 0;
-			}
+		for (i = hd_naslot; i--;)
+			if (hd_aslots[i].pid == pid && !hd_aslots[i].id)
+				hd_aslotdrop(i);
 		lg(HIBR_LDBG, "hold: app %ld closed its pictures' connection", pid);
 		*ap = hd_apps[--hd_napp];
 		return;
@@ -541,7 +540,8 @@ void hd_appgone(int fd)
 
 /* Every app's pictures, for `hold apps`: pid, slots, frames taken, refused,
    bytes, and dmabuf frames sent before their slot was granted, a line an
-   app. */
+   app -- and an app that has gone and still has pictures kept, its counts
+   0. */
 void hd_applist(int c)
 {
 	str o;
@@ -558,6 +558,24 @@ void hd_applist(int c)
 		s_fmt(&o, "%ld %ld %ld %ld %ld %ld", hd_apps[i].pid, (long)ns,
 		      hd_apps[i].frames, hd_apps[i].refused, hd_apps[i].bytes,
 		      hd_apps[i].early);
+	}
+	for (j = 0; j < hd_naslot; j++) {
+		long pid = hd_aslots[j].pid;
+		size_t k;
+
+		for (i = 0; i < hd_napp && hd_apps[i].pid != pid; i++)
+			;
+		for (k = 0; k < j && hd_aslots[k].pid != pid; k++)
+			;
+		if (i < hd_napp || k < j)
+			continue;
+		ns = 0;
+		for (k = j; k < hd_naslot; k++)
+			if (hd_aslots[k].pid == pid)
+				ns++;
+		if (o.n)
+			s_ch(&o, '\n');
+		s_fmt(&o, "%ld %ld 0 0 0 0", pid, (long)ns);
 	}
 	hd_send(c, HD_APPLIST, o.p, o.n);
 	s_free(&o);

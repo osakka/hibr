@@ -374,14 +374,17 @@ void hd_f3gone(unsigned id)
 		}
 }
 
-/* How many frames by dmabuf a producer has not been given back yet. */
+/* How many frames by dmabuf a producer has had replaced and not been given
+   back yet: each image's newest is not counted, since it comes back only
+   when a newer one replaces it, and counting it would refuse that newer
+   one for good once an app shows as many images as it may hold back. */
 int hd_f3count(int prod)
 {
 	size_t i;
 	int n = 0;
 
 	for (i = 0; i < hd_nf3; i++)
-		if (hd_f3s[i]->prod == prod)
+		if (hd_f3s[i]->prod == prod && hd_f3s[i]->old)
 			n++;
 	return n;
 }
