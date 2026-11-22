@@ -1690,6 +1690,833 @@ Terminal's command reaches its `_open` in the window's record (`cmdn`).
 3. Frames For Output reaches app processes.
 4. Frames For Video is told to the desktop and held at both ends.
 
+### Before the flip: the audit, the budgets and the idle pass (2026-11-21, track 4)
+
+What Decision 8 says must hold before the one release, made into tools a
+gate can run rather than a list somebody keeps.
+
+- **Every entry, judged (`tools/hostaudit.py`).** An entry is what one
+  process runs -- its file, its parts, and the members `# needs:` joins it
+  with (Review 6a) -- in the tree and in the catalogue, read by inspect and
+  never run. It runs hosted when every platform function it calls is in
+  `interface.tsv` with its stub, every desktop global it reads is shared or
+  a named conversion and none is written, and every kind of call the
+  desktop makes into it is carried for a hosted process. *Carried* is read
+  from the tree, never listed: a window callback through `dt_wincall`
+  unless `dt_rvhas` refuses its kind, one through `dt_winget` unless
+  `dt_rvget` does, one through `dt_appfn` only where the desktop's calling
+  function routes a hosted window (reads `DT_RVC`), a view of another kind
+  only once `dt_rtview` takes it -- so the table moves as each track lands.
+  The verdict is *hosted now*, *waits on* a track, or *needs a change* to
+  the entry; a library is judged in the process of each entry that sources
+  it. At 01933d95 and the catalogue at 2441fa4, each entry once (the
+  catalogue's copy where both have one): none runs hosted now, 75 wait on a
+  track, 16 need a change of their own, 17 are libraries, 3 programs and 29
+  data -- among the changes 23 calls from one installable into a separate one
+  in the tree (Mail into Calendar and Contacts, Archives into Files, the
+  cursor module into the Terminal...), the Browser writing `DT_VWOUT`, the
+  Video Player writing `DT` and calling the Browser's `bw_cfg`, Blit's pane
+  writing `HIBR_DAV_TIMEOUT`, and the catalogue's Terminal 1.8.7 still
+  calling the prototype's `dt_isodrop`, which no file defines -- a call the
+  calls table cannot see, since it reads only names the platform defines.
+  Decision 8 asks that bundles run unmodified; 2026-11-19 reversed that to
+  every installable converted in the one release. The audit answers both:
+  *waits on* is unmodified once the tracks land, *needs a change* is the
+  conversion list.
+  **Not carried in this tree** (the audit's *unassigned*), and what the
+  three tracks' worktrees carry of it, read the same way (2026-11-21, the
+  views tree uncommitted): the views track draws pane, strip and saver
+  views and routes `pane_draw` and `strip_shown`, but no bar view; the
+  menus track routes `_menus`, `_context` and the list namer, and its
+  `dt_appfn` sends every hosted owner's call across -- a route for every
+  told, asked and handed kind, not proof each one's answer is handled; the
+  crash track adds no carriage. Left to nobody: Copy, Cut, Find, Undo and
+  Select All (`dt_rvhas` refuses them in every tree), `_idle`, pictures
+  (`img draw`, `web render`, `media draw`, `pdf view`, `frames place`: the
+  cell record carries none), background work (an app's ticker ends with
+  its last window), the CONVERT slices (`DT_DLG*`, `MB_CX`, `DT_CONFJ`), a
+  terminal's command (`DT_OPENCMD`), and Decision 3 itself -- registrations
+  are still run, not read.
+  Its tree half is a gate (`tests/appcalls.py`): a call by a platform
+  prefix to a name no file defines fails, and calls into a separate
+  installable are held at 23, only lowered. The catalogue half is
+  report-only, since the checkout is other sessions' tree.
+- **The budgets (`tools/budgets.py`)**, measured the same way in any tree,
+  from outside, on a 40x120 pty: idle (two windows that draw only when
+  told), a key's echo (written to the terminal, read off the screen), a
+  full window redrawn ten times a second, and the Terminal's three writers
+  (perl printing a line every 10 ms, no fork per line); processor time for
+  the desktop, its app processes and the programs apart. `--compare A B`
+  runs the trees alternately; `--hosted` starts each app in a process of
+  its own first, through the spine's test-session `dt_rthost`.
+  Against 0.99.549, three runs each, alternated, in-process: idle 0.20%
+  and 0.10% of a core, a key's echo 10.0 and 10.1 ms median, a window
+  redrawn ten times a second 4.0% and 3.8% (7.8 frames a second in both),
+  the three writers 8.7% and 6.8% (11.4 frames a second) -- equal within
+  their spread. Hosted on the spine: idle unchanged; the redraw 4.8% at the
+  desktop and 1.5% in the app's own process, at 9.9 frames a second; and a
+  key's echo **19.3 ms median** (worst 22.8, one run), nine more than
+  in-process. The three writers cannot run hosted yet: what a terminal runs
+  reaches `_open` in `DT_OPENCMD`, the desktop's own variable. A first run
+  sampled the processor across a plain sleep, which stalls a desktop whose
+  frames nobody reads, and read the redraw as idle; the harness reads the
+  terminal throughout and records the frame rate each run drew.
+- **What an idle pass costs (`tests/idlepass.py`)**, in instructions: the
+  real `dt_run` on a pty with the tree's installables loaded, under
+  callgrind; a ticker counts the passes, asks for the next a millisecond on
+  and ends the desktop at the Nth; 20 passes subtracted from 60 cancels
+  startup and load. Held under a bound between today's pass and today's
+  plus a 100 us slowdown put in `dt_run`'s loop on purpose (37 turns of a
+  shell loop, 498 K instructions, 102-158 us on the loaded box): 11.86,
+  11.89, 11.95 and 11.99 M at 01933d95, bound 12.2 M, the slowdown 12.35 M
+  and failing. **With a spinner on each core a pass counts 12.53 M** -- the
+  subtraction cancels startup and load but not what the clock sets off --
+  so the check runs alone after the gate, never beside `all.py`.
+  0.99.549 measures 11.03 M: an idle pass costs 0.86 M (about 170 us) more
+  than it did there, one new ticker (`fp_feedtick`) among it and the rest
+  not yet attributed. Whether the bound holds today's level or 0.99.549's is
+  the owner's to say.
+- **Updates**: measured, not decided -- the owner's (see the write-up).
+
+## The view kinds (2026-11-21, protocol 7)
+
+A Control Panel pane, a Control Strip module and a screen saver are drawn by
+their own processes the way the spine draws a window: a `view` of another
+KIND on the same cells channel, input a `call` by name, no verb added and
+the protocol still 7.
+
+- **A process is its file's.** The seam already names a hook's owner by the
+  file that registered it (`DT_HOOKOWNER`), so `dt_rthostk KIND NAME` starts
+  the runtime with that file and the connection is the file's, as a window's
+  is its app's. `dt_rtmay`, `dt_rtmine`, `dt_rtowns` and `has` take either:
+  an app, or a file the desktop registered something from (`dt_rvsrc`,
+  `dt_rvinst`, `dt_rvappof`). Every pane, module and saver of the file is
+  hosted from the moment it is started, so it is never drawn in-process
+  meanwhile; a launch that never says hello gives them back.
+- **The runtime learns what it draws** from the file's own registrations:
+  `cp_pane` and `sv_saver`, which an app process did not have, are the
+  runtime's, recorded before the file is read (so the desktop can never call
+  them); `cs_module`'s stub is kept as `dt_app`'s is. `has PREFIX KIND...`
+  goes up for each, and the desktop decides the kind by the registration
+  whose file is the connection's, never by the name alone (the clock saver
+  and the Clock app share a prefix).
+- **One seam.** `dt_prefixfn` -- every call to a pane, a module or a saver --
+  hands a hosted prefix to `dt_rvpfn`, folded into the call's own words
+  (`${DT_RVP[$1]+dt_rvpfn "$1" "$2"}`): +2,700 instructions a call where a
+  test of its own was +6,900 (callgrind). `dt_has` answers from what the
+  process said it has (`DT_RVFN`), asked only when the name is not defined
+  here. So the panel, the strip and the saver framework call a hosted one
+  exactly as an in-process one, and only the drawing sites learn a place.
+- **The views.** `pane`: NAME `p$ID`, bound in the panel's window `w$ID` at
+  the body's rectangle (row 1, the body's left column, its height and
+  width), ARGS `ID PANE OR OC`; the pane's code writes into `w$ID`, so the
+  app's view is drawn through a pane of that name (`console cells view NAME
+  GEN H W PANE`) with origin `OR OC`. `strip`: NAME `s$NAME`, the screen at
+  the module's slot, ARGS `NAME HV` (lit or not, the pen the strip leaves);
+  the module writes at screen coordinates, so it is called with its view's
+  own row (`console cells at NAME`). `saver`: NAME `v`, the whole screen,
+  ARGS `NAME`; begun on a new or asked-again view, then a frame each period
+  in its own process, never cleared between frames (`console cells touch`
+  has the flush diff it). The modules' screen views give way to the saver
+  and are bound again, and asked for all of their cells (`again`), when the
+  strip is next drawn.
+- **Dirty.** A pane and a module have no `_dirty` and their containers
+  repaint every frame in-process, so the desktop shows their kept cells
+  whole each time and a `take` that changed them asks for the frame; a
+  saver is shown only when its cells changed, at its own period.
+- **Input.** A click and the wheel are tells (`call 0 - PANE_click ...`); a
+  pane's key is numbered (`call SEQ`) and answered "taken" at once unless
+  the desktop also acts on it, when it is withheld (B, as a window's); a
+  press is an ask, and one the pane's `_mouse` declines (`took SEQ 1`) runs
+  the panel's own `panel_click`, which is what the panel does in-process.
+  A module's `_shown` is an ask not carried: it shows, said once.
+- **Ends.** The panel showing another pane or closing, the strip no longer
+  listing the module (`cs_relist`), the saver stopping: `forget`, and the
+  process with no view left ends by itself (or `DT_RTENDSECS` later). A
+  process that goes gives its prefixes back to the desktop, said in the log,
+  until the crash track gives the person the choice.
+- **Menu bar items (owner, 2026-11-22: both).** An item's registrations and
+  changes (`dt_baritem` and fourteen siblings) are told requests, so a text
+  item needs no view; each acts only on its own process's items
+  (`dt_rvbmine`), refused and said otherwise. An item that draws itself is a
+  `view` of KIND `bar` (NAME `b$NAME`, the bar's pane at its slot, ARGS
+  `NAME FN C HV`), drawn through `dt_barput`, moved into the shared
+  `wm/draw.hibr` and the interface's own. The bar's seven seam calls fold in
+  `${DT_RVB[$nm]+dt_rvbfn ROLE "$nm"}`: a press is numbered and taken at once
+  (declined, the item's command runs), its command is a request the desktop
+  runs as the item's when it names one and a call to the process otherwise,
+  the wheel, switch and stop told. An item whose process ends goes off the
+  bar. The tray stays out until pictures cross; a bar hook (`dt_barhook`,
+  prayer's) and an item's pop-up are not carried yet.
+- Measured, nothing hosted: `dt_prefixfn` +2,736 instructions a call
+  (callgrind, 20,000 calls; a separate test was +6,900); each bar seam call
+  the same fold; a whole frame's timing inside its noise over four runs.
+- **Not built here**: a rows pane (`pane_rows`, the
+  panel draws its rows from `cp_*` calls an app process lacks); a bundle's
+  parts in its app's process (the runtime sources only the file it is
+  started with); the window table shared by owner to a file's process
+  (`DT_SHAREOWN` matches the app's name), so a dialog a pane opens is
+  hosted by the pane's process but not yet sent its record.
+
+### View kinds, round three: bundles, rows panes, bar hooks and pop-ups
+
+**A bundle is one process.** The app runtime reads each `# part:` its
+app's file declares, after the file, with `DT_LOADING` set to the part
+(`dt_rtpartfiles`, now in the shared wire). Starting any part by its file
+-- a pane, a strip module, a bar item -- starts the app's process instead
+(`dt_rthostf`), and every pane, module, saver and bar item of the app's
+file and its parts is marked pending for it (`dt_rvpendapp`). Every guard
+on another installable's thing asks one question, `dt_rvmine WHO FILE`:
+the file is the caller's own or a part of its bundle. A part two bundles
+declare (Calendar's and Contacts' `pimset`) is drawn by the first process
+to say it has it; the second is told once in the log.
+
+**A bar item keeps its process for the session.** A process that has put
+an item on the bar does not end when its last view goes, on either end.
+Its bar hooks run in it, every pass, after what the desktop said and before
+its drawing, and the pass waits no longer than the next minute while it has
+one; the desktop takes those hooks off its own per-frame list while the
+process runs, and puts them back when it goes. The cost is one wake a
+minute per process with a hook.
+
+**An item's pop-up is a view of its own**, `o<item>` on the screen at the
+pop-up's rectangle. The process says what the pop-up has (`has PREFIX
+popdraw popmouse popkey`) before the request that opens it; its key and
+press go as calls; closing it forgets the view.
+
+**A rows pane is drawn and worked in its process by the panel's own rows.**
+The rows a pane builds with `cp_choice`, `cp_toggle` and the rest, and the
+drawing and working of them, are `widgets/rows.hibr`, shared. A hosted pane
+with `_rows` and no `_draw` says it has what a pane that draws itself has
+(`draw key click mouse wheel`) and `rows`; the desktop gives its view the
+scrollbar's column, and passes the panel's focus side as the view's last
+word. In the process the runtime draws it with `cp_rowsdraw` and maps its
+key, click, press and wheel to `cp_rowskey`, `cp_rowsclick`,
+`cp_rowsmouse` and `cp_rowswheel` -- a press on a row that moves or on a
+slider taken so its drag follows, any other declined and coming back as the
+panel's click. A pane whose process is still starting is drawn as its face, never as
+rows built in the desktop, which no longer has its functions; the panel
+asks one question, `panel_drawn`, for its drawing and its input alike.
+A list a row opens is the hosted app's list (the menus
+track's). Not carried: the panel's search inside a hosted pane's rows (it
+finds the pane by its title), hover lighting of its rows, and a shortcut
+row's key capture (`dt_keycap` is the desktop's).
+
+**What a pane asks for runs from the request's own words.** A terminal
+window's command is `dt_termrun HOW ARG CMD...`, never a global set before
+`dt_launch`; and the window a pane's view is bound in is marked `rtpane`,
+a third owner field the window table is shared by, so the process reads
+the record its dialogs are placed over.
+
+### View kinds, round four: what round three did not carry
+
+**A pane's key is held, never withheld.** A key the panel's window would
+decline into a desktop action (the key `DT_RVFALL` names, wm/input.hibr) is
+sent to the hosted pane numbered and held for its answer as a window's key
+is (`DT_RVHOLD`, wm/rtfail.hibr): the desktop's action and what follows it
+wait for the pane's answer or `DT_HOLDMS`, never longer. Declined, the
+action runs; taken, it does not; unanswered, the key is declined and
+revoked (`dt_rvkrevoke`), so the process drops it if it never ran it.
+
+**A press in a pop-up is the person's input.** A hosted item's pop-up press
+is numbered (`pop:ITEM:press`) and judged a stall as every other input is;
+its drag and release are its sequel, told.
+
+**A part two bundles declare is handed on.** The first process to say it
+has the part draws it; the second's `has` is kept (`DT_RVPALT`), and when
+the first process goes the part is the second's, said in the log. Starting
+a process never takes a part a live one draws (`dt_rvxpend`).
+
+**A rows pane drawn by its own process is searched, lit and captures.** The
+panel's query goes to it when it changes (`_search`), and its rows narrow
+there as the panel narrows them. Its process tells the desktop what its rows
+hold whenever they change (`dt_rvrowsfound`, refused for another's pane),
+which is what the panel's search finds the pane by. The pointer over it is
+told (`_hover`, -1 -1 when it leaves) and lights the row under it with the
+panel's own pen. A shortcut row's capture is the desktop's: the rows in the
+pane's process ask for it with `dt_keycap` and `dt_keyclear`, now requests,
+naming the action the row captures for. What the rows ask is each rows
+pane's own in the contract (tools/appcalls.py's rowsreach) and in what it
+may ask (`DT_RVROWSASK`). The protocol is still 7: every new line is a
+`call` of another callback or a `tell` of a request.
+
+**Republishing.** Date & Time's pane (1.8.3) asks for its terminal with
+`dt_termrun` and needs hibr 0.99.558; Terminal (1.8.9) is given its command
+by `dt_newcmd` and needs hibr 0.99.556 -- the catalogue's 1.8.8 reads
+`DT_OPENCMD` in its own `_open`, which its own process never sees.
+
+### Edit, _idle, work with no window, a terminal's command (2026-11-22, protocol 7)
+
+What a window drawn by its app's own process carries besides its view and
+its input (`wm/rtcarry.hibr`, `runtime.hibr`, `tests/hostedit.py`, 24
+checks, every one failing on the tree before). No new verb: each is a
+`call` of another callback, or nothing on the wire at all.
+
+- **Edit is done whole where the window is drawn.** Copy, Cut, Paste,
+  Undo, Redo, Select All and Find are one function of the app interface,
+  `dt_editwin` (`widgets/text.hibr`): the focused field first -- its
+  value, selection and undo history live in the process that draws it, so
+  the desktop's `dt_fieldlive` is never true for a hosted window -- then
+  the window's own `_copy`, `_cut`, `_paste`, `_undo`, `_redo`, `_selall`
+  or `_find`. It asks the desktop nothing: what it took for the clipboard,
+  its kind (`text`, `paths`, `secret`) and the one note are left in
+  `DT_EDITR`, and `dt_editsay`, which the desktop runs, puts it on the
+  clipboard and gives the note. In-process the desktop runs both halves
+  (`dt_edit`, `dt_editdo`); hosted it sends `call SEQ ID OP` -- a paste
+  with the clipboard and how it was taken, handed to the process with the
+  call and never shared -- and the app answers `took SEQ 0 j {...}`. One
+  path in two halves: the window's half where its code is, the clipboard's
+  where the clipboard is. Numbered as the person's input, so an edit left
+  unanswered marks the window not responding. A copy or cut answered after
+  the clipboard changed (`DT_CLIPN`, the clipboard's count) is kept in the
+  history, never made the clipboard over the newer one: a cut is never
+  lost. A secret crosses the socket as the answer and is never logged or
+  kept. Costs: an in-process copy is 84 K instructions more than before
+  (991 K against 907 K, callgrind, 100 copies), about 10 us, once per
+  copy; the desktop's start 1.86 M instructions more (the moved and added
+  code read). A copy larger than `DT_RTLINEMAX` (1 MiB) is a line the
+  desktop will not read and lets the app's connection go -- a limit
+  in-process never had.
+- **A window's `_idle` runs in its own process, every pass, beside the
+  draw** (`dt_rtidle`), never across the wire: the descriptor it reads is
+  that process's. Drawn or not -- a clean `_dirty` skips the draw -- as the
+  desktop's `dt_drain`, so a watched descriptor is read and the console's
+  guard ("ready ... with nothing reading it") never has to fire. The
+  desktop's `dt_rvhas` leaves a hosted window's `idle` empty, so `dt_idle`
+  and `dt_drain` never reach one; `dt_answer` counts a hosted focused
+  window as having something, as an app with no `_dirty` -- answering no
+  held its echo to `DT_TERMMS` (102 ms to the screen against 13
+  in-process, `tests/hosted.py`) and the tickers with it. And
+  a window is neither drawn nor idled before its `_open` has run in its
+  process (`DT_RTWAITOPEN`): the view and the open are two lines the app
+  can read in two goes, and the spine drew `edapp` with no state once in
+  its first run; the suite now holds every open back 300 ms to make it
+  certain. A window bound to a process for the first time -- one an app
+  started again took -- is told its `_open` there, with nothing for one not
+  just made, as a window a restart cannot carry is opened fresh.
+- **Work with no window keeps the process, and nothing crosses the wire
+  for it.** The runtime ends with its last window only when it has no job
+  not yet done and no ticker of its own beyond the app interface's
+  (`dt_rtworking`). Both leave a file in the process's jobs folder
+  (`dt_jobsof`): a job's files from its start until its callback has run,
+  and the runtime's `ticker` mark while it stays for one. When a
+  windowless process's time to end comes the desktop looks in that folder,
+  and at its children, and leaves one at work for another `DT_RTENDSECS`
+  (`dt_rvbusy`), waking for it only then rather than ten times a second;
+  a hung one with nothing there is ended as before (`tests/hosted.py`'s
+  hanger). Measured: a windowless process kept for a ticker, with no
+  zygote, is Rss 8.0 MB, Pss 5.6 MB -- Files and Calendar, whose files
+  register tickers, stay resident after their first window, as their
+  tickers run for the desktop's life in-process.
+- **What a terminal window runs goes with the window.** (Measured with
+  `tools/budgets.py --hosted writers`, which ran for the first time: the
+  desktop 7.3% of a core against 8.3% in-process, and the hosted
+  Terminal's own process 42.8% -- it draws every pass its writers wake it,
+  with no `DT_TERMMS` of its own; the runtime's frame rate is the
+  terminal track's to cap.) `dt_new` takes
+  `DT_OPENCMD`, `DT_OPENSELF` and `DT_OPENSHELL` into the new window's own
+  record (`cmd0`..`cmdN-1`, `cmdn`, `openself`, `openshell`) and clears
+  them, so the next window inherits none of it; `term_open` reads the
+  record, which the forced pass sends before `call 0 ID open`. In-process
+  and hosted read the same fields. A window restored from a saved record
+  has them taken out first (`dt_newcmdgone`), so a fresh-opened terminal
+  never asks for an administrator twice. The catalogue's Terminal reads
+  `DT_OPENCMD` and is converted with this release (its next version
+  carries an `hibr:` floor).
+
+Not carried yet: the Select All key on a hosted field whose window has no
+`_selall` (the desktop's gate asks `dt_fieldlive`, which only the app's
+process can answer: the input track), and the Edit menu's rows for such a
+field, dimmed (the menus track: the process can push whether a field is
+live with its menus); an installable that sets `DT_OPENCMD` itself before
+`dt_launch term` (control-panel/datetime): in its own process the global
+is its own, so the command must become the request's argument; a resident
+process whose ticker hangs has no window and no numbered input, so nothing
+judges it -- not covered against the sensitivity requirement, to be judged
+from outside by its processor time as `dt_rvlate` judges a window's input.
+
+### Registrations read, not run (2026-11-22, Decision 3 built)
+
+`dt_regread FILE` (`wm/apps.hibr`) makes every registration a file makes at
+its top level -- each declaration `interface.tsv` names (`dt_app`,
+`dt_keep`, `dt_keepstate`, `cs_module`, `dt_baritem` and the bar item's
+others, `dt_appaction`, `dt_atstart`, `dt_barhook`), a Control Panel pane
+(`cp_pane`), an opener (`dt_opener`, `dt_openerverb`) -- from the parser's
+own words for it (`inspect calls --arguments`), with `DT_LOADING` the file,
+so nothing of the installable runs in the desktop. A kept setting gets
+the default its file writes for it at the top level (`X="${X-v}"`,
+`: "${X:=v}"`, `X=v`), the line read and never run, before it is kept, as
+in-process the line runs before the `dt_keep`. A registration whose words
+are not written out is not made, and the log names it, file and line; one
+inside a function is the file's process's to make. The scans take it at
+the flip (`dt_appscan`, `dt_sysapps` and the pane, strip and bar scans
+call it in place of sourcing); until then a test session's hosted apps are
+registered so. `tests/regread.py` loads every installable in the tree both
+ways, each in a desktop of its own: 97 of 99 register the same, registries
+and kept values alike, with nothing of the file run; one registration is
+not written out (control-strip/workspaces, `cs_module` with a computed
+width) and one installable registers from a function of its own
+(apps/archives, whose openers name the kinds its tools read, which only
+running can tell, so its process makes them). `tools/hostaudit.py` names a
+registration not written out as the change its entry needs; across the
+catalogue that is five (workspaces, longwire, wiretap twice).
+
+### The CONVERT slices (2026-11-22)
+
+- **Where a dialog opens** (`DT_DLGR`, `DT_DLGC`, `DT_DLGH`, `DT_DLGW`):
+  `dt_dlgat` and `dt_dlgfor` move to `wm/winfacts.hibr`, worked out from
+  what the desktop shares, so an app's process answers from its copy and
+  the four are each process's own -- no round trip, `requests.hibr` no
+  longer stubs it. A pane's process whose focused window is the Control
+  Panel's has no record of it, so its dialog centres on the primary until
+  the pane's view carries its host window.
+- **Where a context menu opened, and for whom** (`MB_CX`, `MB_CY`,
+  `MB_CTXWHO`, `MB_CTXID`) and **the settings file as it was read**
+  (`DT_CONFJ`): shared, so they are in an app's copy before any call that
+  reads them -- the pass is forced before every call -- and read only.
+- **A window an app's process asks for that another app draws** carries
+  `rtown`, the asker (`dt_new`, when the request came from a process): the
+  window table is shared by `app` and `rtown` (`dt_share -o`, given more
+  than once), and the asker's requests on that window are its own
+  (`dt_rtowns`). In a real session no request comes from a process, so no
+  record has the field.
+
+`tests/hostconv.py` registers an app by reading its file, starts it, and
+reads each slice in its own process; every check fails on the tree before.
+No line crosses the wire that did not before.
+
+### What only an app's process knows (2026-11-22, protocol 7)
+
+No new verb and no new line. Three things ride inside lines protocol 7
+already has, each read by an older end as nothing: a `menus` push carries
+`field`, `fundo` and `fredo` beside its menus; `call SEQ ID selall` may
+carry the key that asked for it; an edit's `took` may say `toolong` with
+the count. Whoever moves the protocol to 8 lists them with it.
+
+- **A field in a window an app's own process draws.** Only that process
+  knows whether the window's field is live and whether its typing can be
+  taken back, so it says so with its menus: after each draw of the
+  **focused** window, `dt_rtfieldtell` (`runtime.hibr`) works the three
+  facts out (`dt_rtfieldbits`) and, when they differ from the last told
+  (`ID:BITS`), builds and pushes the window's menus with them; every
+  menus push works them out fresh. An app with no `_menus` pushes them
+  with no menus, and the desktop's own File and Edit stand. Only the
+  focused window tells, because the desktop keeps one menus for an app:
+  a window that had just lost the focus telling its own took its app's
+  menus away from the window that had it, until the next rebuild. The
+  Edit menu asks `dt_rvfield` (`wm/rtcarry.hibr`) for such a window where
+  it asks `dt_fieldlive` for its own, so Copy, Cut, Paste and Select All
+  are offered for a live field whose app has none of them, and Undo and
+  Redo follow its typing. The Select All key does not wait on a push: for
+  a hosted window it goes to the process as an edit with the key beside
+  it, and the process tries the field, then the window's `_selall`, then
+  gives the window the key through `dt_appcall`, the order and the call
+  the desktop uses for a window of its own (a key it declines does
+  nothing more there either: `dt_keyrest` has no Select All). So a key in
+  the same read as the tab that focused the field still selects it.
+  Costs: in the app's process, 32 us a draw of the focused window with a
+  live field, 13 us without one, 4 us for any other window (a focused
+  terminal drawing 15 frames a second pays 0.2 ms a second there); in the
+  desktop, an Edit menu build is 22 K instructions more (2.726 M against
+  2.704 M, callgrind, 200 builds), only when the menus are rebuilt.
+- **An edit answer longer than one line can carry.** The desktop reads a
+  line from an app's process to `DT_RTLINEMAX` (1 MiB, in characters) and
+  lets the connection go past that, which a long copy reached.
+  `dt_rtedit` measures its answer as it will cross: one longer than
+  `DT_RTEDITMAX` (1,040,000 characters on the wire, where a space or `%`
+  is three, a newline, tab, quote or backslash two, any other control
+  character six -- so between about 347,000 and 1,040,000 characters of
+  text) is refused with a note, "Too much to copy at once: N characters",
+  and the app goes on. A cut is measured first by the same copy and, too
+  long, not made, so its text stays where it was; a window whose app has a
+  `_cut` and no `_copy` to measure by has a cut too long put back by
+  pasting it through the same edit (`dt_editwin ... paste ... cut`), so a
+  cut is never lost. Chunking was not built: refusing keeps one answer
+  one line and says plainly what happened; a copy that size is a limit
+  in-process never had, and is named as one. A cut measured first costs
+  one copy more.
+- **A process kept with no window, judged from outside.** When a process
+  that has no window left is kept for its own work (`dt_rvbusy`), the
+  desktop reads its `schedstat` at each look, every `DT_RTENDSECS`
+  (`dt_rvresjudge`). Its tickers and callbacks that return are timed
+  inside it, as in the desktop (`dt_spent`), and their `held:` lines reach
+  the desktop's log, which the suites read (checked: a windowless
+  process's ticker that stalls a second and returns). What only the
+  outside can see is one that never returns, which wants the processor
+  the whole time between two looks: on it or waiting for it for nine
+  tenths of that time, and on it for `DT_HOLDMS` at least, so a loaded
+  box that gives it less of a turn hides nothing. That is a `held:
+  resident:APP` line, once until it calms down, which fails the suites as
+  any `held:` does. It is never ended, paused or shown for it: it has no
+  window, and nobody at the screen waits on it. A process kept for a
+  job's program spends nothing and is never named. Not covered: a ticker
+  that never returns because it is **blocked** (a read nothing answers, a
+  connect), which uses no processor; in-process it would freeze the
+  desktop.
+- **A strip module's width written out.** The workspace numbers'
+  `cs_module` is written as five columns, the three workspaces a desktop
+  starts with, and its `_draw` says another width when there are more or
+  fewer (`cs_modwidth`), so `dt_regread` makes it.
+- **What an opener needs, declared and read** (`dt_openerneeds EXTS
+  PROGRAMS...`, `wm/handlers.hibr`). An extension of what the declaring
+  file's openers and verbs take is offered only while one of the programs
+  is on the `PATH`. The desktop decides it when the file declares it and
+  again on every rescan (`dt_openneedset`, each program asked once a
+  rescan): an opener keeps what it said (`said`) and whether its file is
+  unloaded (`off`), and what it offers (`types`, a verb's `ext`) is
+  derived from them, so what Files and File Types read on their own copy
+  (`wm/openfacts.hibr`, unchanged) is what can open now, and nothing of
+  the file runs for it. Archives writes its openers, verbs and needs out
+  at its top level (1.1.3), so `dt_regread` makes them and its process
+  need not run for Files to offer them: every installable in the tree now
+  registers the same read as sourced. `dt_onrescan`, the mechanism it
+  replaces, had no other caller and goes: a deliberate break held in
+  `BREAKS` against v0.99.557; a copy of Archives from before calls it
+  behind `command -v` and keeps what it declared at load. Its location
+  (`dt_location archive arc archives`) is written out too and not read:
+  a location's functions run where they are loaded, which for a hosted
+  app is not carried yet.
+
+In "Openers as declared data (2026-11-20)", the sentence on freshness
+becomes: What a declaration offers is only as fresh as the last rescan
+(`dt_openerneeds`: the desktop asks again for the programs each kind of
+Archives needs), so a zip tool installed by apt is offered after Refresh
+Desktop or a restart, not the moment it lands.
+
+### An icon named by its glyph, a ticker blocked with no window (2026-11-22)
+
+- **An icon can name a glyph of Blit's** (the owner's choice, for Wiretap).
+  An icon written `@ID:TEXT` in `dt_app` or `cp_pane` is Blit's glyph of
+  that id under the blit glyph set, where this Blit has it, and TEXT under
+  every other (`dt_iconof`, `wm/glyphs.hibr`, shared). What was said is
+  kept (`iconsaid`) and what draws (`icon`) is worked out at registration
+  and again whenever the set moves -- through the setting (`dt_onset
+  DT_GLYPHSET`) and once the saved settings load, which is after the files
+  have registered (`dt_iconsagain`, the desktop's). No reader of an icon
+  changes. So a registration whose icon was worked out by running the
+  installable's own code can be written out and read as data. The floor
+  check cannot see a new meaning of an existing word, so an entry using it
+  writes its `hibr:` floor by hand; an older desktop draws the text
+  `@ID:TEXT` and nothing else breaks. Costs: 4 us a registration with a
+  plain icon, 16 us with an `@` icon; about 0.9 ms to work 80 out again on
+  a set change.
+- **A process kept with no window whose ticker is blocked** (the owner's
+  choice, before the flip). A ticker that never returns because it waits
+  -- a read nothing answers, a connect, a program it waits on -- uses no
+  processor, so the processor-time judge above cannot see it, and
+  in-process it would have frozen the desktop. At each look the desktop
+  also reads the process's `wchan` and its voluntary context switches: a
+  process waiting somewhere other than its loop's own wait (`dt_rvownwait`:
+  the console's pselect, which the kernel shows as `poll_schedule_timeout`
+  or `do_select`, measured on this kernel) at two looks in a row, with
+  under a hundredth of the time between them on the processor and at most
+  one voluntary switch -- the one block it went into -- is `held:
+  resident:APP has no window and has waited in WCHAN, outside its own
+  wait, ...`, once until it calms, and left running. Idle in its own wait
+  it is never named, however quiet: a ticker that asks for nothing leaves
+  its process in pselect with no processor and no switches, and only the
+  wait tells it from a blocked one (`tests/hostfield.py`'s control). A job
+  runs its program beside the process, so its process is in its own wait.
+  The looks are every `DT_RTENDSECS`, so a block is named once it has
+  lasted between one and two of them (5 to 10 s by default) -- coarser
+  than the desktop's own 150 ms, which a ticker that returns still gets,
+  timed inside its process. A ticker blocked in a `read -t` of its own is
+  in poll and is not named. A look costs about 0.5 ms (three reads of
+  `/proc`), once per resident process every `DT_RTENDSECS`.
+- **A `held:` line from an app's own process names that process**:
+  `held: spinapp_tick held spinapp's own process 1000 ms` where it said
+  "held the desktop" (`DT_HOLDWHAT`, set by the runtime as it starts). Its
+  stall holds its own windows, not the desktop.
+
+## Pictures, by hold (2026-11-22, protocol 8)
+
+An app in a process of its own draws pictures as it always has -- `img draw
+-m pixels`, a film's frames through `dp->image` -- and they reach every
+display without passing through the desktop's loop. The route was agreed
+with the Blit side (2026-11-22): **not through Blit** (no new Blit protocol)
+but **through hold**. Every desktop runs inside hold (`dt_autohold`), and a
+held program's frames already go program -> hold's server -> each display's
+client -> that display's Blit. An app's process is a child inside the same
+held session, so it hands its frames to hold's server itself.
+
+### What Blit fixes, and what hold therefore owns
+
+Blit cannot tell two senders apart on one connection, and every display's
+client is one connection carrying everything of the session. From Blit's
+source (src/blit_frames.h, main cce73b0f):
+
+- **Image ids are per Blit session**, and a colliding id is silently the same
+  image. Sequences are per id; a frame not above its id's last is dropped as
+  stale.
+- **A deleted id is refused (ENOENT)** while it sits in the session's ring of
+  the last 64 deleted (BLIT_FRAME_DELETED).
+- **A release (`FRAME release ID SEQ`) goes to the connection that sent the
+  newest frame of that image**, which is the display's client.
+- **One uid failure closes the whole connection** (`FRAME error 0 EACCES`),
+  and closing drops every dmabuf it held, whoever's.
+- **A memfd frame for an image showing a dmabuf frees the dmabuf**: kinds must
+  not mix on one id.
+- **Ceilings are the session's**: 4096 pictures, 16384 placements, and 8
+  placements waiting for a first frame (BLIT_FRAME_PENDING). An app's frames
+  spend the desktop's budget.
+
+So: **the desktop allocates ids, hold enforces them, the app never learns
+one.** The desktop already places every picture on its own terminal and its
+console is the session's one allocator of kitty ids (`kt_id`, a band per
+process, a counter that hands an id back only after 16,383 others -- far past
+Blit's ring of 64, so a freed id is never handed to anything soon). Hold
+forwards a frame only where the emulator holds an `a=p` for its id, and that
+placement comes from the desktop's pty, so the id had to be the desktop's
+anyway. A remap in hold alone would have been a second id space the desktop
+still had to learn; a band handed to each app would have been a second
+allocator. Instead:
+
+- The app names each picture by a **slot** of its own (1, 2, ...), never
+  reused in its life.
+- The desktop places the slot's picture as a **stream** of its own
+  (`cn_imgdmas`, the region Blit's compositor windows already use): one id
+  taken fresh with `kt_id` for the picture's life, moved in place by its
+  placement alone, its placements deleted (`d=i`) while its window is not
+  shown and the image kept, deleted for good (`d=I`) only when the app stops
+  drawing it, its view goes or its app's connection ends -- each of which is
+  the picture truly gone, never to be written again.
+- The desktop **grants** the id to the slot on its own frames connection to
+  hold: `grant PID SLOT ID`. The PID is the app's process, read off the cells
+  channel with `SO_PEERCRED`; hold reads the same off the app's own
+  connection. Hold writes ID into every frame of that slot on its way to the
+  displays, and SLOT back into every line a display's Blit says of it.
+
+### The wire, protocol 8
+
+The protocol moves from 7 to 8 once, for this track; nothing on the request
+socket changes.
+
+**The cell record** (a view's frame, `w ... e`) gains two lines:
+
+```text
+p SLOT ROW COL H W   the app's picture SLOT shows in this view from ROW, COL, H rows by W columns, from this frame on
+x SLOT               the app no longer draws picture SLOT: it is gone for good
+```
+
+- ROW, COL are the view's own, as a run's are (after its origin). A `p`
+  whose rectangle passes the view's edge is skipped, logged; one with a zero
+  slot or size breaks the connection, as any line the record does not allow.
+- A `p` is said when the picture is new, moved, or the view's frame begins
+  with `s` (every picture again). Each `p` and `x` is applied at the frame's
+  `e` with the rest of it; the view is reported *changed* on a `p`, and
+  *changed* and *uncovered* on an `x`, so the window manager draws the face
+  back where the picture was.
+- **A frame that begins with `s` says every picture the view has**, and the
+  desktop drops any it does not say, as an `x` would have. A `p` or `x` in a
+  frame the desktop skips (another generation's, for a size the window has
+  left) would otherwise be lost for good, where the record's `l` and `t`
+  lines stay outside frames exactly so a skipped frame takes nothing the
+  app believes the desktop has.
+- Pixels never cross the cells channel.
+
+**Hold's own wire** (`mods/hold/hd.h`; `HF_API_VER` 4 -> 5, since the
+interface the console asks for grows three functions):
+
+- `HD_APPOPEN` ('1'): an app opens a connection of its own to the session's
+  server (`hf_api.appopen`), its own uid only (`hd_frmpeer`). On it go
+  `HD_FRAME` (a 48-byte FRM1 header and a sealed memfd, `appframe`) and
+  `HD_FRM3` (dmabuf), the header's id field the app's SLOT. Back comes, on
+  `HD_FRMANS`: `PIC CW CH` at once and whenever it changes -- CW, CH what a
+  cell measures while every display can be sent frames and draws kitty
+  pictures, `0 0` otherwise, the same answer the desktop's own pictures go by
+  descriptor on -- and `FRAME release SLOT SEQ` / `FRAME error SLOT CODE`.
+- `HD_APPCTL` ('2'): from the desktop, on its frames connection (`open3`,
+  `appctl`): `grant PID SLOT ID`, `ungrant PID SLOT`, `revoke PID`. A grant
+  of an id another slot holds, or one another sender has frames for, is
+  refused and logged.
+- `HD_APPLIST` ('3'): `hold apps [name]`, a line an app: `pid slots frames
+  refused bytes early`.
+- Every letter was taken, so these are digits.
+
+### What hold enforces
+
+- **One writer an id.** An app's frame reaches a display only under the id
+  its slot was granted; a slot not granted yet keeps its newest memfd frame
+  until the grant comes (a dmabuf one is given straight back, `early`). Once
+  granted, the desktop's own frames for that id -- by the one-shot memfd path
+  or on its dmabuf connection -- are refused. A slot's sequences rise as the
+  app sent them.
+- **Kinds do not mix.** A slot takes the kind of its first frame; a frame of
+  the other kind is refused.
+- **Releases go back to their sender.** Each dmabuf frame is kept with the
+  connection that sent it, as a held program's are; what a display's Blit
+  says comes back by slot. A display whose Blit closed on it (`HD_FDCAP 0`,
+  which an EACCES closing is) holds nothing of anyone's any more: its views
+  of every frame are let go at once, so every app gets its buffers back as
+  newer ones replace them. (Before this, only a display that left the
+  session did that; one whose Blit dropped it kept them for good.)
+- **A placement waits for its first frame.** An app's image with no frame
+  yet is not placed on any display (`hd_appwait`), since Blit counts such a
+  placement against the eight a session may have waiting; the frame brings
+  it.
+- **Caps, per app, refused and never punished.** `HD_APPFPS` (60) frames a
+  second, `HD_APPBYTES` (32 MiB) a frame, `HD_APPSLOTS` (16) pictures kept,
+  `HD_APPBUFS` (8) dmabufs replaced and not yet given back (an image's
+  newest is not counted: it comes back only when replaced, so counting it
+  would refuse every later frame of an app showing eight images). Past one,
+  the frame is
+  refused, counted in `hold apps`, logged at most every five seconds, and a
+  dmabuf one is given straight back so the app is never left waiting on its
+  own buffer. The app is never paused, its connection never cut. The numbers
+  are the owner's, decided below.
+- **Revocation.** The desktop says `ungrant` when the app stops drawing a
+  picture, or the view holding it goes (and deletes its image, `d=I`), and
+  `revoke` when the app's cells channel is let go; hold closes the app's
+  connection and lets go of every frame it kept. A grant ends with the
+  connection it was made on.
+- **An app that ends keeps its windows' last pictures** (Decision 7's
+  default, "keep them showing their last picture"): its connection going
+  takes only its slots never granted; a granted slot keeps its last memfd
+  frame until the desktop lets the window go (`dt_rvletgo`, which drops the
+  view, which ungrants), so a display that joins meanwhile, or the window
+  hidden and shown, still gets it. A dmabuf is the app's buffer and goes
+  with it; Blit keeps what it last showed.
+- **Who an app is** comes from its connection's pid. That is for blame and
+  for accidents -- the wrong app is never named, and no app can write another
+  sender's picture by mistake -- not a defence against a process of the same
+  user, which can open any connection hold takes, as it always could.
+
+### The app's side
+
+The app's console (`cells.c`) asks `appopen` on its first picture and dials
+again at most once a second while it cannot. `dp->cellpx` answers the
+`PIC` cell size there, 0 by 0 while pictures may not go, so `img draw` draws
+cells instead, as it does on any terminal without pixels. The same picture
+in the same place sends nothing; another of the same size there is the
+slot's next frame, so a film is one id and one slot; one of another size is
+a new slot and the old one `x`. Each slot's newest memfd is kept, so a
+server that lost it (`hold upgrade`) is sent it again on the next
+connection.
+
+A program's window sent to the frames module in an app's own process
+(`dpframes` there -- a compositor's window inside an app) is one of the
+app's pictures too: a slot for the stream's life, said as `p`, its memfd and
+dmabuf frames sent on the app's connection under the slot, and what the
+displays say of them handed back through the console's own `cn_dans`, so
+the program is told in its own ids. A subsurface or a cut of one is not
+carried yet, said once.
+
+**Views of other kinds** (a Control Panel pane, a Control Strip module, a
+bar item, a saver; the hosted-kinds track): a picture is placed through the
+pane a view is bound in. A pane kind, drawn in its Control Panel window,
+and a bar item, in the bar's pane, may hold pictures; a view bound on the
+screen itself (`-`: a strip module, a saver) has no pane to place one
+through, so its picture is left out and said once in the log (`cw_vpshow`),
+and the app, told nothing, keeps the slot until it stops drawing it; hold
+keeps that slot's newest memfd, never granted, inside the app's 16. The
+tray's icons are refused before any of this: a picture with its own
+transparency is not carried, so they stay cells. This paragraph is read
+from the code: `tests/hostpix.py` drives windows only, and no suite yet
+gives a hosted pane, bar item or strip module a picture.
+
+### What it costs
+
+- The desktop: nothing per frame of an app's picture -- the frames never
+  reach it (a 20-frame film woke the test desktop no more than its own
+  one-second timer). When a hosted view with pictures is shown, one
+  `cn_imgdmas` per picture and a grant line once per picture: measured with
+  callgrind over 400 shows of a view holding one 12x6 picture on a 40x120
+  screen, `cw_vpshow` is 9,300 instructions a show (about 2 us), where an
+  in-process window placing the same picture hashes its 27 kB of pixels
+  every frame. A view with no pictures pays one comparison (`nvp`), and an
+  in-process window nothing. (Any picture region on screen, hosted or not,
+  costs the flush its per-cell test, `cn_imgat`: 206,000 instructions a
+  frame at 40x120 in the same measurement. That is the console's today and
+  unchanged here; it is the next thing worth making cheaper.)
+- Hold and the app, measured once (2026-11-22) as CPU time on
+  `/proc/<pid>/schedstat`, above each process's own idle, in `hostpix.py`'s
+  console session (two stacked displays, 8x16 cells): an app drawing a film
+  of two alternating 32x32 PNGs as a 12x6-cell picture across the seam,
+  199 frames in 11.5 s, cost **hold's server 141 us a frame** (one frame to
+  two displays) and **the app 271 us a frame** -- its whole pass: the PNG
+  decoded and resampled to 96x96 again each frame (img's one-entry pixel
+  cache misses on two files), the hash, the sealed memfd, the `sendmsg`,
+  its own loop -- while **the desktop spent nothing above its idle** over
+  the film. For comparison, the test desktop animating its own picture of
+  the same size the old way, by descriptor, 176 frames in 10 s, cost hold
+  155 us a frame (to one display) and the desktop 861 us a frame for its
+  whole loop pass (a stand-in's loop, more than the picture alone, so not
+  the same work as the app's 271). So hold's work per frame is about what
+  a held program's frame already costs it, and an app's picture is paid
+  for in the app's own process, not the desktop's.
+  One run each; not repeated, so the spread is not known.
+
+### Checked
+
+`tests/hostpix.py` (36 checks, in `all.py`, `affected.py` and `asan.py`'s
+quick list), on two stacked displays with stand-in Blits, in three parts.
+**Hold's own wire**, driven by stand-in apps and a stand-in desktop: a
+granted slot reaching both displays under its id; an app unable to reach an
+id not granted to it, to be granted one another sender writes, or to have
+its own written by another (memfd or dmabuf); kinds refused when mixed;
+releases back to their sender by its own slot, two apps on one slot number
+and sequences apart; a placement held back until its first frame; a flood
+capped, counted and never cut off while the desktop's frames go on; a frame
+too large and too many pictures refused; a display whose Blit closes on it
+giving every frame back; revoking. **The console end to end**, a held
+desktop's cells channel and an app's own console: `img draw -m pixels` on
+both displays under an id of the desktop's band, placed on both terminals;
+a program's dmabuf frames through the frames module in the app's process,
+on both displays, its releases back in its own ids; a film one id that
+never wakes the desktop; hidden and shown under one id; gone for good with
+a fresh id after; an `x` in a skipped frame still taking effect; an ended
+app's picture kept, and the window letting it go; outside hold, cells.
+**The real hosted path**: a held test desktop starts an installed app with
+`dt_rthost`, whose `_draw` draws a picture -- its frames from that process
+on both displays, placed on both terminals, minimised and back under one
+id, kept when its app is killed (`DT_APPGONE` keep), deleted for good when
+the window closes (`dt_rvletgo`). `frameserve.py` keeps Blit's ring of the
+last 64 deleted ids and can close every connection with EACCES.
+
+What was seen to fail without the work, rather than assumed: against the
+base (this suite run on the tree before it), the hold part fails seven of
+its first nine checks and the suite then dies, its stand-ins unanswered, and the real hosted path, run on
+its own, fails all five of its checks. With one mechanism taken out of
+this tree at a time: the desktop placing an app's stream
+(`cn_imgdmas` -> `cw_imgdma`) removed, the dmabuf-through-the-app check,
+its releases and the two-pictures check fail; hold dropping a granted slot
+when its app's connection goes, the two kept-picture checks (the stand-in
+app and the real one) fail. The other checks were not each run against
+their own removal.
+
+### Out of scope, said plainly
+
+- **Blit's 4096-picture and 16384-placement ceilings** are kept by the caps,
+  not tested: the stand-in does not count them.
+
+- **Unheld** (the console drawing straight onto Blit, no hold): an app's
+  pictures are drawn as cells, said once in its log. No session the desktop
+  starts is unheld; a test session can be.
+- **A stream's subsurface or cut** from an app's process (a program
+  window's popup drawn through its view) is not carried, said once.
+- **Input routes** for a stream in an app's process (`INPUT sock`, the keys
+  and pointer Blit sends a program's window) are not carried: the window
+  shows, and takes input only through the desktop's own path.
+- **Pictures with their own transparency** (`"dpover"`, a tray icon) and
+  **under the text** stay in-process: they belong to bar items and the
+  wallpaper, which are the platform's.
+- **A display joining that cannot take frames** turns `PIC` to `0 0`; an
+  app's pictures turn to cells at its next draw, not at once.
+- **After `hold upgrade`** the desktop grants again, and the app sends its
+  kept frames again, at each one's next draw or showing; an idle window's
+  picture is blank on a display that joined meanwhile until then.
+
+### Decided (owner, through the coordinator, 2026-11-22)
+
+1. **The caps stay as built**: 60 frames a second, 32 MiB a frame, 16
+   pictures and 8 dmabufs replaced and not given back, per app. 60 is a film
+   at full rate, 32 MiB a 4K frame in RGBA, and 16 pictures and 8 buffers
+   keep thirty apps inside Blit's 4096 pictures with room for the desktop.
+2. **The anonymous one-shot `HD_FRAME` path stays open** to every id but an
+   app's: closing it buys nothing against a process of the same user, which
+   can open a producer connection anyway, and the desktop's own console is
+   its only caller.
+
 ## The first plan (2026-11-01), superseded
 
 In three steps, each a release that stands on its own:

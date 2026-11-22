@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.99.558
+
+**Every kind of app can run in a process of its own, end to end in a test
+session** (ADR 0050, protocol 8). It is not yet switched on for a real
+desktop: that is the flip, a release of its own. A hosted app has its
+windows, menus, context menus, lists and dialogs; Control Panel panes,
+Control Strip modules, bar items and their pop-ups, and screen savers;
+Copy, Cut, Paste, Undo and Find; pictures, which its process hands to
+hold and the desktop places, so a film never passes through the desktop's
+loop; work with no window; and a bundle and its parts in one process.
+
+**A slow or crashed app is marked, never punished.** The pointer turns
+busy after half a second and the title says "(not responding)" after three,
+both set in Control Panel > Mouse. A crashed app keeps its window, with
+Reopen on its Window menu, and a Terminal's shells survive it. A process
+kept with no window that spins or blocks is logged as held and left
+running.
+
+**App processes start from a zygote**, ready in about 10 ms instead of 40,
+at under half the memory. The desktop owns terminals' programs, and
+Restart Desktop keeps each app process whose code is current and replaces
+the rest. Frames For Output and Frames For Video reach app processes.
+
+**Registrations are read, not run**: the desktop learns what a file offers
+from its written-out words. An icon may name a Blit glyph (`@id:text`).
+Archives declares the programs its openers need (`dt_openerneeds`), and
+`dt_onrescan` is gone (Archives 1.1.3 in the catalogue).
+
 ## 0.99.557
 
 0.99.556 was tagged and never published: building its catalogue found a
