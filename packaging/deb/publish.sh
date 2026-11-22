@@ -71,6 +71,23 @@ keep_sync "$REPO" || exit 1
 # Each package in its own pool folder, by Debian's usual layout:
 # pool/main/h/hibr for hibr, pool/main/b/blit for Blit, which this
 # repository has carried as well since 0.99.297.
+# hibr's own packages run on Debian 12 and up, so none may need a newer glibc
+# than bookworm's: a host build on a newer glibc pulls in its symbols through
+# the headers (__isoc23_strtol, GLIBC_2.38) and the package then refuses to
+# install there -- 0.99.557-1 did, built on this host after it moved to
+# Debian 13's glibc. Build them with packaging/deb/build-bookworm.sh. Blit's
+# packages say their own floor (Debian 13 and up) and are not held to this.
+GLIBC_MAX=${APT_GLIBC_MAX:-2.36}
+for deb in "$@"; do
+	case $(dpkg-deb -f "$deb" Package) in
+	hibr | hibr-*)
+		need=$(dpkg-deb -f "$deb" Depends | tr ',' '\n' | sed -n 's/^ *libc6 *(>= *\([0-9.]*\)).*/\1/p' | head -1)
+		if [ -n "$need" ] && [ "$(printf '%s\n%s\n' "$need" "$GLIBC_MAX" | sort -V | tail -1)" != "$GLIBC_MAX" ]; then
+			echo "publish: $(basename "$deb") needs glibc $need, newer than Debian 12's $GLIBC_MAX: build it with packaging/deb/build-bookworm.sh" >&2
+			exit 1
+		fi ;;
+	esac
+done
 for deb in "$@"; do
 	dpkg-deb -I "$deb" > /dev/null
 	pkg=$(dpkg-deb -f "$deb" Package)
