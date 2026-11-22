@@ -201,7 +201,7 @@ local	dt_omnisig	widgets/omnibox.hibr	2	1	asked	-	dt_omnisig(int id)	-	-
 local	dt_omnidraw	widgets/omnibox.hibr	2	1	told	-	dt_omnidraw(int id, int r, int c, int w, text, int cur, int focused, paste = "")	-	-
 local	dt_omnikey	widgets/omnibox.hibr	2	1	asked	-	dt_omnikey(int id, cb, text, int cur, key)	-	-
 local	dt_omnihit	widgets/omnibox.hibr	2	1	asked	-	dt_omnihit(int id, int r, int c)	-	-
-local	dt_fieldedit	widgets/text.hibr	2	2	told	dt_fieldedit > dt_clipset	dt_fieldedit(op)	-	-
+local	dt_fieldedit	widgets/text.hibr	2	2	told	dt_fieldedit > dt_editsay > dt_clipset	dt_fieldedit(op)	-	-
 local	tb_clampc	widgets/textarea.hibr	2	2	told	-	tb_clampc(int id)	-	-
 local	tb_wrap	widgets/textarea.hibr	2	2	asked	-	tb_wrap(line, int w)	-	-
 local	tb_layout	widgets/textarea.hibr	2	2	told	-	tb_layout(int id, int w)	-	-

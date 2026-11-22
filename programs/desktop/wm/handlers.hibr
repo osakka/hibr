@@ -44,9 +44,9 @@ fn dt_handlerdrop(ext) {
 	unset "DT_HANDLERS[$ext]"
 }
 
-# A handler's own argv, read by term_open once it is asked to run one
-# instead of hvi: set right here, right before dt_launch term, so term.hibr
-# never has to know this table exists.
+# A handler's own argv, run by a terminal window instead of hvi: set right
+# here, right before dt_launch term, and taken into the new window's own
+# record by dt_newcmd, so term.hibr never has to know this table exists.
 DT_OPENCMD=()
 
 # Set alongside DT_OPENCMD when the file being opened is itself the
@@ -60,6 +60,43 @@ DT_OPENSELF=
 # Terminal Here -- whose window closes on a clean exit like any terminal's,
 # since there is no output left to read once someone has typed exit.
 DT_OPENSHELL=
+
+# What a terminal window is to run, taken into its own record as it is
+# made (dt_new): the words as cmd0 to cmd<n-1> and their count as cmdn,
+# with openself and openshell, and the three globals cleared, so the next
+# window inherits none of it. Its _open reads the record, which reaches an
+# app's own process with the window (ADR 0050), where a global of the
+# desktop's never would.
+fn dt_newcmd(int id) {
+	local i=0 n=${#DT_OPENCMD[@]}
+
+	while [ "$i" -lt "$n" ]; do
+		DT[$id]["cmd$i"]=${DT_OPENCMD[$i]}
+		i=$((i + 1))
+	done
+	DT[$id]["cmdn"]=$n
+	DT[$id]["openself"]=$DT_OPENSELF
+	DT[$id]["openshell"]=$DT_OPENSHELL
+	DT_OPENCMD=()
+	DT_OPENSELF=
+	DT_OPENSHELL=
+	return 0
+}
+
+# A window's record without what it was made to run: a window restored
+# from a saved record opens fresh, or resumes, and never runs it again --
+# a command asking for an administrator (pkexec, sudo) would ask twice.
+fn dt_newcmdgone(int id) {
+	local i=0 n=${DT[$id]["cmdn"]-0}
+
+	[ -n "${DT[$id]["cmdn"]+x}" ] || return 0
+	while [ "$i" -lt "$n" ]; do
+		unset DT[$id]["cmd$i"]
+		i=$((i + 1))
+	done
+	unset DT[$id]["cmdn"] DT[$id]["openself"] DT[$id]["openshell"]
+	return 0
+}
 
 # Run a registered handler on a path.
 fn dt_runhandler(ext, path) {

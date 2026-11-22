@@ -295,6 +295,7 @@ dt_restore() {
 		fi
 		dt_hooks "$id" "$ap"
 		DT[$id]["autoclose"]=
+		dt_newcmdgone "$id"
 		if [ "${DT_RS["fresh"]}" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
 			dt_rslog "window $id ($ap): what it held could not survive, opened fresh"
 			[ -n "${DT[$id]["open"]}" ] && dt_appfn "${DT[$id]["app"]-}" ${DT[$id]["open"]} "$id" ""

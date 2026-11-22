@@ -90,11 +90,13 @@ fn dt_rvnew(int id, ap = "") {
 # Whether a hosted window's app has callback kind f, as the window manager
 # asks dt_has in-process: from what its process said. The kinds the wire
 # does not carry yet (an ask whose answer the desktop takes) are left out,
-# said once each.
+# said once each; and _idle, which its own process runs beside its draw
+# (runtime.hibr), so the desktop never calls it.
 fn dt_rvhas(ap, f) {
 	[[ ${DT_RTHAS["$ap"]-} == *" $f "* ]] || return 1
+	[ "$f" != idle ] || return 1
 	case $f in
-	copy | cut | undo | redo | selall | canclose | find | signin | idle)
+	canclose | signin)
 		dt_rvonce "has:$ap:$f" "app runtime: ${ap}_$f is not carried yet (ADR 0050); the window has none"
 		return 1
 		;;
@@ -144,6 +146,11 @@ fn dt_rvbind(int id) {
 		dt_log "app runtime: window $id of $ap could not be bound"
 		return 1
 	fi
+	# Bound to a process for the first time -- a new window, or one whose
+	# app was started again -- its _open is told there, with nothing for
+	# one that was not just made: that process holds nothing of it yet, as
+	# a window a restart could not carry is opened fresh in-process.
+	[ -z "$new" ] || [ -n "${DT_RVOPEN[$id]+x}" ] || DT_RVOPEN[$id]=
 	DT_RVC[$id]=$c
 	DT_RVARGS[$id]=$a
 	DT_RVDIRTY[$id]=1
@@ -282,11 +289,13 @@ fn dt_rvcall(int id, cb, ...args) {
 	return 0
 }
 
-# A hosted window's handler that answers with ret (dt_winget, a Copy): an
-# ask the wire carries and this track does not build -- nothing is copied,
-# as when no answer comes, and said once.
+# A hosted window's handler that answers with ret (dt_winget): the desktop
+# never waits on an app, so such an answer cannot be had here -- its caller
+# sends the whole of what it does instead (Copy and Cut: dt_rvedit, in
+# wm/rtcarry.hibr). One that reaches here is not carried yet: nothing is
+# answered, as when no answer comes, and said once.
 fn dt_rvget(int id, cb, ...args) {
-	dt_rvonce "get:$id:$cb" "app runtime: $cb of window $id is asked, which is not carried yet (ADR 0050); nothing copied"
+	dt_rvonce "get:$id:$cb" "app runtime: $cb of window $id is asked, which is not carried yet (ADR 0050); nothing answered"
 	return 1
 }
 
@@ -350,12 +359,13 @@ fn dt_rvforget(int id) {
 # An app's answer to an ask: a close answered lets its window go; an
 # input's is the app answering, which takes back the not-responding mark
 # once nothing older of that window's is left unanswered; a handed
-# callback's yes runs what waits on it, however late (dt_rvappfn); one not
-# awaited is dropped and said.
-fn dt_rvtook(int c, seq, st = "") {
+# callback's yes runs what waits on it, however late (dt_rvappfn); an
+# edit's answer is said (dt_rvedited); one not awaited is dropped and said.
+fn dt_rvtook(int c, seq, st = "", t = "", v = "") {
 	local kind id end x
 	local -a w
 
+	[ -z "${DT_RVEDIT["$seq"]+x}" ] || dt_rvedited "$c" "$seq" "$st" "$t" "$v"
 	if [ -n "${DT_RVTHENQ["$seq"]+x}" ] && [ "${DT_RVTHENC["$seq"]-}" = "$c" ]; then
 		kind=handed
 		unset DT_RVASK["$seq"]
@@ -577,6 +587,8 @@ dt_rvtick() {
 			fi
 			unset DT_RTENDPID["$p"] DT_RTENDAPP["$p"] DT_RTENDWHY["$p"] DT_RTENDOWE["$p"] DT_RTENDHIT["$p"]
 		elif [ "$now" -ge "${DT_RTENDPID["$p"]}" ]; then
+			# Still running a program of its own with no window: left.
+			dt_rvbusy "$p" "$now" && continue
 			# Still there: ended, then watched until it has gone, and
 			# killed outright once more time has passed.
 			if [ -z "${DT_RTENDHIT["$p"]-}" ]; then
@@ -597,7 +609,18 @@ dt_rvtick() {
 	for id in "${!DT_RVLATE[@]}"; do
 		dt_rvlate "$id" "$now"
 	done
-	[ "${#DT_RVASK[@]}${#DT_RTENDPID[@]}${#DT_RVLATE[@]}" = 000 ] || dt_want 100
+	# Watched closely while an ask is waiting, an input is late or an app
+	# that went with windows open is still to be said; a process with no
+	# window left only when its time to end comes, so one left at its work
+	# for minutes costs the desktop a wake every DT_RTENDSECS, not ten a
+	# second (wm/rtcarry.hibr).
+	if [ "${#DT_RVASK[@]}${#DT_RVLATE[@]}${#DT_RTENDOWE[@]}" != 000 ]; then
+		dt_want 100
+	else
+		for p in "${!DT_RTENDPID[@]}"; do
+			dt_want $((DT_RTENDPID["$p"] - now))
+		done
+	fi
 	if [ -n "$DT_RVHOLD" ]; then
 		read -r _ _ end _ <<< "${DT_RVASK["$DT_RVHOLD"]}"
 		dt_want $((end > now ? end - now : 0))

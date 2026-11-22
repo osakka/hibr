@@ -27,6 +27,9 @@ fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	DT[$id]["app"]="$ap"
 	DT[$id]["min"]=0
 	DT[$id]["autoclose"]=
+	# What a terminal window runs goes with the window, in its own record,
+	# so its _open reads it in whichever process runs it (dt_newcmd).
+	[ "${#DT_OPENCMD[@]}$DT_OPENSELF$DT_OPENSHELL" = 0 ] || dt_newcmd "$id"
 	# Drawn by its app's own process, or not, decided once (wm/rtview.hibr).
 	dt_rvnew "$id" "$ap"
 	dt_hooks "$id" "$ap"

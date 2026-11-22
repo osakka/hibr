@@ -44,8 +44,6 @@ DT_CURSOR	6	0	wm/settings.hibr	shared
 DT_GLYPH	6	0	wm/settings.hibr	shared
 DT_IMEPRE	5	1	wm/ime.hibr	local
 DT_IMGARG	6	0	wm/picmode.hibr	local
-DT_OPENCMD	2	4	wm/handlers.hibr	arg
-DT_OPENSELF	2	4	wm/handlers.hibr	arg
 DT_PLAT	6	0	wm/prayertimes.hibr	shared
 DT_PLON	6	0	wm/prayertimes.hibr	shared
 DT_PMETHOD	6	0	wm/prayertimes.hibr	shared
@@ -84,7 +82,8 @@ DT_NETKIND	4	0	wm/settings.hibr	shared
 DT_NOTEFROM	0	4	wm/notify.hibr	arg
 DT_NOTEHIST	4	0	wm/notify.hibr	shared
 DT_NOTEHIST_ORDER	4	0	wm/notify.hibr	shared
-DT_OPENSHELL	2	2	wm/handlers.hibr	arg
+DT_OPENCMD	1	3	wm/handlers.hibr	arg
+DT_OPENSELF	1	3	wm/handlers.hibr	arg
 DT_OWLIST	4	0	wm/openfacts.hibr	answer
 DT_PADJ	4	0	wm/prayertimes.hibr	shared
 DT_PASR	4	0	wm/prayertimes.hibr	shared
@@ -245,6 +244,7 @@ DT_NOTEWMAX	2	0	wm/notify.hibr	shared
 DT_NOTEWMIN	2	0	wm/notify.hibr	shared
 DT_OPENERORDER	2	0	wm/handlers.hibr	shared
 DT_OPENERS	2	0	wm/handlers.hibr	shared
+DT_OPENSHELL	1	1	wm/handlers.hibr	arg
 DT_OPENVERBS	2	0	wm/handlers.hibr	shared
 DT_OPENWITH	2	0	wm/handlers.hibr	shared
 DT_OVLIST	2	0	wm/openfacts.hibr	answer

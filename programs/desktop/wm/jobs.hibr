@@ -52,13 +52,21 @@ DTJ_DIR=
 # How long a job on a pty may run, in seconds, before it is ended.
 DTJ_PTYMAX=180
 
-# The folder jobs keep their files in: one per desktop, in the runtime
-# folder, made when the first job starts.
+# The folder jobs keep their files in: one per process -- the desktop's,
+# or an app's own -- in the runtime folder, made when the first job starts.
 fn dt_jobdir() {
 	[ -n "$DTJ_DIR" ] && [ -d "$DTJ_DIR" ] && return 0
-	DTJ_DIR=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-jobs-$UID/$$
+	DTJ_DIR := dt_jobsof "$$"
 	( umask 077; mkdir -p "$DTJ_DIR" ) 2> /dev/null || return 1
 	return 0
+}
+
+# The jobs folder of process pid: a job's files are there from its start
+# until its callback has run, so one that is not empty is work not yet
+# done -- which the desktop asks of an app's process with no window left
+# (wm/rtcarry.hibr). Answered with ret.
+fn dt_jobsof(int pid) {
+	ret "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hibr-jobs-$UID/$pid"
 }
 
 # Start a job; its number is the result.

@@ -395,79 +395,15 @@ dt_trash() {
 	[ "$bad" = 0 ]
 }
 
-# Undo or redo in the focused field (Gitea #372). The field's value is its
-# app's, so what it held is put back the way a paste puts text in: by
-# typing -- everything selected, the old text typed over it, or deleted
-# when it was empty, and the cursor walked back to where it was. The
-# history marks the replay as its own, so it is not recorded as an edit.
-fn dt_fieldundo(op) {
-	local cb=${DT[$DT_FOCUS]["key"]} e t i n
-
-	[ -n "$cb" ] || return 1
-	dt_fieldlive || return 1
-	if ! dt_fieldcan "$op"; then
-		dt_notep low "Nothing to %s" "$op"
-		return 0
-	fi
-	if [ "$op" = undo ]; then
-		n=$((${#DT_FUNDO[@]} - 1))
-		e=${DT_FUNDO[$n]}
-		unset DT_FUNDO["$n"]
-		DT_FUNDO=("${DT_FUNDO[@]}")
-		DT_FREDO+=("$DT_FLASTC"$'\t'"$DT_FLAST")
-	else
-		n=$((${#DT_FREDO[@]} - 1))
-		e=${DT_FREDO[$n]}
-		unset DT_FREDO["$n"]
-		DT_FREDO=("${DT_FREDO[@]}")
-		DT_FUNDO+=("$DT_FLASTC"$'\t'"$DT_FLAST")
-	fi
-	t=${e#*$'\t'}
-	n=${e%%$'\t'*}
-	dt_imedone
-	DT_IMEBY=1
-	DT_FWANT=1
-	dt_wincall "$DT_FOCUS" "$cb" end || true
-	[ -n "${DT_FIELD["text"]}" ] && DT_FIELD["anc"]=0
-	if [ -z "$t" ]; then
-		dt_wincall "$DT_FOCUS" "$cb" backspace || true
-	else
-		i=0
-		while [ "$i" -lt "${#t}" ]; do
-			dt_wincall "$DT_FOCUS" "$cb" "${t:$i:1}" || true
-			i=$((i + 1))
-		done
-	fi
-	dt_wincall "$DT_FOCUS" "$cb" home || true
-	# The cursor goes back a cluster to an arrow, as the field moves it.
-	n := dt_clcount "$t" 0 "$n"
-	i=0
-	while [ "$i" -lt "$n" ]; do
-		dt_wincall "$DT_FOCUS" "$cb" right || true
-		i=$((i + 1))
-	done
-	DT_IMEBY=
-	dt_want 10
-	return 0
-}
-
-# Copy or cut from the focused window, or paste into it.
-#
-# An app offers <app>_copy and, if it can move rather than only duplicate
-# what is selected, <app>_cut -- both hand back the same kind of text with
-# ret and fail when nothing is selected.  <app>_paste is given the text and,
-# third, cut or copy, so a paste after Cut can move what it receives instead
-# of copying it.  The desktop keeps one clipboard for every window, and also
-# sends a copy to the clipboard of the terminal it runs on, where that
-# terminal allows it -- so what is copied or cut here pastes into anything
-# else on the machine, and, through hold, on every machine joined to it.
-#
-# DT_CLIPKIND says what the text is: "text", or "paths" -- files, one to a
-# line, which Files pastes as the files themselves and anything else pastes
-# as their names. An app's _copy that hands back paths sets it to paths;
-# dt_edit has already set it to text before asking.
+# Copy or cut from the focused window, or paste into it: in the process
+# that draws the window (dt_editwin) -- sent there whole for one an app's
+# own process draws (dt_rvedit, ADR 0050) -- and said here (dt_editsay).
+# The desktop keeps one clipboard for every window, and also sends a copy
+# to the clipboard of the terminal it runs on, where that terminal allows
+# it -- so what is copied or cut here pastes into anything else on the
+# machine, and, through hold, on every machine joined to it.
 fn dt_edit(op) {
-	local cb t
+	local t
 
 	if [ -z "$DT_FOCUS" ]; then
 		[ "$op" = copy ] || return 0
@@ -479,60 +415,9 @@ fn dt_edit(op) {
 		fi
 		return 0
 	fi
-	# A field with the focus takes Copy, Cut and Paste itself, whatever
-	# the window's own callbacks would do with the rest of it (#357): one
-	# rule for every field, so no app writes its own.
-	dt_fieldedit "$op" && return 0
-	cb=${DT[$DT_FOCUS]["$op"]}
-	if [ -z "$cb" ]; then
-		dt_notep low "%s cannot %s" "${DT[$DT_FOCUS]["title"]}" "$op"
-		return 0
-	fi
-	if [ "$op" = paste ]; then
-		[ -n "$DT_CLIP" ] && dt_wincall "$DT_FOCUS" "$cb" "$DT_CLIP" "${DT_CLIPOP:-copy}"
-		return 0
-	fi
-	DT_CLIPKIND=text
-	if ! t := dt_winget "$DT_FOCUS" "$cb" || [ -z "$t" ]; then
-		dt_notep low "Nothing is selected"
-		return 0
-	fi
-	dt_clipset "$t" "$op" "$DT_CLIPKIND"
-	# Files say which, not how many characters their paths came to: a
-	# file copied reported "Copied 24 characters", which reads as nothing
-	# a person meant to copy (the owner, 2026-11-13).
-	if [ "$DT_CLIPKIND" = paths ]; then
-		dt_notefiles "$op" "$t"
-	elif [ "$op" = cut ]; then
-		dt_notep low "Cut %s characters" "${#t}"
-	else
-		dt_notep low "Copied %s characters" "${#t}"
-	fi
-}
-
-# The note for files copied or cut, from their paths one to a line: the
-# name of one, or how many there are. Short, since a note sits over the
-# windows and a long one covered the folder a person was about to paste
-# into.
-fn dt_notefiles(op, paths) {
-	local n=0 one= l
-	local -a ps
-
-	mapfile -t ps <<< "$paths"
-	for l in "${ps[@]}"; do
-		[ -n "$l" ] || continue
-		n=$((n + 1))
-		one=${l##*/}
-	done
-	if [ "$n" = 1 ] && [ "$op" = cut ]; then
-		dt_notep low "Cut %s" "$one"
-	elif [ "$n" = 1 ]; then
-		dt_notep low "Copied %s" "$one"
-	elif [ "$op" = cut ]; then
-		dt_notep low "Cut %s files" "$n"
-	else
-		dt_notep low "Copied %s files" "$n"
-	fi
+	[ -z "${DT_RVC[$DT_FOCUS]+x}" ] || { dt_rvedit "$DT_FOCUS" "$op"; return 0; }
+	dt_editwin "$DT_FOCUS" "$op" "$DT_CLIP" "${DT_CLIPOP:-copy}"
+	dt_editsay "$op" "$DT_FOCUS"
 }
 
 # What of this file's state every app process that reads it is sent (ADR

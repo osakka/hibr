@@ -686,29 +686,26 @@ fn term_isshell(int id) {
 }
 
 # A window opened on a file edits it, and is called what it shows.  Opened
-# through a registered handler that wanted a terminal, DT_OPENCMD carries
-# what runs instead of hvi -- read once, here, and cleared, so the next
-# ordinary terminal or file does not inherit it.
+# through a registered handler that wanted a terminal, the window's own
+# record carries what runs instead of hvi (cmd0 to cmd<n-1>, cmdn), and
+# whether that is the file itself (openself) or a shell (openshell): the
+# desktop took them into it as the window was made, so it reaches this
+# whichever process runs it.
 fn term_open(int id, arg) {
-	local n i
+	local n=${DT[$id]["cmdn"]-0} i=0
 
-	# Its content is text, so the pointer over it is an I-beam (Gitea #394).
-	dt_has dt_pointer && dt_pointer "$id" text
 	TW[$id]["file"]=$arg
-	if [ "${#DT_OPENCMD[@]}" -gt 0 ]; then
-		n=${#DT_OPENCMD[@]}
-		i=0
+	if [ "$n" -gt 0 ]; then
 		while [ "$i" -lt "$n" ]; do
-			TW[$id]["arg$i"]="${DT_OPENCMD[$i]}"
+			TW[$id]["arg$i"]="${DT[$id]["cmd$i"]}"
 			i=$((i + 1))
 		done
 		TW[$id]["argvn"]=$n
-		DT_OPENCMD=()
 	fi
-	TW[$id]["selfrun"]=$DT_OPENSELF
-	TW[$id]["shell"]=$DT_OPENSHELL
-	DT_OPENSELF=
-	DT_OPENSHELL=
+	TW[$id]["selfrun"]=${DT[$id]["openself"]-}
+	TW[$id]["shell"]=${DT[$id]["openshell"]-}
+	# Its content is text, so the pointer over it is an I-beam (Gitea #394).
+	dt_has dt_pointer && dt_pointer "$id" text
 	if [ -n "$arg" ] && command -v dt_retitle > /dev/null; then
 		local wt
 		wt := dt_wintitle Terminal "${arg##*/}"

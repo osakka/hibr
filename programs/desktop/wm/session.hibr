@@ -496,6 +496,12 @@ fn dt_answer(int now) {
 	dt_answering "$now" || return 1
 	ap=${DT[$id]["app"]-}
 	[ -n "$ap" ] || return 1
+	# One its app's own process draws reads its own descriptors there
+	# (runtime.hibr) and has no _dirty here: it counts as having something,
+	# as an app with no _dirty does, so its echo is drawn the moment it
+	# comes. Answering no held its echo to DT_TERMMS -- 102 ms to the screen
+	# against 13 in-process (tests/hosted.py) -- and with it the tickers.
+	[ -z "${DT_RVC[$id]+x}" ] || return 0
 	dt_has "${ap}_idle" && dt_appfn "$ap" "${ap}_idle" "$id"
 	dt_has "${ap}_dirty" || return 0
 	dt_appfn "$ap" "${ap}_dirty" "$id"

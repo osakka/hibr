@@ -365,7 +365,10 @@ fn dt_rtcalled(line) {
 	done
 	case ${w[0]} in
 	call) dt_rtcall "${a[@]}" ;;
-	view) dt_rtview "${a[@]}" ;;
+	view)
+		dt_rtopenwait "${a[@]}"
+		dt_rtview "${a[@]}"
+		;;
 	again)
 		name=${a[0]-}
 		[ -n "${DT_RTV["$name"]+x}" ] || return 0
@@ -376,7 +379,7 @@ fn dt_rtcalled(line) {
 		name=${a[0]-}
 		[ -n "${DT_RTV["$name"]+x}" ] || return 0
 		console cells forget "$name"
-		unset DT_RTV["$name"] DT_RTVNEW["$name"] DT_RTVDUE["$name"] DT_RTVH["$name"] DT_RTVW["$name"]
+		unset DT_RTV["$name"] DT_RTVNEW["$name"] DT_RTVDUE["$name"] DT_RTVH["$name"] DT_RTVW["$name"] DT_RTWAITOPEN["$name"]
 		;;
 	revoke)
 		if [ -n "${DT_RTDROPPED["${a[0]-}"]+x}" ]; then
@@ -413,11 +416,17 @@ fn dt_rtcall(seq, target, name, ...args) {
 		fn=$name
 	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ]; then
 		# Its menus or its context menu: built here and pushed when
-		# different from the last, never answered as a call.
+		# different from the last, never answered as a call. An edit is
+		# done whole here, as the desktop does one for its own window: the
+		# field first, then the window's own callback.
 		case $name in
 		menus | context)
 			dt_rtbuild "$name" "$target"
 			[ "$seq" = 0 ] || dt_log "app runtime: the desktop asked for $name, which is pushed; not answered"
+			return 0
+			;;
+		copy | cut | paste | undo | redo | selall | find)
+			dt_rtedit "$seq" "$target" "$name" "${args[@]}"
 			return 0
 			;;
 		esac
@@ -441,6 +450,7 @@ fn dt_rtcall(seq, target, name, ...args) {
 			dt_appcall "$target" "$fn" "${args[@]}"
 			st=$?
 			DT_RTVNEW["w$target"]=1
+			[ "$name" != open ] || unset DT_RTWAITOPEN["w$target"]
 		fi
 		v=$RET
 		why=${DT_WHY-}
@@ -528,6 +538,87 @@ fn dt_rtmbpush(kind, ap, id = "", ...sel) {
 	return 0
 }
 
+# An edit the desktop asked of window id (`call SEQ ID OP`, a paste with
+# the clipboard and how it was taken): done here whole (dt_editwin), and
+# answered with what it took for the clipboard and the note to give, which
+# the desktop says, since the clipboard is the desktop's (wm/rtcarry.hibr).
+fn dt_rtedit(int seq, int id, op, clip = "", clipop = "") {
+	local k v
+
+	dt_editwin "$id" "$op" "$clip" "$clipop"
+	DT_RTVNEW["w$id"]=1
+	[ "$seq" = 0 ] && return 0
+	v := json emit DT_EDITR
+	k := dt_rtline took "$seq" 0 j "$v" ""
+	send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+	return 0
+}
+
+# Every window this process draws whose app has an _idle, every pass and
+# drawn or not, as the desktop drains its own windows (dt_drain): a
+# descriptor the app watches is read whether or not its window is drawn --
+# a clean _dirty skips the draw -- so this process never spins on one left
+# ready. Here and never across the wire: the descriptor is this process's.
+# Timed as the desktop times a window's _idle (dt_idlecall).
+dt_rtidle() {
+	local v kind id ap t0 t
+
+	for v in "${!DT_RTV[@]}"; do
+		read -r kind id _ <<< "${DT_RTV["$v"]}"
+		[ "$kind" = win ] || continue
+		ap=${DT[$id]["app"]-}
+		[ -n "$ap" ] && dt_has "${ap}_idle" || continue
+		[ -z "${DT_RTWAITOPEN["$v"]+x}" ] || continue
+		DT_NOTEWIN=$id
+		slowest on "${DT_SLOWMS:-50}"
+		DT_WHO="idle:$ap"
+		t0=${EPOCHREALTIME/./}
+		dt_appfn "$ap" "${ap}_idle" "$id"
+		t=$((${EPOCHREALTIME/./} - t0))
+		DT_WHO=
+		[ "$t" -lt 1000 ] || dt_spent "idle:$ap" "$t" "$ap"
+		DT_NOTEWIN=
+	done
+	return 0
+}
+
+# A window's view whose _open has not yet run here: neither drawn nor its
+# _idle called until it has, since the desktop runs a window's _open before
+# anything else of it and an app counts on that. The view arrives first and
+# the open is told after it, and the two may come in two reads.
+declare -gA DT_RTWAITOPEN
+fn dt_rtopenwait(name, gen, h, w, kind = "", ...args) {
+	[ "$kind" = win ] && [ -z "${DT_RTV["$name"]+x}" ] && [[ ${args[0]-} =~ ^[0-9]+$ ]] || return 0
+	[ -n "${DT[${args[0]}]["open"]-}" ] || return 0
+	DT_RTWAITOPEN["$name"]=1
+}
+
+# The tickers the app interface registers in every process, kept before
+# the app's file is read: a ticker beyond these is the app's own.
+declare -gA DT_RTBASETICK
+
+# Whether this process has work of its own that goes on with no window: a
+# job not yet done, or a ticker its app registered. A job's files are in
+# this process's jobs folder until its callback has run; for a ticker the
+# folder is given a mark of its own (DT_RTMARK) while the process stays for
+# it. The desktop reads the folder (wm/rtcarry.hibr), so neither end ends
+# this process while it works, and nothing crosses the wire for it.
+DT_RTMARK=
+dt_rtworking() {
+	local f
+
+	[ "${DTJ_LIVE:-0}" = 0 ] || return 0
+	for f in "${DT_TICKERS[@]}"; do
+		[ -n "${DT_RTBASETICK["$f"]+x}" ] && continue
+		if [ -z "$DT_RTMARK" ] && dt_jobdir; then
+			DT_RTMARK="$DTJ_DIR/ticker"
+			: > "$DT_RTMARK"
+		fi
+		return 0
+	done
+	return 1
+}
+
 # `view NAME GEN H W KIND ARGS...`: a place the desktop gave this process to
 # draw in. A window's (KIND win, ARGS ID DH DW OR OC) is drawn by its own
 # app's _draw with ID, DH, DW and its row and column, at pane origin OR OC.
@@ -585,6 +676,7 @@ dt_rtdraw() {
 		fi
 		ap=${DT[$id]["app"]-}
 		[ -n "$ap" ] && dt_has "${ap}_draw" || continue
+		[ -z "${DT_RTWAITOPEN["$v"]+x}" ] || continue
 		if [ -z "${DT_RTVNEW["$v"]+x}" ] && dt_has "${ap}_dirty" && ! "${ap}_dirty" "$id"; then
 			continue
 		fi
@@ -593,6 +685,9 @@ dt_rtdraw() {
 		console pen "$DT_INK" "$DT_FACE"
 		DT_NOTEWIN=$id
 		dt_wclear "$id"
+		# Its field is live again only if this draw draws it focused, as
+		# the desktop's dt_win has it.
+		dt_fieldstale "$id"
 		[ "$or$oc" = 00 ] || console pane origin "$v" "$or" "$oc"
 		DT_WHO="win:$ap"
 		slowest on "${DT_SLOWMS:-50}"
@@ -825,12 +920,19 @@ dt_rtrun() {
 		# echo goes out with the call that caused it.
 		dt_rtdraw
 		if [ -n "$DT_RTHADV" ] && [ "${#DT_RTV[@]}" = 0 ]; then
-			console unwatch "$DT_RTFD"
-			dt_log "app runtime: its last window has gone; this app ends"
-			return 0
+			if ! dt_rtworking; then
+				console unwatch "$DT_RTFD"
+				dt_log "app runtime: its last window has gone; this app ends"
+				return 0
+			fi
+			if [ "$DT_RTHADV" = 1 ]; then
+				DT_RTHADV=2
+				dt_log "app runtime: its last window has gone; it stays for its own work (a ticker or a job)"
+			fi
 		fi
 		console key ${DT_WANT:+"$DT_WANT"}
 		DT_WANT=
+		dt_rtidle
 		dt_tickers
 		# Tells an ask kept for after it run first, in order.
 		while [ "${#DT_RTQ[@]}" -gt 0 ]; do
@@ -875,11 +977,16 @@ dt_rtrun() {
 # on its own); its cells channel; its loop.
 if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "$#" = 2 ]; then
 	dt_rtopen "$1" || { dt_log "app runtime: $1: $DT_RTSAID"; exit 1; }
+	for f in "${DT_TICKERS[@]}"; do
+		DT_RTBASETICK["$f"]=1
+	done
+	unset f
 	DT_LOADING=$2
 	set --
 	. "$DT_LOADING"
 	DT_LOADING=
 	dt_rtcells || exit 1
 	dt_rtrun
+	[ -z "$DT_RTMARK" ] || command rm -f -- "$DT_RTMARK"
 	exit
 fi

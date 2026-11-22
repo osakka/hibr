@@ -21,11 +21,16 @@ DT_CLIPFILE="${DT_LOG%/*}/clipboard.json"
 declare -gA DT_CH
 DT_CHORDER=()
 DT_CHNEXT=0
+# How many times the clipboard has been set, secrets included: what an
+# edit answered by an app's own process is checked against, so it never
+# replaces a newer clipboard (wm/rtcarry.hibr).
+DT_CLIPN=0
 
 # Make text the clipboard, the desktop's and, unless it came from there,
 # the real terminal's, and keep it in the history -- unless it is a
 # secret (a password from the vault), which is never written down.
 fn dt_clipset(text, op = copy, kind = text, send = 1) {
+	DT_CLIPN=$((DT_CLIPN + 1))
 	DT_CLIP=$text
 	DT_CLIPOP=$op
 	DT_CLIPKIND=$kind

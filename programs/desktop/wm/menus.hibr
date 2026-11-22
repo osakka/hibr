@@ -648,28 +648,15 @@ dt_editmenu() {
 	fi
 }
 
-# Undo, Redo or Select All in the focused window, through its own _undo,
-# _redo or _selall; nothing for a window that has none.
+# Undo, Redo, Select All or Find in the focused window: its field's, or
+# through its own _undo, _redo, _selall or _find, in the process that draws
+# it (dt_editwin, dt_rvedit) and said here; nothing for a window that has
+# none.
 fn dt_editdo(op) {
-	local cb
-
 	[ -n "$DT_FOCUS" ] || return 0
-	# A field with the focus undoes its own typing, whatever the window
-	# behind it would undo (Gitea #372), as it takes Copy and Paste.
-	case $op in
-	undo | redo) dt_fieldundo "$op" && return 0 ;;
-	selall) dt_fieldlive && dt_fieldedit selall && return 0 ;;
-	esac
-	cb=${DT[$DT_FOCUS]["$op"]}
-	if [ -z "$cb" ]; then
-		[ "$op" = selall ] && dt_fieldedit selall && return 0
-		DT_T := dt_tr "${DT[$DT_FOCUS]["title"]}"
-		dt_notep low "%s cannot %s" "$DT_T" "$op"
-		return 0
-	fi
-	DT_NOTEWIN=$DT_FOCUS
-	dt_wincall "$DT_FOCUS" "$cb" || dt_notep low "Nothing to %s" "$op"
-	return 0
+	[ -z "${DT_RVC[$DT_FOCUS]+x}" ] || { dt_rvedit "$DT_FOCUS" "$op"; return 0; }
+	dt_editwin "$DT_FOCUS" "$op"
+	dt_editsay "$op" "$DT_FOCUS"
 }
 
 # Pick an accelerator for a label that nothing else in the menu has taken.

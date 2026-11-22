@@ -777,7 +777,7 @@ fn dt_rtmsg(int c, line) {
 		dt_rvhas_in "$c" "${a[@]:1}"
 		;;
 	took)
-		dt_rvtook "$c" "${a[1]-}" "${a[2]-}"
+		dt_rvtook "$c" "${a[1]-}" "${a[2]-}" "${a[3]-}" "${a[4]-}"
 		;;
 	menus | context)
 		dt_rvpush_in "$c" "${a[@]}"

@@ -1,0 +1,119 @@
+# wm/rtcarry -- what a window drawn by its app's own process carries
+# besides its view and its input (ADR 0050): the Edit menu's verbs, done
+# whole in the app's process and said here, and the app's work that goes
+# on with no window left. A window's _idle never crosses: it runs in the
+# app's own process, every pass, beside the draw (runtime.hibr).
+#
+# Edit: Copy, Cut, Paste, Undo, Redo, Select All and Find are one ask each
+# (`call SEQ ID OP`, a paste with the clipboard and how it was taken), so
+# the app's process does what the desktop does for one of its own windows
+# -- the focused field first, then the window's own callback (dt_editwin)
+# -- and answers what it took for the clipboard and the note to give
+# (`took SEQ 0 j {...}`); the desktop puts it on the clipboard and gives
+# the note (dt_editsay), since the clipboard is the desktop's. Numbered as
+# the person's input is, so an app that leaves one unanswered is marked not
+# responding (wm/rtfail.hibr). A copy or a cut answered after the clipboard
+# changed is kept in the history, never made the clipboard over the newer
+# one, and never lost.
+#
+# Work with no window: an app process left with no window is ended a few
+# seconds later unless it is still at work of its own -- a ticker its app
+# registered or a job not yet done, either of which leaves a file in its
+# jobs folder (runtime.hibr, wm/jobs.hibr), or a program it started still
+# running -- in which case it is looked at again later and left to end by
+# itself, as its runtime does once the work is done. Nothing crosses the
+# wire for it, and the desktop runs nothing of the app's to learn it.
+#
+# Part of the window manager; desktop.hibr sources it after wm/rtfail.hibr.
+# It only defines functions and sets state, so it can be read on its own
+# and is never run.
+
+strict
+
+# Each edit asked of an app's process and not yet answered, by its number:
+# "CLIPN C ID OP" -- the clipboard's count when it was asked, the
+# connection asked, the window and the verb.
+declare -gA DT_RVEDIT
+
+# An edit in a window its app's own process draws: sent whole, never
+# waited on. A window not bound yet, or whose app has gone, has nothing to
+# send it to: said once in the log, and nothing is done, as when no answer
+# comes.
+fn dt_rvedit(int id, op) {
+	local c=${DT_RVC[$id]-} seq
+	local -a w=()
+
+	if [ -z "$c" ] || [ "$c" = - ]; then
+		dt_rvonce "edit:$id" "app runtime: window $id of ${DT[$id]["app"]-?} has no process to $op in; nothing done"
+		return 0
+	fi
+	seq := dt_rvinput "$id" "$op"
+	DT_RVEDIT["$seq"]="$DT_CLIPN $c $id $op"
+	[ "$op" != paste ] || w=("$DT_CLIP" "${DT_CLIPOP:-copy}")
+	console cells input "w$id"
+	dt_rvsend "$id" "$seq" "$op" "${w[@]}"
+	return 0
+}
+
+# An app's answer to an edit (from dt_rvtook, before anything else it
+# does): what it took said here. One the app refused or did not run (a
+# status other than 0) did nothing, so nothing is said.
+fn dt_rvedited(int c, seq, st = "", t = "", v = "") {
+	local n ac id op nw=$DT_NOTEWIN
+
+	read -r n ac id op <<< "${DT_RVEDIT["$seq"]}"
+	unset DT_RVEDIT["$seq"]
+	if [ "$ac" != "$c" ]; then
+		dt_log "app runtime: ${DT_RTC["$c"]-an app} answered edit $seq, which was asked of another; dropped"
+		return 0
+	fi
+	[ "$st" = 0 ] || return 0
+	DT_EDITR=()
+	[ "$t" != j ] || json parse DT_EDITR <<< "$v" ||
+		{ dt_log "app runtime: ${DT_RTC["$c"]-an app} answered its $op with JSON this desktop could not read"; return 0; }
+	if [ -n "${DT_EDITR["clip"]+x}" ] && [ "$n" != "$DT_CLIPN" ]; then
+		[ "${DT_EDITR["kind"]-}" = secret ] ||
+			dt_clipkeep "${DT_EDITR["clip"]}" "${DT_EDITR["kind"]:-text}"
+		dt_log "app runtime: window $id's $op came back after the clipboard changed; kept in its history, not made the clipboard"
+		return 0
+	fi
+	DT_NOTEWIN=$id
+	dt_editsay "$op" "$id"
+	DT_NOTEWIN=$nw
+	# Said from the tickers, after the frame: the note asks for the frame
+	# that shows it.
+	dt_want 30
+	return 0
+}
+
+# An app process with no window left whose time to end has come, still at
+# work of its own: anything in its jobs folder -- a job's files, there from
+# its start until its callback has run, so a job that has ended and whose
+# callback has not yet run counts too, or the mark its runtime leaves while
+# it stays for a ticker -- or a program it started still running. Not ended
+# while it is; looked at again DT_RTENDSECS later, which is the desktop's
+# only wake for it. Never one whose connection has ended, or one already
+# asked to end. Status 0 when it is left.
+fn dt_rvbusy(int p, int now) {
+	local k= d
+	local -a f
+
+	[ -z "${DT_RTENDOWE["$p"]-}" ] && [ -z "${DT_RTENDHIT["$p"]-}" ] || return 1
+	d := dt_jobsof "$p"
+	f=("$d"/*)
+	[ -e "${f[0]-}" ] && k="its jobs folder"
+	# Linux keeps a process's children in one file, ending with no newline:
+	# the variable is read, not the status. Elsewhere pgrep asks, once each
+	# time an end is due.
+	if [ -z "$k" ] && [ -r "/proc/$p/task/$p/children" ]; then
+		read -r k < "/proc/$p/task/$p/children"
+		k=${k%% *}
+	elif [ -z "$k" ]; then
+		k := pgrep -P "$p" 2> /dev/null
+		k=${k%%$'\n'*}
+	fi
+	[ -n "$k" ] || return 1
+	DT_RTENDPID["$p"]=$((now + DT_RTENDSECS * 1000))
+	dt_rvonce "busy:$p" "app runtime: process $p has no window left and is still at work ($k); not ended while it is"
+	return 0
+}
