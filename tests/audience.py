@@ -129,8 +129,14 @@ class Desk:
 
     def __init__(self, mode, app):
         self.mode = mode
-        self.mark = scratch("audience-%s-do" % mode)
-        self.out = scratch("audience-%s-out" % mode)
+        # Every name of its own is the app's as well as the mode's: the
+        # last app's desktop of this mode may still be quitting, and one
+        # that has not yet gone takes a command written to a marker file it
+        # shares -- the next app's `AUDID := dt_new` with it, which left
+        # every step of that app's window an empty id.
+        nm = "%s-%s" % (app["prefix"], mode)
+        self.mark = scratch("audience-%s-do" % nm)
+        self.out = scratch("audience-%s-out" % nm)
         over = ""
         if mode == "every":
             over = 'for n in "${!DT_RTAUD[@]}"; do DT_RTAUD["$n"]="*"; done\n'
@@ -138,7 +144,7 @@ class Desk:
             over = ('aud_w=(); read -ra aud_w <<< "${DT_RTAUD["%s"]}"; aud_k=\n'
                     'for aud_x in "${aud_w[@]}"; do [ "$aud_x" = %s ] || aud_k+="${aud_k:+ }$aud_x"; done\n'
                     'DT_RTAUD["%s"]=$aud_k\n' % (app["break"], app["file"], app["break"]))
-        p = scratch("audience-%s.hibr" % mode)
+        p = scratch("audience-%s.hibr" % nm)
         open(p, "w").write(r'''%s. %s
 . "$DT_HERE/system/panel.hibr"
 . "$DT_HERE/control-panel/appearance.hibr"
@@ -161,19 +167,25 @@ dt_close
         self.session = p
         # A folder of its own for its sockets: three desktops of one session
         # name would otherwise listen at one path.
-        tmp = os.path.join(screen.HOME, mode)
+        tmp = os.path.join(screen.HOME, nm)
         os.makedirs(tmp, exist_ok=True)
         self.t = Term(p, rows=30, cols=100, settle=0.6, env={"DT_BARTIME": "12:00", "TMPDIR": tmp})
         self.app = None
         self.missed = []
-        self.log = scratch("audience-%s-app.log" % mode)
+        self.log = scratch("audience-%s-app.log" % nm)
 
     def do(self, cmd):
-        """Run cmd in the desktop, from its ticker; waits until it is taken."""
+        """Run cmd in the desktop, from its ticker; waits until it is taken.
+        A desktop still starting under a loaded gate takes its first a while
+        later, and the next command written over one not yet taken would
+        lose it -- `AUDID := dt_new` lost made every step of the app's
+        window an empty id -- so one not taken in time is named."""
         open(self.mark, "w").write(cmd + "\n")
-        deadline = time.time() + 5
+        deadline = time.time() + 30
         while os.path.exists(self.mark) and time.time() < deadline:
             self.t.send(b"\x1b[I", settle=0.1, collect=0.1)
+        if os.path.exists(self.mark):
+            self.missed.append("%s desktop never took: %s" % (self.mode, cmd))
 
     def ask(self, expr, secs=6):
         """What a shell expression prints in the desktop."""
