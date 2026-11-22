@@ -68,7 +68,7 @@ for _n in """dt_changed dt_fopsave dt_fopundo dt_trash dt_fileop dt_locof dt_loc
         dt_pwgo dt_pkstart dt_pkstop dt_kbset dt_saverload dt_saverstart
         dt_colours dt_walldisp dt_shot dt_rescan dt_reinstate
         dt_unload dt_onunload dt_scanold dt_appvia dt_appunvia dt_modehook
-        dt_rslog dt_rscarry dt_rsclaim dt_onrescan dt_wallretry dt_wallforget
+        dt_rslog dt_rscarry dt_rsclaim dt_wallretry dt_wallforget
         cs_modwidth dt_progput dt_proghide dt_progdrop dt_statadd dt_pwcrit""".split():
     OVERRIDE[_n] = "request"
 for _n in "dt_wintitle dt_ext dt_chromeoff".split():
@@ -466,7 +466,11 @@ def nextver():
 # since that tag is admitted. It goes at the next release, and an entry that
 # names another tag, or a row that did not change, fails as stale -- an
 # exception never outlives the break it admits (ADR 0050).
-BREAKS = {}
+BREAKS = {
+    "dt_onrescan": ("v0.99.557", "Archives, its one caller, says which kinds need which program with "
+                    "dt_openerneeds, read and not run, and the desktop works that out on every rescan; "
+                    "a copy from before calls it behind command -v and keeps what it declared at load"),
+}
 
 
 def params(sig):

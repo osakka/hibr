@@ -787,17 +787,19 @@ instead of opening: Files shows `scheme://PATH` as a folder, through the
 location of that scheme, and a two-word extension such as `tar.gz` is a
 type of its own.
 
-What an app declares is what it can do now. One that needs programs to
-do it declares only what the programs here allow, and declares again
-from a function it names with `dt_onrescan`, which the desktop runs on
-every rescan -- Refresh Desktop, or the catalogue installing something --
-so a program installed or removed shows then, and not before.
+What is offered is what can be done now. A file whose kinds need a
+program names the programs beside them with `dt_openerneeds`: an
+extension it names is offered only while one of those programs is on the
+`PATH`. The desktop looks when the file declares it and again on every
+rescan -- Refresh Desktop, or the catalogue installing something -- so a
+program installed or removed shows then, and not before. Every line is
+written out, so the desktop reads them without running the file.
 
 <!-- not run: lines from a desktop file, read when the desktop loads it -->
 ```sh
-dt_opener archives "Show Contents" "zip tar.gz" browse archive
+dt_opener archives "Show Contents" "tar tar.gz zip" browse archive
 dt_openerverb "*" "Compress" archives arc_compress e
-dt_onrescan arc_declare
+dt_openerneeds zip bsdtar unzip
 ```
 
 The **Archives** extension, from the catalogue, is built on both. It shows

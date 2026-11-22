@@ -421,11 +421,6 @@ fn dt_notifyp(prio, text, ...rest) {
 }
 
 # Told to the desktop, wm/apps.hibr.
-fn dt_onrescan(fn) {
-	dt_rtsend tell dt_onrescan "$fn"
-}
-
-# Told to the desktop, wm/apps.hibr.
 fn dt_onunload(stop, start = "") {
 	dt_rtsend tell dt_onunload "$stop" "$start"
 }
@@ -433,6 +428,11 @@ fn dt_onunload(stop, start = "") {
 # Told to the desktop, wm/handlers.hibr.
 fn dt_opener(name, title, types, how, app = "", kind = "") {
 	dt_rtsend tell dt_opener "$name" "$title" "$types" "$how" "$app" "$kind"
+}
+
+# Told to the desktop, wm/handlers.hibr.
+fn dt_openerneeds(exts, ...progs) {
+	dt_rtsend tell dt_openerneeds "$exts" "${progs[@]}"
 }
 
 # Told to the desktop, wm/handlers.hibr.

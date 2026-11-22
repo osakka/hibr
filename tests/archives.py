@@ -16,7 +16,7 @@ from screen import Term, check, report, tree, load, press, release, expect
 if len(sys.argv) > 1:
     sx.HIBR = os.path.abspath(sys.argv[1])
 
-PLAN = 76
+PLAN = 77
 D = tempfile.mkdtemp(prefix="hibr-arc-")
 W = os.path.join(D, "work")
 CACHE = os.path.join(D, "cache")
@@ -166,6 +166,22 @@ t = session(files(), env=ONLYMOD, pre=STUB)
 sc = right(t, "demo.zip")
 check("and it offers neither Extract nor Show Contents",
       sc.find("Extract Here") is None and sc.find("Compress") is not None, sc)
+t.quit(None, 0.3)
+
+# A program put on the PATH while the desktop runs is offered at the next
+# rescan, which works out again what each file's openers need.
+LATE = bindir()
+RESCAN = os.path.join(D, "rescan")
+t = session(files(), env={"PATH": LATE}, pre=STUB + (
+    "tst_rescan() {\n\t[ -f %s ] || return 0\n\tcommand rm -f %s\n\tdt_rescan > /dev/null\n\tdt_want 30\n}\n"
+    "dt_ticker tst_rescan\n" % (RESCAN, RESCAN)))
+t.until("demo.zip")
+os.symlink(shutil.which("unzip"), os.path.join(LATE, "unzip"))
+open(RESCAN, "w").close()
+waitfor(lambda: (t.keys([b"\x1b[I"], settle=0.1) or True) and not os.path.exists(RESCAN), 10)
+sc = right(t, "demo.zip")
+check("unzip put on the PATH while the desktop runs: a rescan offers Extract for a zip",
+      not os.path.exists(RESCAN) and sc.find("Extract Here") is not None, sc)
 t.quit(None, 0.3)
 
 t = session(files())

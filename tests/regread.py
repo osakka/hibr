@@ -38,6 +38,13 @@ open(FIXTURE, "w").write('app fixture "A strip module whose width is worked out"
                          'command -v cs_module > /dev/null && cs_module fixture Fixture $((1 + 2))\n'
                          'fn fixture_draw(int row, int col) {\n\tconsole put "$row" "$col" fix\n}\n')
 FILES.append(FIXTURE)
+# And one that registers from a function of its own, which only running can
+# make: reading must leave it to its own process.
+BYFN = os.path.join(os.path.dirname(FIXTURE), "byfn.hibr")
+open(BYFN, "w").write('app byfn "Registers from a function of its own" 1.0\n'
+                      'byfn_declare() {\n\tdt_opener byfn "By Function" "byfn" app byfn\n}\n'
+                      'command -v dt_opener > /dev/null && byfn_declare\n')
+FILES.append(BYFN)
 # The registries a registration writes, and whether each is a map.
 REGS = "DT_APPS CP_PANES CS_MODS DT_BARI DT_BARIN DT_OPENERS DT_OVN DT_KEEPSTATE DT_APPACT DT_ATSTART DT_BARHOOKS".split()
 
@@ -156,6 +163,42 @@ said = sorted(os.path.relpath(f, DESK) for f, a, b, dyn, run in res if b[3])
 check("what reading says it cannot read is exactly what the parser says is not written out",
       said == sorted(r for r, _ in unread) == [os.path.relpath(FIXTURE, DESK)], (said, unread))
 check("and what differs registers from a function of its own, which only its own process can run",
-      byrun == ["apps/archives.hibr"], byrun)
+      byrun == [os.path.relpath(BYFN, DESK)], byrun)
+
+# Archives' kinds, read and never run: each offered while a program that
+# reads it is on the PATH (dt_openerneeds), worked out again on a rescan.
+ARCPROBE = r'''
+. %(desk)s/desktop.hibr
+dt_regread %(desk)s/apps/archives.hibr 2> /dev/null
+z=$PWD/x.zip
+: > "$z"
+said() {
+	local v l=
+	dt_openers "$z"
+	dt_openverbs "$z"
+	for v in "${DT_OVLIST[@]}"; do l+="${DT_OPENVERBS[$v]["label"]},"; done
+	echo "${DT_OPENERS[archives]["types"]-}|${DT_OWLIST[*]}|$l"
+}
+said
+/bin/ln -s "$2" "$1/unzip"
+DT_OPENHAVE=()
+dt_openneedset
+said
+'''
+d = tempfile.mkdtemp(prefix="regread-arc-")
+os.makedirs(d + "/bin")
+for n in ("sh", "cat"):
+    os.symlink(shutil.which(n), os.path.join(d, "bin", n))
+p = subprocess.run([HIBR, "-c", ARCPROBE % {"desk": DESK}, "x", d + "/bin", shutil.which("unzip") or "/bin/true"],
+                   capture_output=True, text=True, cwd=d, timeout=60,
+                   env=dict(os.environ, HIBR_MODPATH=MODS, HOME=d, PATH=d + "/bin"))
+arc = p.stdout.split("\n")
+shutil.rmtree(d, ignore_errors=True)
+check("Archives' openers are read: with no program on the PATH it offers the kinds the module reads, "
+      "and for a zip only Compress",
+      len(arc) > 1 and arc[0] == " tar tgz tar.gz |hvi|Compress,", (arc, p.stderr[-400:]))
+check("and once unzip is on the PATH, a rescan offers Show Contents and Extract for a zip",
+      len(arc) > 1 and arc[1] == " tar tgz tar.gz zip |archives hvi|Extract Here,Extract To...,Compress,",
+      (arc, p.stderr[-400:]))
 shutil.rmtree(os.path.dirname(FIXTURE), ignore_errors=True)
-report(4)
+report(6)

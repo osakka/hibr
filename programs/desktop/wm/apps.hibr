@@ -297,10 +297,11 @@ command -v dt_ticker > /dev/null && dt_ticker dt_shadownote
 # every call its file makes at the top level to a registration -- a
 # declaration of the app interface's (dt_app, dt_keep, dt_keepstate,
 # cs_module, dt_baritem and the bar item's others), a Control Panel pane
-# (cp_pane) or an opener (dt_opener, dt_openerverb) -- found by the parser
-# with its words (`inspect calls --arguments`), and made here as the file
-# would make it, with DT_LOADING the file, so nothing of the installable's
-# own runs in the desktop. A registration whose words are not all written
+# (cp_pane) or an opener (dt_opener, dt_openerverb, dt_openerneeds) --
+# found by the parser with its words (`inspect calls --arguments`), and
+# made here as the file would make it, with DT_LOADING the file, so
+# nothing of the installable's own runs in the desktop. A registration
+# whose words are not all written
 # out (an expansion, a substitution) cannot be read: it is not made, and
 # the log names it, file and line; status 1 then. One inside a function is
 # not the file's declaration and is left to its own process. A setting the
@@ -318,7 +319,7 @@ DT_REGNAMES=
 # an opener -- which the desktop must know before any such process runs.
 # The one list; tools/hostaudit.py and tests/regread.py ask it here.
 dt_regnames() {
-	local i j x='"cp_pane","dt_opener","dt_openerverb"'
+	local i j x='"cp_pane","dt_opener","dt_openerverb","dt_openerneeds"'
 
 	[ -z "$DT_REGNAMES" ] || return 0
 	while IFS=$'\t' read -r i j _; do
@@ -575,25 +576,12 @@ fn dt_onunload(stop, start = "") {
 	return 0
 }
 
-# What a file's own code declares again on every rescan, because the
-# machine's programs decide it -- the files an app can open with them
-# (wm/handlers.hibr): registered while the file loads, for that file. A
-# rescan takes away everything the file had declared for opening and runs
-# this, so what it no longer can goes and what it now can arrives, each
-# where it was in the order.
-declare -gA DT_RESCANFN
-fn dt_onrescan(fn) {
-	[ -n "${DT_LOADING-}" ] || return 0
-	DT_RESCANFN["$DT_LOADING"]=$fn
-	dt_hookown "$fn"
-	return 0
-}
 
 fn dt_unload(f) {
 	local n k
 
 	[ -n "${DT_UNLOADFN["$f"]-}" ] && dt_has "${DT_UNLOADFN["$f"]}" && dt_hookfn "${DT_UNLOADFN["$f"]}"
-	dt_openerdrop "$f" 1
+	dt_openerdrop "$f"
 	for n in "${!DT_APPS[@]}"; do
 		[ "${DT_APPS[$n]["src"]}" = "$f" ] || continue
 		for k in "${!DT_APPS[$n][@]}"; do
@@ -692,16 +680,13 @@ dt_rescan() {
 	dt_appscan
 	dt_sysapps
 	# The machine's programs again: one installed or removed since shows
-	# or goes, in the programs menu and in what each app declared it can
-	# open with them.
+	# or goes, in the programs menu and in what each file's openers need
+	# (dt_openerneeds), each where it was in the order.
 	dt_has dt_progload && dt_progload
-	for f in "${!DT_RESCANFN[@]}"; do
-		b=${f##*/}
-		b=${b%.hibr}
-		[ "${DT_SRC["$b"]-}" = "$f" ] || continue
-		dt_openerdrop "$f"
-		dt_hookfn "${DT_RESCANFN["$f"]}"
-	done
+	if [ "${#DT_OPENNEEDSRC[@]}" -gt 0 ]; then
+		DT_OPENHAVE=()
+		dt_openneedset
+	fi
 	added=$((${#DT_SRC[@]} - before))
 	# The Control Panel's panes and the Control Strip's modules, each read
 	# by its own owner, which answers the same three counts.

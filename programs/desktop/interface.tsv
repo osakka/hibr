@@ -262,7 +262,7 @@ request	dt_changed	wm/files.hibr	36	8	told	-	dt_changed()	-	-
 request	dt_locof	wm/locations.hibr	34	2	asked	-	dt_locof(p)	-	-
 request	dt_wantclose	wm/windows.hibr	26	17	waited	-	dt_wantclose(int id)	-	-
 request	dt_panelpane	wm/context.hibr	24	17	told	-	dt_panelpane(pane)	-	-
-request	dt_opener	wm/handlers.hibr	22	11	told	-	dt_opener(name, title, types, how, app = "", kind = "")	-	-
+request	dt_opener	wm/handlers.hibr	21	11	told	-	dt_opener(name, title, types, how, app = "", kind = "")	-	-
 request	dt_barmenu	wm/bar.hibr	19	15	told	-	dt_barmenu(name, who, id = "")	-	-
 request	dt_notify	wm/notify.hibr	18	9	told	-	dt_notify(text, ...rest)	-	-
 request	dt_barilabel	wm/bar.hibr	17	17	told	-	dt_barilabel(name, label)	-	-
@@ -305,7 +305,6 @@ request	dt_pointerlock	wm/input.hibr	5	1	waited	-	dt_pointerlock(int id, on)	-	-
 request	dt_baripress	wm/bar.hibr	5	5	told	-	dt_baripress(name, fn)	-	-
 request	dt_bariwheel	wm/bar.hibr	5	5	told	-	dt_bariwheel(name, fn)	-	-
 request	dt_location	wm/locations.hibr	4	2	told	-	dt_location(scheme, prefix, app = "")	-	-
-request	dt_onrescan	wm/apps.hibr	4	2	told	-	dt_onrescan(fn)	0.99.555	-
 request	dt_setgeom	wm/windows.hibr	4	2	told	-	dt_setgeom(int id, int r, int c, int h, int w)	-	-
 request	dt_trash	wm/files.hibr	4	2	told	-	dt_trash()	-	-
 request	dt_dnd	wm/files.hibr	4	2	told	-	dt_dnd()	-	-
@@ -333,6 +332,7 @@ request	dt_rescan	wm/apps.hibr	4	2	told	-	dt_rescan()	-	-
 request	dt_clippin	wm/clip.hibr	4	2	told	-	dt_clippin(int id)	-	-
 request	dt_notehist_del	wm/notify.hibr	4	2	told	-	dt_notehist_del(int hid)	-	-
 request	dt_shot	wm/shot.hibr	4	2	told	-	dt_shot()	-	-
+request	dt_openerneeds	wm/handlers.hibr	4	1	told	-	dt_openerneeds(exts, ...progs)	0.99.558	-
 request	dt_vwget	wm/vault.hibr	3	1	waited	-	dt_vwget(field, id)	-	-
 request	dt_vwfill	wm/vault.hibr	3	1	told	-	dt_vwfill(win = "")	-	-
 request	fp_go	wm/filepick.hibr	3	1	waited	-	fp_go(int id, d)	-	-

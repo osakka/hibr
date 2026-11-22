@@ -192,15 +192,16 @@ fn dt_openfile(path) {
 # files it opens and the desktop -- or Files, on its own copy
 # (wm/openfacts.hibr) -- decides from that alone, never asking the app. A
 # type is a space-separated list of extensions, "*" for any file, "x" for
-# one that may be run; what an app declares is what it can open now, so
-# one whose programs decide it (Archives) declares again on every rescan
-# (dt_onrescan). How it opens: app, given the path (dt_launch); edit, hvi
-# in a terminal; run, the file itself in a terminal.
+# one that may be run; what a file's programs decide (Archives) it says
+# with dt_openerneeds, and the desktop offers what can open now, again on
+# every rescan. How it opens: app, given the path (dt_launch); edit, hvi in
+# a terminal; run, the file itself in a terminal.
 #
 # Declared means there: what a file declared goes when the file is
-# unloaded and comes back with it (dt_unload, dt_reinstate), and a
-# declaring hook run again on a rescan replaces everything its file had
-# declared -- in its place in the order, so a default does not move.
+# unloaded and comes back with it (dt_unload, dt_reinstate), in its place
+# in the order, so a default does not move. What each said is kept
+# ("said"); what is offered ("types", a verb's "ext") is worked out from
+# it here (dt_openeff), none while its file is unloaded ("off").
 #
 # An opener declared with `dir` after its app takes **folders** whose name
 # ends in one of its extensions -- a bundle (Gitea #318): a folder that is
@@ -262,13 +263,93 @@ fn dt_opener(name, title, types, how, app = "", kind = "") {
 	fi
 	[ -n "${DT_OPENERS[$name]["title"]}" ] || DT_OPENERORDER+=("$name")
 	DT_OPENERS[$name]["title"]=$title
-	DT_OPENERS[$name]["types"]=${types:+ $types }
-	DT_OPENERS[$name]["was"]=
+	DT_OPENERS[$name]["said"]=$types
+	DT_OPENERS[$name]["off"]=
 	DT_OPENERS[$name]["how"]=$how
 	DT_OPENERS[$name]["app"]=$app
 	DT_OPENERS[$name]["dir"]=0
 	[ "$kind" = dir ] && DT_OPENERS[$name]["dir"]=1
 	DT_OPENERS[$name]["src"]=$src
+	types := dt_openeff "$src" "$types"
+	DT_OPENERS[$name]["types"]=${types:+ $types }
+	dt_openbundles
+}
+
+# What a file's openers and verbs need on this machine (Gitea #475, ADR
+# 0050): an extension of what that file declares is offered only while one
+# of the programs is on the PATH. Decided here, when the file declares it
+# and again on every rescan, when a program installed or removed shows --
+# so what Files and File Types read (wm/openfacts.hibr) is what can open
+# now, and nothing of the file runs for it. Written out at the file's top
+# level, before or after what it qualifies, it is read like any
+# registration (dt_regread):
+#
+#     dt_openerneeds "tar.xz txz" bsdtar
+#     dt_openerneeds zip bsdtar unzip
+declare -gA DT_OPENNEED DT_OPENNEEDSRC DT_OPENHAVE
+fn dt_openerneeds(exts, ...progs) {
+	local src e
+	local -a es
+
+	src := dt_opensrc
+	read -ra es <<< "$exts"
+	for e in "${es[@]}"; do
+		DT_OPENNEED["$src"$'\t'"$e"]=${progs[*]}
+	done
+	DT_OPENNEEDSRC["$src"]=1
+	dt_openneedset "$src"
+}
+
+# Whether a program is on the PATH, asked once until the next rescan.
+fn dt_openhave(prog) {
+	if [ -z "${DT_OPENHAVE["$prog"]+x}" ]; then
+		DT_OPENHAVE["$prog"]=0
+		command -v "$prog" > /dev/null 2>&1 && DT_OPENHAVE["$prog"]=1
+	fi
+	[ "${DT_OPENHAVE["$prog"]}" = 1 ]
+}
+
+# What of the list a file said its openers or a verb take is offered now:
+# none while the file is unloaded (off), and of the rest each extension
+# the file needs no program for, or one of whose programs is here.
+fn dt_openeff(src, said, off = "") {
+	local w p ok out=
+	local -a ws ps
+
+	[ -z "$off" ] || ret ""
+	[ -n "${DT_OPENNEEDSRC["$src"]+x}" ] || ret "$said"
+	read -ra ws <<< "$said"
+	for w in "${ws[@]}"; do
+		if [ -n "${DT_OPENNEED["$src"$'\t'"$w"]+x}" ]; then
+			ok=
+			read -ra ps <<< "${DT_OPENNEED["$src"$'\t'"$w"]}"
+			for p in "${ps[@]}"; do
+				dt_openhave "$p" && { ok=1; break; }
+			done
+			[ -n "$ok" ] || continue
+		fi
+		out+="${out:+ }$w"
+	done
+	ret "$out"
+}
+
+# What a file's openers and verbs offer, again from what each said -- every
+# file's with none given (a rescan).
+fn dt_openneedset(src = "") {
+	local n i=0 t
+
+	for n in "${DT_OPENERORDER[@]}"; do
+		[ -z "$src" ] || [ "${DT_OPENERS[$n]["src"]-}" = "$src" ] || continue
+		t := dt_openeff "${DT_OPENERS[$n]["src"]-}" "${DT_OPENERS[$n]["said"]-}" "${DT_OPENERS[$n]["off"]-}"
+		DT_OPENERS[$n]["types"]=${t:+ $t }
+	done
+	while [ "$i" -lt "$DT_OVN" ]; do
+		if [ -z "$src" ] || [ "${DT_OPENVERBS[$i]["src"]-}" = "$src" ]; then
+			t := dt_openeff "${DT_OPENVERBS[$i]["src"]-}" "${DT_OPENVERBS[$i]["said"]-}" "${DT_OPENVERBS[$i]["off"]-}"
+			DT_OPENVERBS[$i]["ext"]=$t
+		fi
+		i=$((i + 1))
+	done
 	dt_openbundles
 }
 
@@ -288,10 +369,10 @@ dt_openbundles() {
 # opens that app with the path, Boxer's Get Info for one game; or, with a
 # function after the app, calls it with every path selected. A last
 # letter is a test each path must pass for the verb to be offered: f a
-# regular file, e there at all, d a folder, x one that may be run. The
-# types are what the app can do now, so a verb that needs a program that is
-# not there is declared for nothing and simply absent. Declared again by
-# the same app with the same label, a verb is replaced in its place.
+# regular file, e there at all, d a folder, x one that may be run. An
+# extension whose program is not here (dt_openerneeds) is not offered.
+# Declared again by the same app with the same label, a verb is replaced
+# in its place.
 #
 #     dt_openerverb boxer "Get Info..." boxerinfo
 #     dt_openerverb "*" "Compress" archives arc_compress e
@@ -316,8 +397,10 @@ fn dt_openerverb(ext, label, app, call = "", test = "") {
 		i=$((i + 1))
 	done
 	[ "$i" = "$DT_OVN" ] && DT_OVN=$((DT_OVN + 1))
+	DT_OPENVERBS[$i]["said"]=$ext
+	DT_OPENVERBS[$i]["off"]=
+	ext := dt_openeff "$src" "$ext"
 	DT_OPENVERBS[$i]["ext"]=$ext
-	DT_OPENVERBS[$i]["was"]=
 	DT_OPENVERBS[$i]["label"]=$label
 	DT_OPENVERBS[$i]["app"]=$app
 	DT_OPENVERBS[$i]["call"]=$call
@@ -328,47 +411,32 @@ fn dt_openerverb(ext, label, app, call = "", test = "") {
 }
 
 # Take away what a file declared -- its openers and its verbs -- each kept
-# in its place in the order with nothing to open. With keep, what it said
-# is kept to be put back by dt_openerback (a file unloaded by a rescan
-# that may come back); without, it is gone until declared again (a rescan
-# running its declaring hook again).
-fn dt_openerdrop(src, int keep = 0) {
-	local n i=0
-
-	[ -n "$src" ] || return 0
-	for n in "${DT_OPENERORDER[@]}"; do
-		[ "${DT_OPENERS[$n]["src"]-}" = "$src" ] || continue
-		[ "$keep" = 1 ] && DT_OPENERS[$n]["was"]=${DT_OPENERS[$n]["types"]}
-		DT_OPENERS[$n]["types"]=
-	done
-	while [ "$i" -lt "$DT_OVN" ]; do
-		if [ "${DT_OPENVERBS[$i]["src"]-}" = "$src" ]; then
-			[ "$keep" = 1 ] && DT_OPENVERBS[$i]["was"]=${DT_OPENVERBS[$i]["ext"]}
-			DT_OPENVERBS[$i]["ext"]=
-		fi
-		i=$((i + 1))
-	done
-	dt_openbundles
+# in its place in the order with nothing to open, and what it said kept to
+# be put back by dt_openerback (a file unloaded by a rescan that may come
+# back).
+fn dt_openerdrop(src) {
+	dt_openeroff "$src" 1
 }
 
 # Put back what dt_openerdrop kept for a file.
 fn dt_openerback(src) {
+	dt_openeroff "$src" ""
+}
+
+# A file's openers and verbs marked off (1) or on (empty), and what they
+# offer worked out again.
+fn dt_openeroff(src, off) {
 	local n i=0
 
 	[ -n "$src" ] || return 0
 	for n in "${DT_OPENERORDER[@]}"; do
-		[ "${DT_OPENERS[$n]["src"]-}" = "$src" ] && [ -n "${DT_OPENERS[$n]["was"]-}" ] || continue
-		DT_OPENERS[$n]["types"]=${DT_OPENERS[$n]["was"]}
-		DT_OPENERS[$n]["was"]=
+		[ "${DT_OPENERS[$n]["src"]-}" = "$src" ] && DT_OPENERS[$n]["off"]=$off
 	done
 	while [ "$i" -lt "$DT_OVN" ]; do
-		if [ "${DT_OPENVERBS[$i]["src"]-}" = "$src" ] && [ -n "${DT_OPENVERBS[$i]["was"]-}" ]; then
-			DT_OPENVERBS[$i]["ext"]=${DT_OPENVERBS[$i]["was"]}
-			DT_OPENVERBS[$i]["was"]=
-		fi
+		[ "${DT_OPENVERBS[$i]["src"]-}" = "$src" ] && DT_OPENVERBS[$i]["off"]=$off
 		i=$((i + 1))
 	done
-	dt_openbundles
+	dt_openneedset "$src"
 }
 
 # Run a verb, by its number, on a selection.

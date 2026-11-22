@@ -31,7 +31,7 @@
 
 strict
 
-app archives "Show archives as folders in Files, compress and extract them" 1.1.2
+app archives "Show archives as folders in Files, compress and extract them" 1.1.3
 # part: control-panel/archiveset.hibr
 
 command -v dt_app > /dev/null && dt_app archives "Archives" 6 30 "" "" fixed hidden
@@ -43,7 +43,6 @@ DT_ARCFOLDER="${DT_ARCFOLDER-smart}"
 DT_ARCOPEN="${DT_ARCOPEN-0}"
 command -v dt_keep > /dev/null && dt_keep DT_ARCFORMAT DT_ARCFOLDER DT_ARCOPEN
 
-ARC_TYPES="tar tgz tar.gz tar.bz2 tbz tbz2 tar.xz txz tar.zst tzst zip 7z"
 
 declare -gA ARC_N ARC_RUN ARC_SEEN
 ARC_SEQ=${EPOCHSECONDS:-1}
@@ -455,7 +454,7 @@ fn arc_title(d) {
 }
 
 # An archive can be read and left, and that is all; which kinds can be
-# shown at all is declared (arc_declare).
+# shown at all is declared, at the end of this file.
 fn arc_can(op, p = "") {
 	case $op in
 	open | leave) return 0 ;;
@@ -838,27 +837,18 @@ fn arc_compressed(int n, int st) {
 
 command -v dt_location > /dev/null && dt_location archive arc archives
 
-# What this machine can do with archives, declared as data (ADR 0050): the
-# kinds something here reads are shown as folders and offered to extract --
-# a regular file, never a folder named like one -- and anything may be
-# compressed. The programs here decide the kinds, so the desktop runs this
-# again on every rescan (dt_onrescan), when one installed or removed shows.
-arc_declare() {
-	local t k ok=
-	local -a ts
-
-	read -ra ts <<< "$ARC_TYPES"
-	for t in "${ts[@]}"; do
-		k := arc_kind "x.$t" || continue
-		arc_tool "$k" && ok+=" $t"
-	done
-	ok=${ok# }
-	dt_opener archives "Show Contents" "$ok" browse archive
-	dt_openerverb "$ok" "Extract Here" archives arc_here f
-	dt_openerverb "$ok" "Extract To..." archives arc_to f
+# What this machine can do with archives, declared as data and written out,
+# so the desktop reads it without running this file (ADR 0050, Decision 3):
+# every kind is shown as a folder and offered to extract -- a regular file,
+# never a folder named like one -- where something here reads it, the
+# programs arc_tool asks for named beside the kinds that need one, which the
+# desktop looks for now and on every rescan; and anything may be compressed.
+if command -v dt_openerneeds > /dev/null; then
+	dt_opener archives "Show Contents" "tar tgz tar.gz tar.bz2 tbz tbz2 tar.xz txz tar.zst tzst zip 7z" browse archive
+	dt_openerverb "tar tgz tar.gz tar.bz2 tbz tbz2 tar.xz txz tar.zst tzst zip 7z" "Extract Here" archives arc_here f
+	dt_openerverb "tar tgz tar.gz tar.bz2 tbz tbz2 tar.xz txz tar.zst tzst zip 7z" "Extract To..." archives arc_to f
 	dt_openerverb "*" "Compress" archives arc_compress e
-}
-if command -v dt_opener > /dev/null; then
-	arc_declare
-	command -v dt_onrescan > /dev/null && dt_onrescan arc_declare
+	dt_openerneeds "tar.bz2 tbz tbz2 tar.xz txz tar.zst tzst" bsdtar
+	dt_openerneeds zip bsdtar unzip
+	dt_openerneeds 7z bsdtar 7z 7za 7zz
 fi
