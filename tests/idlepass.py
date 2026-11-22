@@ -101,8 +101,9 @@ def instructions(n):
     exe = open(p + ".exe").read().strip() if os.path.exists(p + ".exe") else ""
     mine = "%s.%d" % (out, t.pid)
     m = re.search(r"^summary:\s*(\d+)", open(mine).read(), re.M) if os.path.exists(mine) else None
-    for f in glob.glob(out + ".*"):
-        os.unlink(f)
+    for f in glob.glob(out + ".*") + [p, p + ".exe", wrap, logf]:
+        if os.path.exists(f):
+            os.unlink(f)
     return (int(m.group(1)) if m else None), exe
 
 
