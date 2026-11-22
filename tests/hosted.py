@@ -21,6 +21,9 @@ import screen
 from screen import Term, check, report, load, tree, scratch, expect
 
 MOD = tree("build/mods/console.so")
+# The sanitizer build runs several times slower, so a wait for a process to
+# end widens with it, as the other suites' do.
+SLOW = 4 if "ASAN_OPTIONS" in os.environ else 1
 WM = tree("programs/desktop/desktop.hibr")
 CLOCK = tree("programs/desktop/apps/Accessories/clock.hibr")
 CALC = tree("programs/desktop/apps/Accessories/calc.hibr")
@@ -245,10 +248,10 @@ while time.time() < deadline and not os.path.exists(SAID + ".hpid"):
 hpid = open(SAID + ".hpid").read().strip() if os.path.exists(SAID + ".hpid") else ""
 t0 = time.time()
 do(t, "dt_del $H")
-gone = waitfor(t, '! dt_iswin "$H"', 3)
+gone = waitfor(t, '! dt_iswin "$H"', 3 * SLOW)
 check("a close the app never answers lets the window go after DT_HOLDMS",
       gone and "did not answer the close" in log(t), log(t)[-600:])
-deadline = time.time() + 12
+deadline = time.time() + 12 * SLOW
 while time.time() < deadline and hpid and not ended(hpid):
     t.collect(0.2)
 check("and the process is ended DT_RTENDSECS later",
