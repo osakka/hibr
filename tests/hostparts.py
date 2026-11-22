@@ -478,12 +478,13 @@ for term in (t, u):
     if rr is not None:
         do(term, "dt_hover %d %d; dt_want 0" % (rr, cc + 1))
 ok, why = agree(t, u, body, secs=6)
+lit = ok and before is not None and pens(u) != before
 check("the pointer over a row of the hosted pane lights it, as in-process",
-      ok and before is not None and pens(u) != before, (why, before, pens(u)))
+      lit, (why, before, pens(u)))
 for term in (t, u):
     do(term, "dt_hover 0 2; dt_want 0")
 ok, why = agree(t, u, body, secs=6)
-check("and leaving it puts it back, as in-process", ok and pens(u) == before, why)
+check("and leaving it puts it back, as in-process", lit and ok and pens(u) == before, why)
 
 # The panel's search: the hosted pane is found by its rows, which its
 # process told the desktop, and shows only what holds the text.
@@ -491,15 +492,15 @@ for term in (t, u):
     term.send(b"/", settle=0.2, collect=0.2)
     term.send(b"count", settle=0.3, collect=0.3)
 ok, why = agree(t, u, body, secs=8)
+narrowed = ok and onscreen(t, "Show all of", 1) and "Switch" not in "".join(
+    "".join(t.screen().g[y]) for y in range(t.screen().rows))
 check("the panel's search finds the hosted pane by its rows, and narrows "
-      "them in its process, as in-process",
-      ok and onscreen(t, "Show all of", 1) and "Switch" not in "".join(
-          "".join(t.screen().g[y]) for y in range(t.screen().rows)),
+      "them in its process, as in-process", narrowed,
       (why, result(t, 'echo "${DT_RVROWTEXT[tbunp]-}"')))
 for term in (t, u):
     term.send(b"\x1b", settle=0.3, collect=0.3)
 ok, why = agree(t, u, body, secs=6)
-check("and closed, the whole pane again, as in-process", ok and onscreen(t, "Switch", 1), why)
+check("and closed, the whole pane again, as in-process", narrowed and ok and onscreen(t, "Switch", 1), why)
 
 # A shortcut row's capture is the desktop's, asked for by the pane's rows.
 for term in (t, u):
@@ -632,6 +633,9 @@ time.sleep(0.5 * SLOW)
 check("the panel closing does not end the bundle's process, whose item is "
       "on the bar for the session", bpid and os.path.exists("/proc/%s" % bpid)
       and onscreen(t, "B:61000", 1), log(t)[-800:])
+# Whose the shared part is just before the first bundle's process goes: a
+# hand-on is only one if it was the first's.
+shp_first = result(t, 'echo "${DT_RTC[${DT_RVPC[shp]-0}]-}"')
 os.kill(int(bpid), 15) if bpid else None
 check("its process gone, its item goes off the bar and its hook is the "
       "desktop's list's again, with nothing of it left hosted",
@@ -640,8 +644,9 @@ check("its process gone, its item goes off the bar and its hook is the "
       and not onscreen(t, "B:61000", 1),
       (result(t, 'echo "${!DT_RVB[*]} / ${!DT_RVHOOKS[*]} / ${!DT_RVPOP[*]}"'), log(t)[-1000:]))
 check("the shared part is the second bundle's process's once the first's "
-      "has gone", waitfor(t, '[ "${DT_RTC[${DT_RVPC[shp]-0}]-}" = tbun2 ] && [ -z "${DT_RVPALT[shp]+x}" ]', 4),
-      (result(t, 'echo "${DT_RVPC[shp]-} ${DT_RVPALT[shp]-}"'), log(t)[-1000:]))
+      "has gone", shp_first == "tbun" and
+      waitfor(t, '[ "${DT_RTC[${DT_RVPC[shp]-0}]-}" = tbun2 ] && [ -z "${DT_RVPALT[shp]+x}" ]', 4),
+      (shp_first, result(t, 'echo "${DT_RVPC[shp]-} ${DT_RVPALT[shp]-}"'), log(t)[-1000:]))
 expect(r"tbunb_hook: command not found|tbunb_hook: not found")
 
 u.close()
