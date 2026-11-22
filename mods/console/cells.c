@@ -1,11 +1,18 @@
 #define _GNU_SOURCE
 
 #include "cn.h"
+#include "../blitfr.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <poll.h>
+#include <time.h>
+#include <unistd.h>
 #include <sys/socket.h>
+
+const hf_api *cn_hold(sh *s);
+int cn_d3conn(sh *s);
 
 extern char **cn_lk;
 extern int cn_lkn;
@@ -47,6 +54,31 @@ static int cw_ldirty[CN_CWLINKS + 1];
 static cw_ts cw_ats[CN_CWTS + 1];
 static int cw_said, cw_tssaid;
 
+/* A picture this app draws in one of its views (ADR 0050, "Pictures"):
+   where, by the app's own slot, the newest frame's sequence, size and
+   hash, its sealed memfd kept so a server that lost it is sent it again,
+   whether it was drawn since its view was last cleared, and whether the
+   desktop has been told where it is. */
+typedef struct cw_pic {
+	char *view;
+	int r, c, h, w;
+	unsigned slot;
+	unsigned long long seq;
+	int pw, ph;
+	unsigned sum;
+	int live, said, mfd, held;
+} cw_pic;
+
+static vec cw_pics;
+static sh *cw_sh;
+/* The app's own connection to the session's server for its pictures, what
+   a cell measures there while pictures may go (0 while they may not), the
+   last time it was dialled, and the slots given out. */
+static const hf_api *cw_hf;
+static int cw_hfd = -1, cw_pcw, cw_pch, cw_hfsaid;
+static long long cw_hftry;
+static unsigned cw_slotn;
+
 /* The desktop's side: a connection, and each view it was given. */
 typedef struct cw_view cw_view;
 /* Its links and translucencies by ID, as many as the record lets it name. */
@@ -58,7 +90,8 @@ typedef struct cw_conn {
 	size_t lkbytes;
 	cw_ts ts[CN_CWTS + 1];
 	long frames, cells, bytes;
-	int skip, broken, gone, echo;
+	int skip, broken, gone, echo, pics;
+	long pid;
 } cw_conn;
 
 struct cw_view {
@@ -70,7 +103,23 @@ struct cw_view {
 	cn_grid g;
 	int *lo, *hi;
 	int unc, again, chg;
+	/* Its app's pictures, by the app's slot: where in the view, the
+	   desktop's own number for each as a stream, and the image id hold
+	   was last told it is written as. */
+	struct cw_vp *vp;
+	size_t nvp;
 };
+
+typedef struct cw_vp {
+	unsigned slot, sid, gid;
+	int r, c, h, w, said;
+} cw_vp;
+
+/* The desktop's own numbers for the apps' pictures, apart from any stream
+   the frames module numbers; and whether every grant is owed again, hold's
+   server having gone. */
+static unsigned cw_sidn;
+static int cw_regrant;
 
 /* One run or none of a frame, kept until its e has arrived. */
 typedef struct cw_op {
@@ -78,9 +127,14 @@ typedef struct cw_op {
 	int row, col, n;
 	unsigned fg, bg, at, ul, lk;
 	size_t off;
+	unsigned slot;
+	int pw;
 } cw_op;
 
 static vec cw_ks, cw_vs;
+
+void cw_picclear(const char *nm);
+void cw_vpshow(cw_view *v, cn_pane *p);
 
 /* Append v in hex. */
 void cw_hex(str *o, unsigned v)
@@ -100,6 +154,18 @@ cw_av *cw_afind(const char *nm)
 
 	for (i = 0; i < cw_avs.n; i++)
 		if (!strcmp(((cw_av *)cw_avs.p[i])->nm, nm))
+			return cw_avs.p[i];
+	return 0;
+}
+
+/* The view of this app's own console a pane is: its own name, or the pane
+   another of its kind is drawn through. */
+cw_av *cw_apane(const char *pn)
+{
+	size_t i;
+
+	for (i = 0; i < cw_avs.n; i++)
+		if (!strcmp(((cw_av *)cw_avs.p[i])->pn, pn))
 			return cw_avs.p[i];
 	return 0;
 }
@@ -207,7 +273,274 @@ int cw_clear(const char *nm)
 	cw_none(&cn_back, v->row, v->h);
 	v->drawn = 1;
 	cn_wrote++;
+	cw_picclear(nm);
 	return 1;
+}
+
+/* Milliseconds on the monotonic clock. */
+long long cw_ms(void)
+{
+	struct timespec t;
+
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+/* A view's pictures not drawn yet in this drawing of it. */
+void cw_picclear(const char *nm)
+{
+	size_t i;
+
+	for (i = 0; i < cw_pics.n; i++)
+		if (!strcmp(((cw_pic *)cw_pics.p[i])->view, nm))
+			((cw_pic *)cw_pics.p[i])->live = 0;
+}
+
+/* Let one of this app's pictures go. */
+void cw_picfree(size_t i)
+{
+	cw_pic *p = cw_pics.p[i];
+
+	if (p->mfd >= 0)
+		close(p->mfd);
+	free(p->view);
+	free(p);
+	cw_pics.p[i] = cw_pics.p[--cw_pics.n];
+}
+
+/* The server's connection has gone -- `hold upgrade`, or the session's end:
+   nothing it kept is there any more, so each picture goes to the next one
+   again, and pictures wait until it says they may. */
+void cw_hflost(void)
+{
+	size_t i;
+
+	if (cw_hfd < 0)
+		return;
+	cn_fdunhook(cw_hfd);
+	close(cw_hfd);
+	cw_hfd = -1;
+	cw_pcw = cw_pch = 0;
+	for (i = 0; i < cw_pics.n; i++)
+		((cw_pic *)cw_pics.p[i])->held = 0;
+	lg(HIBR_LDBG, "cells: the session's server let go of this app's "
+		      "pictures' connection");
+}
+
+/* What the session's server said on this app's connection: "PIC CW CH",
+   and what the displays' Blits said of its frames, which are its own
+   numbers and only logged. */
+int cw_hfread(void *ctx, int fd)
+{
+	str o;
+	int r, a, b;
+
+	(void)ctx;
+	s_init(&o);
+	while (cw_hf && fd == cw_hfd && (r = cw_hf->answer(fd, &o)) != 0) {
+		if (r < 0) {
+			cw_hflost();
+			break;
+		}
+		s_ch(&o, 0);
+		if (sscanf(o.p, "PIC %d %d", &a, &b) == 2) {
+			cw_pcw = a > 1 && b > 1 ? a : 0;
+			cw_pch = a > 1 && b > 1 ? b : 0;
+			lg(HIBR_LDBG, "cells: pictures %s (%d by %d a cell)",
+			   cw_pcw ? "may go" : "may not go", a, b);
+		} else {
+			lg(HIBR_LDBG, "cells: the displays said: %s", o.p);
+		}
+		o.n = 0;
+	}
+	s_free(&o);
+	return 0;
+}
+
+/* Send one picture's newest frame on this app's connection. 1 when it went. */
+int cw_picsend(cw_pic *p)
+{
+	/* A frame header is BF_HDR bytes, as the wire fixes it. */
+	unsigned char h[BF_HDR];
+
+	if (cw_hfd < 0 || p->mfd < 0)
+		return 0;
+	bf_hdr(h, p->slot, p->seq, p->pw, p->ph);
+	if (!cw_hf->appframe(cw_hfd, h, p->mfd)) {
+		cw_hflost();
+		return 0;
+	}
+	p->held = 1;
+	return 1;
+}
+
+/* Whether this app may send pictures now: it is in a held session, its own
+   connection to the server is up (dialled again at most once a second when
+   it is not), and the server says every display can take them. Outside
+   hold an app's pictures stay cells, said once. */
+int cw_picon(void)
+{
+	const char *hp = getenv("HIBR_HOLD");
+	struct pollfd q;
+	long long now;
+	size_t i;
+
+	if (!cn_hl || !cw_sh)
+		return 0;
+	if (!hp || !*hp) {
+		if (!cw_hfsaid++)
+			lg(HIBR_LDBG, "cells: not in a held session; this app's "
+				      "pictures are drawn as cells");
+		return 0;
+	}
+	if (!cw_hf)
+		cw_hf = cn_hold(cw_sh);
+	if (!cw_hf)
+		return 0;
+	if (cw_hfd < 0) {
+		now = cw_ms();
+		if (cw_hftry && now - cw_hftry < 1000)
+			return 0;
+		cw_hftry = now;
+		cw_hfd = cw_hf->appopen(cw_sh);
+		if (cw_hfd < 0)
+			return 0;
+		cn_fdhook(cw_hfd, cw_hfread, cw_sh);
+		q.fd = cw_hfd;
+		q.events = POLLIN;
+		if (poll(&q, 1, 500) > 0)
+			cw_hfread(0, cw_hfd);
+		if (cw_hfd < 0)
+			return 0;
+		for (i = 0; i < cw_pics.n && cw_pcw; i++)
+			if (!((cw_pic *)cw_pics.p[i])->held)
+				cw_picsend(cw_pics.p[i]);
+	} else {
+		cw_hfread(0, cw_hfd);
+	}
+	return cw_pcw > 1 && cw_pch > 1;
+}
+
+/* What a cell measures for this app's pictures: 0 by 0 while they cannot
+   go, so a module asking draws cells. */
+void cw_cellpx(int *w, int *h)
+{
+	*w = 0;
+	*h = 0;
+	if (cw_picon()) {
+		*w = cw_pcw;
+		*h = cw_pch;
+	}
+}
+
+/* A picture this app draws into one of its views: its frame goes to the
+   session's server under a slot of the app's own, and the desktop is told
+   where it is at the next flush. The same picture in the same place costs
+   nothing; another of the same size in that place is the slot's next frame
+   (a film is one slot); one of another size is a new slot. 0 where it
+   cannot go, and the caller draws cells. */
+int cw_image(const char *pane, int row, int col, int h, int w,
+	     const unsigned char *rgb, int iw, int ih, unsigned flags)
+{
+	cw_av *v;
+	cw_pic *p = 0;
+	cn_pane *pp;
+	int prow, pcol, ph, pw, r, c, mfd;
+	unsigned sum;
+	size_t i;
+
+	if (!pane || (flags & (DP_IMG_UNDER | CN_IMG_ALPHA)) ||
+	    !(v = cw_apane(pane)) || !cw_picon())
+		return 0;
+	if (!cn_prect(pane, &prow, &pcol, &ph, &pw) || row < 0 || col < 0 ||
+	    row + h > ph || col + w > pw || h < 1 || w < 1 || iw < 1 || ih < 1)
+		return 0;
+	r = prow + row - v->row;
+	c = pcol + col;
+	sum = cn_hash(rgb, (size_t)iw * ih * 3, 2166136261u);
+	for (i = 0; i < cw_pics.n; i++) {
+		cw_pic *x = cw_pics.p[i];
+
+		if (!strcmp(x->view, v->nm) && x->r == r && x->c == c &&
+		    x->h == h && x->w == w) {
+			p = x;
+			break;
+		}
+	}
+	if (p && p->sum == sum && p->pw == iw && p->ph == ih) {
+		p->live = 1;
+		if ((pp = cn_pfind(pane)))
+			pp->drawn = 1;
+		return 1;
+	}
+	if (p && (p->pw != iw || p->ph != ih))
+		p = 0;
+	mfd = bf_memfd(rgb, (size_t)iw * ih * 3);
+	if (mfd < 0)
+		return 0;
+	if (!p) {
+		p = xm(sizeof *p);
+		memset(p, 0, sizeof *p);
+		p->view = xs(v->nm);
+		p->r = r;
+		p->c = c;
+		p->h = h;
+		p->w = w;
+		p->slot = ++cw_slotn;
+		p->pw = iw;
+		p->ph = ih;
+		p->mfd = -1;
+		v_add(&cw_pics, p);
+	}
+	if (p->mfd >= 0)
+		close(p->mfd);
+	p->mfd = mfd;
+	p->seq++;
+	p->sum = sum;
+	p->live = 1;
+	if (!cw_picsend(p)) {
+		lg(HIBR_LDBG, "cells: a picture did not reach the session's "
+			      "server; sent again when it is back");
+	}
+	if ((pp = cn_pfind(pane)))
+		pp->drawn = 1;
+	return 1;
+}
+
+/* A view's picture lines for its frame: where each drawn picture is, said
+   when new or moved or the view starts again, and each not drawn this
+   time gone. How many lines. */
+long cw_picdiff(cw_av *v, int whole, str *o)
+{
+	size_t i = 0;
+	long n = 0;
+	cw_pic *p;
+
+	while (i < cw_pics.n) {
+		p = cw_pics.p[i];
+		if (strcmp(p->view, v->nm)) {
+			i++;
+			continue;
+		}
+		if (v->drawn && !p->live) {
+			if (p->said) {
+				s_cat(o, "x ");
+				s_num(o, (long)p->slot);
+				s_ch(o, '\n');
+				n++;
+			}
+			cw_picfree(i);
+			continue;
+		}
+		if (!p->said || whole) {
+			s_fmt(o, "p %u %d %d %d %d\n", p->slot, p->r, p->c,
+			      p->h, p->w);
+			p->said = 1;
+			n++;
+		}
+		i++;
+	}
+	return n;
 }
 
 /* Which link IDs and translucencies the views still hold, so one no cell
@@ -462,7 +795,7 @@ long cw_flush(void)
 	size_t i;
 	cw_av *v;
 	long n = 0;
-	int id;
+	int id, whole;
 
 	if (cw_afd < 0)
 		return 0;
@@ -481,7 +814,8 @@ long cw_flush(void)
 		s_ch(&fr, ' ');
 		s_num(&fr, v->gen);
 		s_ch(&fr, '\n');
-		if (cw_diff(v, &fr)) {
+		whole = !v->sent;
+		if (cw_diff(v, &fr) + cw_picdiff(v, whole, &fr)) {
 			s_add(&o, fr.p, fr.n);
 			s_cat(&o, "e\n");
 		}
@@ -598,7 +932,7 @@ int cw_aview(const char *nm, long gen, int h, int w, const char *pn)
 /* Forget a view of this app's own console. */
 int cw_aforget(const char *nm)
 {
-	size_t i;
+	size_t i, j;
 	cw_av *v;
 
 	for (i = 0; i < cw_avs.n; i++) {
@@ -607,6 +941,10 @@ int cw_aforget(const char *nm)
 			continue;
 		cn_pdrop(v->pn);
 		free(v->pn);
+		j = cw_pics.n;
+		while (j--)
+			if (!strcmp(((cw_pic *)cw_pics.p[j])->view, nm))
+				cw_picfree(j);
 		free(v->nm);
 		free(v);
 		cw_avs.p[i] = cw_avs.p[--cw_avs.n];
@@ -630,8 +968,54 @@ cw_conn *cw_conn4(int fd, int make)
 	k = xm(sizeof *k);
 	memset(k, 0, sizeof *k);
 	k->fd = fd;
+#ifdef SO_PEERCRED
+	{
+		struct ucred u;
+		socklen_t l = sizeof u;
+
+		if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &u, &l) == 0)
+			k->pid = (long)u.pid;
+	}
+#endif
 	v_add(&cw_ks, k);
 	return k;
+}
+
+/* Say one line about the apps' pictures to the session's server, on the
+   desktop's own connection to it. 1 when it went. */
+int cw_hold(const char *line)
+{
+	const hf_api *hf;
+	int fd;
+
+	if (!cw_sh || cn_imgfd != 1 || !(hf = cn_hold(cw_sh)))
+		return 0;
+	fd = cn_d3conn(cw_sh);
+	return fd >= 0 && hf->appctl(fd, line);
+}
+
+/* Let one of a view's pictures go for good: its image deleted (it is never
+   given to anything again), and its grant ended. */
+void cw_vpdrop(cw_view *v, size_t i)
+{
+	cw_vp *p = &v->vp[i];
+	str o;
+
+	cn_imgdmadrop(p->sid);
+	if (p->gid && v->k && v->k->pid) {
+		s_init(&o);
+		s_fmt(&o, "ungrant %ld %u", v->k->pid, p->slot);
+		cw_hold(o.p);
+		s_free(&o);
+	}
+	v->vp[i] = v->vp[--v->nvp];
+}
+
+/* Every grant said again at the next showing: the server that knew them has
+   gone, which `hold upgrade` does. */
+void cw_regrantall(void)
+{
+	cw_regrant = 1;
 }
 
 /* A view the desktop gave, by name. */
@@ -655,6 +1039,9 @@ void cw_vfree(cw_view *v)
 			cw_vs.p[i] = cw_vs.p[--cw_vs.n];
 			break;
 		}
+	while (v->nvp)
+		cw_vpdrop(v, v->nvp - 1);
+	free(v->vp);
 	cn_gfree(&v->g);
 	free(v->lo);
 	free(v->hi);
@@ -733,6 +1120,14 @@ int cw_drop(int fd, const char *nm)
 	for (i = cw_vs.n; i-- > 0;)
 		if (((cw_view *)cw_vs.p[i])->k == k)
 			cw_vfree(cw_vs.p[i]);
+	if (k->pid && k->pics) {
+		str o;
+
+		s_init(&o);
+		s_fmt(&o, "revoke %ld", k->pid);
+		cw_hold(o.p);
+		s_free(&o);
+	}
 	s_free(&k->in);
 	for (i = 0; i < cw_ks.n; i++)
 		if (cw_ks.p[i] == (void *)k) {
@@ -842,6 +1237,33 @@ void cw_apply(cw_conn *k, cw_view *v, cw_op *ops, size_t n, const char *base)
 
 	for (i = 0; i < n; i++) {
 		o = &ops[i];
+		if (o->kind == 'p' || o->kind == 'x') {
+			size_t j;
+
+			for (j = 0; j < v->nvp && v->vp[j].slot != o->slot; j++)
+				;
+			if (o->kind == 'x') {
+				if (j < v->nvp)
+					cw_vpdrop(v, j);
+				v->unc = 1;
+				v->chg = 1;
+				continue;
+			}
+			if (j == v->nvp) {
+				v->vp = xr(v->vp, (v->nvp + 1) * sizeof *v->vp);
+				memset(&v->vp[j], 0, sizeof v->vp[j]);
+				v->vp[j].slot = o->slot;
+				v->vp[j].sid = 0x80000000u | (++cw_sidn & 0x7FFFFFFFu);
+				v->nvp++;
+				k->pics = 1;
+			}
+			v->vp[j].r = o->row;
+			v->vp[j].c = o->col;
+			v->vp[j].h = o->n;
+			v->vp[j].w = o->pw;
+			v->chg = 1;
+			continue;
+		}
 		if (o->kind == 's') {
 			int j;
 
@@ -1107,7 +1529,8 @@ int cw_take(cw_conn *k)
 			}
 			continue;
 		}
-		if (kind != 's' && kind != 'r' && kind != 'n') {
+		if (kind != 's' && kind != 'r' && kind != 'n' && kind != 'p' &&
+		    kind != 'x') {
 			cw_broke(k, "a line it does not know");
 			break;
 		}
@@ -1121,6 +1544,16 @@ int cw_take(cw_conn *k)
 		}
 		if (kind == 'n' && cw_fields(&q, nl + 1, 3, "ddd", f) != 1) {
 			cw_broke(k, "a field that is not a number");
+			break;
+		}
+		if (kind == 'p' && (cw_fields(&q, nl + 1, 5, "ddddd", f) != 1 ||
+				    q != nl || !f[0] || !f[3] || !f[4])) {
+			cw_broke(k, "a picture not as the record has it");
+			break;
+		}
+		if (kind == 'x' && (cw_fields(&q, nl + 1, 1, "d", f) != 1 ||
+				    q != nl || !f[0])) {
+			cw_broke(k, "a picture not as the record has it");
 			break;
 		}
 		if (kind == 'r' && f[6] && (f[6] > CN_CWLINKS || !k->lk[f[6]])) {
@@ -1153,8 +1586,15 @@ int cw_take(cw_conn *k)
 			done = pos;
 			continue;
 		}
-		if (kind != 's' && (f[0] >= (unsigned long)cur->h ||
-				    f[1] >= (unsigned long)cur->w))
+		if (kind == 'p' && (f[1] + f[3] > (unsigned long)cur->h ||
+				    f[2] + f[4] > (unsigned long)cur->w)) {
+			lg(HIBR_LDBG, "cells: %s placed a picture past its edge:"
+				      " skipped", cur->nm);
+			continue;
+		}
+		if (kind != 's' && kind != 'p' && kind != 'x' &&
+		    (f[0] >= (unsigned long)cur->h ||
+		     f[1] >= (unsigned long)cur->w))
 			continue;
 		if (on == ocap) {
 			ocap = ocap ? ocap * 2 : 64;
@@ -1165,6 +1605,16 @@ int cw_take(cw_conn *k)
 		o->kind = kind;
 		if (kind == 's')
 			continue;
+		if (kind == 'p' || kind == 'x') {
+			o->slot = (unsigned)f[0];
+			if (kind == 'p') {
+				o->row = (int)f[1];
+				o->col = (int)f[2];
+				o->n = (int)f[3];
+				o->pw = (int)f[4];
+			}
+			continue;
+		}
 		o->row = (int)f[0];
 		o->col = (int)f[1];
 		if (kind == 'n') {
@@ -1371,6 +1821,7 @@ int cw_show(const char *nm, int all)
 		cn_translucent(tpct, tfb);
 		cn_transmatch(tmat);
 	}
+	cw_vpshow(v, p);
 	cn_fg = sfg;
 	cn_bg = sbg;
 	cn_penat = sat;
@@ -1382,6 +1833,60 @@ int cw_show(const char *nm, int all)
 	return HIBR_OK;
 }
 
+/* Place a view's pictures where its app said, each as a stream of the
+   desktop's own whose frames the app sends hold itself: one image id for
+   its life, taken fresh by the desktop, moved in place, parked off screen
+   (placements deleted, the image kept) and deleted for good only when the
+   app or its window is done with it. Hold is told which id each of the
+   app's slots is written as, once, and again after its server has gone. A
+   picture that cannot be placed -- no pixels by descriptor here now -- is
+   left out, said once. */
+void cw_vpshow(cw_view *v, cn_pane *p)
+{
+	int prow, pcol, ph, pw;
+	unsigned cid;
+	size_t i;
+	cw_vp *x;
+	str o;
+
+	if (!v->nvp || !p || !cw_sh ||
+	    !cn_prect(v->pane, &prow, &pcol, &ph, &pw))
+		return;
+	if (cw_regrant) {
+		size_t j, m;
+
+		cw_regrant = 0;
+		for (j = 0; j < cw_vs.n; j++)
+			for (m = 0; m < ((cw_view *)cw_vs.p[j])->nvp; m++)
+				((cw_view *)cw_vs.p[j])->vp[m].gid = 0;
+	}
+	for (i = 0; i < v->nvp; i++) {
+		x = &v->vp[i];
+		cid = 0;
+		if (!cn_imgdmas(cw_sh, v->pane, p->row + v->r + x->r - prow,
+				p->col + v->c + x->c - pcol, x->h, x->w, x->sid,
+				&cid, 0)) {
+			if (!x->said++)
+				lg(HIBR_LDBG, "cells: %s's picture %u cannot be "
+					      "placed here; left out", v->nm,
+				   x->slot);
+			continue;
+		}
+		if (cid == x->gid || !v->k->pid)
+			continue;
+		/* Said once: a server that did not take it is said it again
+		   only when a new one comes (cw_regrant), never every frame,
+		   since a dial to a server that is not accepting waits. */
+		s_init(&o);
+		s_fmt(&o, "grant %ld %u %u", v->k->pid, x->slot, cid);
+		if (!cw_hold(o.p))
+			lg(HIBR_LDBG, "cells: %s's picture %u is %u, which hold "
+				      "could not be told", v->nm, x->slot, cid);
+		x->gid = cid;
+		s_free(&o);
+	}
+}
+
 /* console cells ...: an app's own side (open, view, forget, clear, again)
    and the desktop's (own, drop, take, show). */
 int cw_verb(sh *s, int ac, char **av)
@@ -1390,6 +1895,7 @@ int cw_verb(sh *s, int ac, char **av)
 	cw_av *a;
 	str k;
 
+	cw_sh = s;
 	if (!strcmp(v, "open") && ac == 4 && cn_isint(av[3]))
 		return cw_open(atoi(av[3])) ? HIBR_OK : HIBR_FAIL;
 	if (!strcmp(v, "view") && (ac == 7 || ac == 8) && cn_isint(av[4]) &&
@@ -1467,6 +1973,13 @@ void cw_fin(void)
 		free(((cw_av *)cw_avs.p[i])->nm);
 		free(cw_avs.p[i]);
 	}
+	while (cw_pics.n)
+		cw_picfree(cw_pics.n - 1);
+	v_free(&cw_pics);
+	if (cw_hfd >= 0)
+		close(cw_hfd);
+	cw_hfd = -1;
+	cw_hf = 0;
 	v_free(&cw_ks);
 	v_free(&cw_vs);
 	v_free(&cw_avs);

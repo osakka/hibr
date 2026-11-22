@@ -474,6 +474,25 @@ cost an 80x24 frame 575,000 instructions more, as a macro 130,000 fewer than
 before), so what is beneath, the translucency in force and the panes above
 decide each cell's background as they did in-process.
 
+**Pictures** an app draws into a view (`img draw -m pixels`, a film's
+frames through `dp->image`) never cross the cells channel as pixels. In a
+held session the app's console sends each frame to hold's server itself, as
+a sealed memfd on a connection of its own (`hf_api` version 5's `appopen`
+and `appframe`), under a slot number of the app's own; it asks the same
+connection whether pictures may go and what a cell measures (`PIC CW CH`),
+which is what `dp->cellpx` answers there, so a module draws cells while
+they may not. The view's frame carries only where each picture is, `p SLOT
+ROW COL H W`, and `x SLOT` when the app stops drawing it. The desktop's
+console places each as a stream of its own (`cn_imgdmas`: one kitty id
+taken fresh for its life, moved in place, its placements deleted while its
+window is not shown, the image deleted only on `x`, the view's end or the
+connection's), and tells hold which id each slot is written as (`grant PID
+SLOT ID` on its own frames connection, the pid read off the cells channel
+with `SO_PEERCRED`); `revoke PID` when the channel ends. The same picture
+in the same place sends nothing; another of the same size there is the
+slot's next frame, so a film is one id. Outside hold the app's pictures
+are drawn as cells, said once in its log.
+
 A watched descriptor is output or input. A quiet wait (`console key -q`,
 the one `dt_run` sits out a held frame with) ignores output -- a pty, a
 cells channel -- and ends on input as it ends on a key: `console watch -i

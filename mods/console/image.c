@@ -1134,6 +1134,10 @@ int cn_image(sh *s, const char *pane, int row, int col, int h, int w,
 
 	cn_wrote++;
 
+	/* An app's own console has no terminal: its pictures go to the
+	   session's server itself, and the desktop places them (ADR 0050). */
+	if (cn_hl)
+		return rgb ? cw_image(pane, row, col, h, w, rgb, iw, ih, flags) : 0;
 	if (!cn_isopen() || !rgb || h < 1 || w < 1 || iw < 1 || ih < 1)
 		return 0;
 	k = cn_gfx(s);

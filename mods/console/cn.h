@@ -462,6 +462,11 @@ void cn_transget(unsigned *fb, unsigned *mat);
 #define CN_CWTS 7
 #endif
 int cw_verb(sh *s, int ac, char **av);
+int cw_image(const char *pane, int row, int col, int h, int w,
+	     const unsigned char *rgb, int iw, int ih, unsigned flags);
+void cw_cellpx(int *w, int *h);
+void cw_regrantall(void);
+unsigned cn_hash(const void *p, size_t n, unsigned h);
 long cw_flush(void);
 void cw_size(int *rows, int *cols);
 void cw_tsnow(int pct, unsigned fb, unsigned mat);

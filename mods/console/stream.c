@@ -490,6 +490,7 @@ int cn_d3read(void *ctx, int fd)
 				cn_dsts[i].ivcid = 0;
 			}
 			cn_imgdmaresend();
+			cw_regrantall();
 			s_free(&o);
 			return 1;
 		}
@@ -501,6 +502,32 @@ int cn_d3read(void *ctx, int fd)
 	}
 	s_free(&o);
 	return cn_kbwoke();
+}
+
+/* The desktop's own connection to hold's server, for frames by dmabuf, input
+   routes and its apps' grants: opened when first wanted, with what the last
+   one was told said again on it. -1 when there is none. */
+int cn_d3conn(sh *s)
+{
+	const hf_api *hf = cn_hold(s);
+
+	if (!hf)
+		return -1;
+	if (cn_d3 < 0) {
+		cn_d3 = hf->open3(s);
+		if (cn_d3 < 0)
+			return -1;
+		cn_fdhook(cn_d3, cn_d3read, s);
+		if (cn_keepl)
+			hf->input(cn_d3, cn_keepl);
+		if (cn_imekl)
+			hf->input(cn_d3, cn_imekl);
+		if (cn_kbasked)
+			hf->input(cn_d3, "KEYBOARD list");
+		if (cn_rateasked)
+			hf->input(cn_d3, "DISPLAY rate");
+	}
+	return cn_d3;
 }
 
 /* Send a stream's newest frame under its picture's id. 1 when it went. */
@@ -527,20 +554,8 @@ int cn_dsend(sh *s, cn_dst *d)
 		if (d->hn == BF_HDR) {
 			ok = hf->frame(s, h, d->fds[0]);
 		} else {
-			if (cn_d3 < 0) {
-				cn_d3 = hf->open3(s);
-				if (cn_d3 < 0)
-					return 0;
-				cn_fdhook(cn_d3, cn_d3read, s);
-				if (cn_keepl)
-					hf->input(cn_d3, cn_keepl);
-				if (cn_imekl)
-					hf->input(cn_d3, cn_imekl);
-				if (cn_kbasked)
-					hf->input(cn_d3, "KEYBOARD list");
-				if (cn_rateasked)
-					hf->input(cn_d3, "DISPLAY rate");
-			}
+			if (cn_d3conn(s) < 0)
+				return 0;
 			ok = hf->frame3(cn_d3, h, d->fds, d->n);
 		}
 	} else {

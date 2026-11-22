@@ -788,6 +788,10 @@ void cn_cellpx(int *w, int *h)
 
 	*w = 0;
 	*h = 0;
+	if (cn_hl) {
+		cw_cellpx(w, h);
+		return;
+	}
 	for (i = 0; i < 2; i++) {
 		int fd = i == 0 ? cn_fd : 2;
 
