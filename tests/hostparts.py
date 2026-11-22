@@ -360,8 +360,12 @@ if pr is not None:
     click(t, pr, pc)
 check("a press in it reaches its _popmouse there",
       saidwait("popmouse %s press" % bpid), said())
+# Its view is there before Escape, or a desktop that never opened one
+# would pass this as well.
+open_before = result(t, 'echo "${DT_RVX[otbunb]+x}"') == "x"
 t.send(b"\x1b", settle=0.3, collect=0.3)
 check("Escape closes it, and its view is let go",
+      open_before and
       waitfor(t, '[ -z "$DT_POP" ] && [ -z "${DT_RVX[otbunb]+x}" ]', 4) and "POP 1" not in t.screen().text(),
       (result(t, 'echo "$DT_POP / ${!DT_RVX[*]}"'), t.screen().text()[:400]))
 u.send(b"\x1b", settle=0.3, collect=0.3)
