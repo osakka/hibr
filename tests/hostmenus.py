@@ -111,8 +111,11 @@ dt_close
 '''
 
 # The hosted session: the Calculator and the fixture only registered, read
-# and never run here.
-HOSTED = r'''DT_LOADING=%s dt_app calc "Calculator" 16 24 once "x" fixed
+# and never run here; and every push of menus an app process makes counted.
+HOSTED = r'''eval "$(declare -f dt_rvpush_in | sed '1s/dt_rvpush_in(/hm_push(/')"
+HM_PUSHES=0
+dt_rvpush_in() { HM_PUSHES=$((HM_PUSHES + 1)); hm_push "$@"; }
+DT_LOADING=%s dt_app calc "Calculator" 16 24 once "x" fixed
 DT_LOADING=%s dt_app mfx "Menus" 6 30
 DT_LOADING=''' % (CALC, MFX)
 INPROC = r'''DT_LOADING=%s . %s
@@ -362,14 +365,15 @@ check("and choosing from it runs in the app's process, for that window",
       [apid, "picked top", m2] in s[6:], s)
 
 # A menu whose label differs on every build (a time in it) settles: what a
-# push brings is built and not asked for again, so the idle desktop draws
-# no more than it would with any other window.
+# push brings is built and not asked for again, so an idle desktop asks the
+# app nothing and the app pushes nothing. Counted in pushes, since this
+# session's own ticker draws ten frames a second whatever happens.
 t.collect(1.0)
-f0 = t.frames()
+n0 = result(t, 'echo "$HM_PUSHES"')
 t.collect(2.0)
-nf = t.frames() - f0
-check("a menu that differs on every build does not keep the desktop drawing",
-      nf <= 4, nf)
+n1 = result(t, 'echo "$HM_PUSHES"')
+check("a menu that differs on every build is not asked for and pushed again and again",
+      n0.isdigit() and n1.isdigit() and int(n1) - int(n0) <= 1, (n0, n1))
 
 # Its context menu, for the window clicked.
 click(t, 14, 6, 2)
