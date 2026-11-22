@@ -1574,7 +1574,10 @@ this tree's runtime with no desktop (`zygote fork` against a fresh
 `hibr`, five each, ready meaning the runtime and the app read): the
 Terminal ready in 9-11 ms forked against 40-49 ms re-executed, 2.7-3.6 MB
 PSS (0.9 MB private) against 6.0 MB (5.6 MB private) -- track 4's 8-11 ms
-and 2.1 MB against 41-50 ms and 6.3 MB, reproduced on the product code.
+and 2.1 MB against 41-50 ms and 6.3 MB, reproduced on the product code,
+and again on the tree that shipped this (five each, load 3): 9-12 ms
+forked (median 10) against 37-45 (median 40), 2.8-3.8 MB PSS (0.9
+private) against 6.3-6.4 MB (6.0 private).
 Inside a test desktop (five sessions): PSS of the Terminal's process
 2.5 MB (1.2 private), the Calculator's 2.0 (0.7), the Clock's 1.9 (0.6),
 the zygote 1.8 (0.4); fork to app read **including the hello**, 211, 139
@@ -1582,6 +1585,71 @@ and 116 ms -- the hello's sending of the desktop's shared state, not the
 fork, which neither route avoids and track 4 did not measure. An idle
 pass of `dt_run` is unchanged (11.65M instructions against its 12.2M
 bound): nothing here runs unless the desktop listens.
+
+**The hold** (2026-11-22). An app's own process draws its windows itself,
+and a Terminal's program writing wakes it: as first built, the runtime drew
+on every pass, so under `tools/budgets.py --hosted writers` (three Terminal
+windows, each program printing a line every 10 ms) the Terminal's process
+spent 42% (41-44% over three runs, f7c32b20) of a core where the desktop, showing those cells, holds a
+frame such output asks for to `DT_TERMMS`. `dt_rtdraw` now holds a window
+dirty only by what it watches to `DT_TERMMS` after its last such draw, and
+waits out the rest quietly (`console key -q`; the desktop's socket is
+watched as input, so a key or a call still ends the wait at once). What the
+desktop told the window -- a key, a click, a view bound -- is never held,
+and neither is the answer to it: output within `DT_ANSWERMS` of the input
+the window was last given (a key, a click, the mouse, the wheel, a drop, an
+edit) is drawn at once, as `dt_answer` draws the focused window's output in
+the desktop. Without that, a terminal's echo typed faster than the hold
+waited out the rest of it. Measured (medians of three, `--hosted`, the
+shared box): the Terminal's process (with the zygote,
+now counted beside it) 7.1% of a core under the writers (6.8-7.1), against
+42% before (41-44); the desktop 8.4% (8.1-8.7) against 7.6% (7.4-7.7), the
+runs not overlapping, so 0.8 of a point more and not attributed -- the
+candidate is the pass's `pty reap` while the desktop owns programs
+(`dt_rtptytick`), not measured alone; idle, the desktop 0.2% and the app
+processes 0.0%, both before and after.
+`tests/zygote.py` holds both with two apps of its own, each counting in its
+own process: a window written to every 4 ms is drawn 13.8 and 14.0 times a
+second (242.8 without the hold), and the echo of a key through a program,
+keys 30 ms apart, is drawn 0 ms after its key at the median, 4 at worst
+(28 ms without the exemption). A session with `DT_TERMMS` at 300, tried
+first, never ran its own ticker (a `dt_want 100`) in 20 s while the harness
+sent it focus reports -- the desktop's hold, outside this track, noted and
+not chased; the Control Panel's row stops at 200.
+
+Not carried: `DT_LIVEMS`. `dt_live` is local -- the app's process knows its
+window plays video and the desktop does not -- so a hosted video window is
+held to `DT_TERMMS` at both ends. Carrying it is `dt_live` told as well as
+kept, the desktop's `dt_holdms` reading it, and the runtime holding a live
+window to `DT_LIVEMS`; left to the track that hosts a live window, since no
+suite has one yet. Nor, yet, the person's own `DT_TERMMS`: the runtime reads
+it, but `mirrors.hibr` sends it only to the files the inventory saw read it
+(the Browser, Boxer, the Desktop pane) -- `tools/appstate.py` does not read
+`runtime.hibr` -- so a Terminal's process holds to the shipped 70 ms
+whatever Frames For Output says. Counting the runtime's top-level reads as
+every process's ("*") and writing `mirrors.hibr` again is the fix.
+
+**An app process whose work has just ended.** An app process with no window
+left is looked at when its time to end comes and left while it is at work
+of its own. Found idle at the next look, it was ended -- but idle then means
+its work ended only just, a job whose callback ran a moment before, and its
+own end may be a moment away, which the desktop now learns of from the
+zygote, its parent, a hop later than `kill -0` told it when the desktop was.
+`tests/hostedit.py`'s job app, whose job ends as the desktop looks again,
+was ended mid-way in six runs of nine. One at work at the last look is
+given `DT_RTENDSECS` again from this one (`DT_RTENDBUSY`), and what the
+resident judge compared it by at work (`dt_rvresjudge`'s last look) goes
+with it, so a later look at work is measured against a fresh one; a check
+in `tests/zygote.py` drives the two looks with a stand-in process.
+
+**What a hosted Terminal was missing.** `dt_holdsess` (the held session's
+name, read from `HIBR_HOLD`'s socket path) lived in `wm/hold.hibr`, which
+an app's process does not source, so every hosted Terminal logged it as not
+found when it named its program; it is one line over the environment, which
+an app process inherits as the desktop has it, and is in `wm/draw.hibr`
+beside `dt_shortname`, still classed local. `dt_termrun` (the told request
+for a terminal running a command, track 1's) was not needed here: a hosted
+Terminal's command reaches its `_open` in the window's record (`cmdn`).
 
 **Owner's choices left open**, built as recommended:
 
