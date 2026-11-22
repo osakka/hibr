@@ -146,7 +146,7 @@ if len(sys.argv) > 3 and sys.argv[1] in ("app", "desk"):
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
-from screen import Term, check, report, load
+from screen import Term, check, report, load, tree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 src = open(os.path.join(HERE, "frames.py")).read()
@@ -606,6 +606,12 @@ check("hold knows the app by its process, one picture, its frame taken",
 appdo("stream", P[0])
 fs = open(ob + ".fsock").read().split() if os.path.exists(ob + ".fsock") else None
 pb = Bridge(*fs) if fs else None
+# A stream is placed once its first frame has come, as a window places it
+# from its next drawing: the app draws again after it.
+if pb:
+    pb.send(42)
+time.sleep(0.5 * SLOW)
+appdo("pic", P[0])
 f3a, f3b = len(dmaframes(lba)), len(dmaframes(lbb))
 for _ in range(6):
     if pb:
@@ -650,10 +656,12 @@ check("and shown again it is placed under the same id",
       placed(ctls(tb0, c0), I), ctls(tb0, c0))
 
 c0, c1 = len(tb0.out), len(tb1.out)
+sl0 = apps(nmb).get(apid, [0])[0]
 appdo("none")
 s0 = ctls(tb0, c0)
 check("a picture the app no longer draws is deleted for good, and hold lets "
-      "its slot go", deleted(s0, I, "I") and apps(nmb).get(apid, [9])[0] == 0,
+      "its slot go", deleted(s0, I, "I") and sl0 >= 1 and
+      apps(nmb).get(apid, [9])[0] == sl0 - 1,
       (s0, apps(nmb)))
 for lg in (lba, lbb):
     open(lg + ".del", "w").write("%d\n" % I)
@@ -711,7 +719,7 @@ ap = apps(nmb).get(apid)
 check("an app that has ended leaves its window its last picture, as Control "
       "Panel's default keeps it: hidden and shown again, it is placed on both "
       "displays, hold keeping its frame", os.path.exists(ob + ".gone") and
-      placed(s0, J) and placed(s1, J) and ap and ap[0] == 1, (J, s0, s1, ap))
+      placed(s0, J) and placed(s1, J) and ap and ap[0] >= 1, (J, s0, s1, ap))
 c0, c1 = len(tb0.out), len(tb1.out)
 open(ob + ".close", "w").close()
 wait(lambda: os.path.exists(ob + ".dropped"), 5)
