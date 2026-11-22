@@ -89,9 +89,11 @@ def exe(pid):
         return ""
 
 
-def cpu(root, secs):
+def cpu(root, secs, t):
     """Percent of a core over secs: the desktop, its hibr processes (app
-    processes when hosted) and every other program below it."""
+    processes when hosted) and every other program below it -- read while
+    the terminal is read, since a desktop whose frames nobody reads blocks
+    writing them and would measure as idle."""
     me = exe(root)
 
     def sample():
@@ -104,7 +106,7 @@ def cpu(root, secs):
                 p += ticks(k)
         return d, a, p
     s0 = sample()
-    time.sleep(secs)
+    t.collect(secs)
     s1 = sample()
     return [round(100.0 * (b - a) / TICK / secs, 2) for a, b in zip(s0, s1)]
 
@@ -221,8 +223,12 @@ def run(tree, case, hosted=False):
         out["echo_missed"] = miss
     else:
         t.collect(3.0 if case != "idle" else 2.0)
-        d, a, pr = cpu(root, 10.0)
+        f0 = t.frames()
+        d, a, pr = cpu(root, 10.0, t)
         out["cpu"] = {"desktop": d, "apps": a, "programs": pr}
+        # The frames drawn while it was measured, from the harness's idle
+        # marker: what says the load was the one named.
+        out["frames_per_s"] = round(((t.frames() or 0) - (f0 or 0)) / 10.0, 1)
     me = exe(root)
     out["hibr_children"] = sum(1 for k in kids(root) if exe(k) == me)
     out["log_errors"] = sum(1 for l in (open(t.log, errors="replace").read().splitlines()
@@ -284,6 +290,9 @@ def compare(argv):
                     if who != "desktop" and max(v) == 0:
                         continue
                     parts.append("%s %.2f%% (%.2f-%.2f)" % (who, statistics.median(v), min(v), max(v)))
+                fr = [r.get("frames_per_s") for r in rs if r.get("frames_per_s") is not None]
+                if fr:
+                    parts.append("%.1f frames/s" % statistics.median(fr))
                 cells.append(", ".join(parts))
         print("| %s | %s | %s |" % (c, cells[0], cells[1]))
     loads = [r.get("load") for v in got.values() for r in v if r.get("load")]
