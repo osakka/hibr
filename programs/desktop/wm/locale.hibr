@@ -329,12 +329,7 @@ fn dt_locinstall(name) {
 
 # Run a command that asks for an administrator in a terminal window.
 fn dt_locrun(...cmd) {
-	DT_OPENCMD=("${cmd[@]}")
-	DT_OPENSELF=1
-	dt_launch term && return 0
-	DT_OPENCMD=()
-	DT_OPENSELF=
-	return 1
+	dt_termrun self "" "${cmd[@]}"
 }
 
 # Change the system's locale: name=value pairs over what it has now, the

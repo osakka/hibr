@@ -325,9 +325,7 @@ fn prog_launch(arg = "") {
 		# from Files printed: a program from the menu does what Control
 		# Panel > Terminal > Close When a Program Ends says -- by default,
 		# closed on success and kept to show why it failed.
-		DT_OPENCMD=("$HIBR" -c "exec $cmd")
-		dt_launch term && return 0
-		DT_OPENCMD=()
+		dt_termrun "" "" "$HIBR" -c "exec $cmd"
 		return 0
 	fi
 	if [ -z "${WAYLAND_DISPLAY-}" ] && [ -z "${DISPLAY-}" ]; then

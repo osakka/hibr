@@ -83,6 +83,28 @@ fn dt_newcmd(int id) {
 	return 0
 }
 
+# A terminal window running cmd, the one way anything asks for one: the
+# words are this request's own, so they reach the desktop from an app's
+# own process (a pane's file, ADR 0050), where a global set there before
+# dt_launch would be that process's alone. how is "self" when the command
+# is itself the program, to be left on screen when it ends, or "shell"
+# for an interactive shell, which closes like any terminal's; arg is what
+# dt_launch is given. Status 1 when no window was opened.
+fn dt_termrun(how = "", arg = "", ...cmd) {
+	DT_OPENCMD=("${cmd[@]}")
+	DT_OPENSELF=
+	DT_OPENSHELL=
+	case $how in
+	self) DT_OPENSELF=1 ;;
+	shell) DT_OPENSELF=1; DT_OPENSHELL=1 ;;
+	esac
+	dt_launch term "$arg" && return 0
+	DT_OPENCMD=()
+	DT_OPENSELF=
+	DT_OPENSHELL=
+	return 1
+}
+
 # A window's record without what it was made to run: a window restored
 # from a saved record opens fresh, or resumes, and never runs it again --
 # a command asking for an administrator (pkexec, sudo) would ask twice.
@@ -157,9 +179,7 @@ fn dt_openfile(path) {
 	elif [ -n "${DT_HANDLERS[$ext]["n"]}" ]; then
 		dt_runhandler "$ext" "$path"
 	elif [ -x "$path" ]; then
-		DT_OPENCMD=("$path")
-		DT_OPENSELF=1
-		dt_launch term "$path"
+		dt_termrun self "$path" "$path"
 	elif [ "${#DT_OWLIST[@]}" -gt 0 ] &&
 	     [[ ${DT_OPENERS[${DT_OWLIST[0]}]["how"]} == @(app|browse) ]]; then
 		dt_openwith "${DT_OWLIST[0]}" "$path"
@@ -467,11 +487,7 @@ fn dt_openwith(name, path) {
 	app) dt_launch "$ap" "$path" ;;
 	browse) dt_launch files "$ap://$path" ;;
 	edit) DT_OPENCMD=(); dt_launch term "$path" ;;
-	run)
-		DT_OPENCMD=("$path")
-		DT_OPENSELF=1
-		dt_launch term "$path"
-		;;
+	run) dt_termrun self "$path" "$path" ;;
 	*) return 1 ;;
 	esac
 }
@@ -483,8 +499,7 @@ fn dt_openwithcmd(cmd, path) {
 
 	read -ra words <<< "$cmd"
 	[ "${#words[@]}" -gt 0 ] || return 1
-	DT_OPENCMD=("${words[@]}")
-	dt_launch term "$path"
+	dt_termrun "" "$path" "${words[@]}"
 }
 
 # --- Open Terminal Here --------------------------------------------------------
@@ -499,10 +514,7 @@ fn dt_termhere(dir) {
 	[ -d "$dir" ] || return 1
 	[ "$sh" = shell ] && sh=${SHELL:-${HIBR:-hibr}}
 	[ "$sh" = hibr ] && sh=${HIBR:-hibr}
-	DT_OPENCMD=("${HIBR:-hibr}" -c 'cd -- "$1" && exec "$2"' termhere "$dir" "$sh")
-	DT_OPENSELF=1
-	DT_OPENSHELL=1
-	dt_launch term "$dir"
+	dt_termrun shell "$dir" "${HIBR:-hibr}" -c 'cd -- "$1" && exec "$2"' termhere "$dir" "$sh"
 }
 
 # What of this file's state every app process that reads it is sent (ADR

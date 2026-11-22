@@ -397,14 +397,12 @@ fn dtf_close(int id) {
 # privilege on its own, so the command runs in a terminal window of its
 # own where polkit, or sudo on macOS, can ask for a password and the result
 # stays on screen.
+# The command is the request's own words (dt_termrun), so it reaches the
+# desktop from this pane's own process too (ADR 0050). dt_launch says which
+# app is missing and where to find it since 0.99.195, so a second note
+# here would be two for one failure.
 dtp_run() {
-	DT_OPENCMD=("$@")
-	DT_OPENSELF=1
-	dt_launch term && return 0
-	# dt_launch says which app is missing and where to find it since
-	# 0.99.195, so a second note here would be two for one failure.
-	DT_OPENCMD=()
-	DT_OPENSELF=
+	dt_termrun self "" "$@"
 }
 
 # --- the time zone ---------------------------------------------------------
