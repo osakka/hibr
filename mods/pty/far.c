@@ -259,8 +259,10 @@ tt_p *tt_farspawn(int rows, int cols, int xpix, int ypix, char **av)
 }
 
 /* Take back a program the desktop owns for this app, by its pid: what a
-   window resuming in a fresh process does (term_resume's pty adopt). */
-tt_p *tt_faradopt(long pid, int rows, int cols)
+   window resuming in a fresh process does (term_resume's pty adopt). The
+   master is put at the number asked for when that is free here, so a
+   caller that kept the number it had before finds it there. */
+tt_p *tt_faradopt(int want, long pid, int rows, int cols)
 {
 	str q, a;
 	vec f = { 0, 0, 0 };
@@ -276,6 +278,12 @@ tt_p *tt_faradopt(long pid, int rows, int cols)
 	if (tt_farask(&q, "ae", &a, &fd)) {
 		tt_fields(&a, &f);
 		if (a.p[0] == 'a' && f.n >= 5 && fd >= 0) {
+			if (want > 2 && want != fd && fcntl(want, F_GETFD) < 0 &&
+			    dup2(fd, want) == want) {
+				close(fd);
+				fd = want;
+				fm_cloexec(fd);
+			}
 			p = tt_farrec(fd, atoi((char *)f.p[1]), atol((char *)f.p[2]), rows, cols);
 			p->done = atoi((char *)f.p[3]);
 			p->st = atoi((char *)f.p[4]);

@@ -55,7 +55,7 @@ int tt_viaset(int fd);
 int tt_viafd(void);
 int tt_pump(void);
 tt_p *tt_farspawn(int rows, int cols, int xpix, int ypix, char **av);
-tt_p *tt_faradopt(long pid, int rows, int cols);
+tt_p *tt_faradopt(int want, long pid, int rows, int cols);
 int tt_faralive(tt_p *p);
 int tt_farsignal(tt_p *p, int sig);
 void tt_fardrop(tt_p *p);

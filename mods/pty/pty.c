@@ -349,7 +349,7 @@ tt_p *tt_adopt(int fd, long pid, int rows, int cols)
 	tt_p *p;
 
 	if (tt_viafd() >= 0)
-		return tt_faradopt(pid, rows, cols);
+		return tt_faradopt(fd, pid, rows, cols);
 	if (fd < 0 || pid <= 0 || !isatty(fd)) {
 		lg(HIBR_LERR, "pty adopt: %d is not an open terminal", fd);
 		return 0;

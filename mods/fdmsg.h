@@ -54,6 +54,8 @@ int fm_take(fm_ch *c);
 int fm_next(fm_ch *c, str *out, int *fds, int *nf);
 /* Wait at most ms for something to read: 1 readable, 0 not in ms. */
 int fm_wait(fm_ch *c, int ms);
+/* Make a descriptor close-on-exec. */
+void fm_cloexec(int fd);
 /* Milliseconds on a clock no one sets. */
 long fm_ms(void);
 /* Close every descriptor above 2 but keep (n of them), with no
