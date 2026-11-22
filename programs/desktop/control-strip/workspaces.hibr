@@ -3,13 +3,16 @@
 # workspaces -- a Control Strip module for the workspace numbers, the same
 # ones the menu bar can show (menubar/workspaces.hibr): the current one lit,
 # a click on another goes there. The strip and the bar can each show them,
-# or both, or neither (Gitea #393).
+# or both, or neither (Gitea #393). Registered at the width of the three
+# workspaces a desktop starts with, written out so the desktop reads it
+# without running this file (ADR 0050, Decision 3); its _draw says another
+# when there are more or fewer (cs_modwidth).
 
 strict
 
 
-app workspaces "A Control Strip module for the workspace numbers" 1.0.1
-command -v cs_module > /dev/null && cs_module workspaces Workspaces $((DT_WSN * 2 - 1))
+app workspaces "A Control Strip module for the workspace numbers" 1.0.2
+command -v cs_module > /dev/null && cs_module workspaces Workspaces 5
 
 fn workspaces_draw(int row, int col) {
 	local i=1 w=$((DT_WSN * 2 - 1))

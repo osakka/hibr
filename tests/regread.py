@@ -30,6 +30,14 @@ PLAT = [f for f in appstate.platfiles() if not os.path.relpath(f, DESK).startswi
 FILES = [f for f in appstate.installables() if f.startswith(DESK + os.sep)] + sorted(
     f for f in glob.glob(os.path.join(DESK, "lib", "*.hibr"))
     if any(re.match(r"^[A-Z]\w*_LIBDONE=1", l) for l in open(f, errors="replace")))
+# Every installable in the tree writes its registrations out, so the suite
+# brings one of its own that does not: a strip module whose width is worked
+# out, which reading must name and not make.
+FIXTURE = os.path.join(tempfile.mkdtemp(prefix="regread-fix-"), "fixture.hibr")
+open(FIXTURE, "w").write('app fixture "A strip module whose width is worked out" 1.0\n'
+                         'command -v cs_module > /dev/null && cs_module fixture Fixture $((1 + 2))\n'
+                         'fn fixture_draw(int row, int col) {\n\tconsole put "$row" "$col" fix\n}\n')
+FILES.append(FIXTURE)
 # The registries a registration writes, and whether each is a map.
 REGS = "DT_APPS CP_PANES CS_MODS DT_BARI DT_BARIN DT_OPENERS DT_OVN DT_KEEPSTATE DT_APPACT DT_ATSTART DT_BARHOOKS".split()
 
@@ -146,7 +154,8 @@ check("and reading runs nothing of the file -- no function of its own is defined
       "every registration", not ran and len(same) > 50, (ran[:6], len(same)))
 said = sorted(os.path.relpath(f, DESK) for f, a, b, dyn, run in res if b[3])
 check("what reading says it cannot read is exactly what the parser says is not written out",
-      said == sorted(r for r, _ in unread) == ["control-strip/workspaces.hibr"], (said, unread))
+      said == sorted(r for r, _ in unread) == [os.path.relpath(FIXTURE, DESK)], (said, unread))
 check("and what differs registers from a function of its own, which only its own process can run",
       byrun == ["apps/archives.hibr"], byrun)
+shutil.rmtree(os.path.dirname(FIXTURE), ignore_errors=True)
 report(4)
