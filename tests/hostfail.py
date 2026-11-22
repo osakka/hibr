@@ -31,15 +31,21 @@ from screen import Term, check, report, load, tree, scratch, expect, press, rele
 MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 SAID = scratch("hostfail-said")
+# Input is late, and a desktop key's action stops waiting for an app, only
+# past the session's DT_HOLDMS: 300 ms, and eight times that for the
+# sanitizer build (screen.py). LATE is what that adds to everything timed
+# from it -- the busy pointer, the not-responding mark, the menu bar
+# opening anyway -- and to the hanger's spins, which must outlast the hold.
+LATE = max(0, int(os.environ["DT_HOLDMS"]) - 300)
 VICTIM = scratch("hostfail-victim.hibr")
 HANGER = scratch("hostfail-hanger.hibr")
 GOOD = scratch("hostfail-good.hibr")
 DECLINER = scratch("hostfail-decliner.hibr")
 
 # The victim draws how many keys it was given and its pid; x makes it exit
-# with status 3. The hanger spins 3 s on h and 1 s on escape, then writes
-# down each key it ran. Good is in the desktop's own process and shows the
-# last key it was given.
+# with status 3. The hanger spins 5 s on h and 2 s on escape, LATE more
+# each, then writes down each key it ran. Good is in the desktop's own
+# process and shows the last key it was given.
 open(VICTIM, "w").write(r'''command -v dt_app > /dev/null && dt_app victim "Victim" 6 40
 declare -gA VC
 fn victim_draw(int id, int h, int w, int row, int col) {
@@ -60,15 +66,15 @@ fn hanger_draw(int id, int h, int w, int row, int col) {
 fn hanger_key(int id, key) {
 	local t=0
 	case $key in
-	h) t=5000000 ;;
-	escape) t=2000000 ;;
+	h) t=%d ;;
+	escape) t=%d ;;
 	esac
 	t=$((${EPOCHREALTIME/./} + t))
 	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
 	printf '%%s\n' "$key" >> %s.keys
 	return 0
 }
-''' % (SAID, SAID))
+''' % (SAID, 5000000 + LATE * 1000, 2000000 + LATE * 1000, SAID))
 # The decliner writes down each key it is given and declines escape after a
 # tenth of a second, inside DT_HOLDMS, as vi declining it to Menu Bar does.
 open(DECLINER, "w").write(r'''command -v dt_app > /dev/null && dt_app decliner "Decliner" 6 40
@@ -125,7 +131,8 @@ def session():
     p = scratch("hostfail.hibr")
     mark = scratch("hostfail-do")
     open(p, "w").write(SESSION % (load(MOD), WM, VICTIM, HANGER, DECLINER, GOOD, GOOD, mark, mark, mark))
-    term = Term(p, rows=30, cols=100, settle=0.6, env={"DT_BARTIME": "12:00"})
+    term = Term(p, rows=30, cols=100, settle=0.6,
+                env={"DT_BARTIME": "12:00", "DT_NRMARKMS": str(3000 + LATE)})
     term.mark = mark
     return term
 
@@ -317,13 +324,13 @@ hpid = hosted(t, "hanger", "H", 12, 2, pidfile=".hpid", text="hanger")
 hid = result(t, 'echo "$H"')
 t.send(b"h", settle=0.05, collect=0.05)
 t0 = time.time()
-busy = waitfor(t, 'p := console pointer; [ "$p" = progress ]', 2)
+busy = waitfor(t, 'p := console pointer; [ "$p" = progress ]', 2 + LATE / 1000)
 early = time.time() - t0
 sc = t.screen()
 check("while the hung window has focus the pointer is busy, by about half a second",
-      busy and early < 1.6, (busy, round(early, 2)))
+      busy and early < 1.6 + LATE / 1000, (busy, round(early, 2)))
 check("and its title does not say not responding yet",
-      sc.find("(not responding)") is None and time.time() - t0 < 2.8,
+      sc.find("(not responding)") is None and time.time() - t0 < 2.8 + LATE / 1000,
       (round(time.time() - t0, 2), sc.text()))
 t1 = time.time()
 g = t.screen().find("got:")
@@ -336,9 +343,9 @@ check("a hosted app spinning in its key handler: another window answers a key "
 check("with the focus gone from it, the pointer is not busy",
       waitfor(t, 'p := console pointer; [ "$p" != progress ]', 2),
       result(t, 'console pointer'))
-sc = t.until("Hanger (not responding)", tries=60, step=0.05)
+sc = t.until("Hanger (not responding)", tries=60 + LATE // 50, step=0.05)
 check("its title says not responding after about three seconds",
-      sc.find("Hanger (not responding)") is not None and time.time() - t0 >= 2.5,
+      sc.find("Hanger (not responding)") is not None and time.time() - t0 >= 2.5 + LATE / 1000,
       (round(time.time() - t0, 2), sc.text()))
 check("and the stall is a held: line naming it, as in-process",
       logwait(t, "held: input:hanger has not answered the person's key in window %s" % hid, 3),
@@ -355,7 +362,7 @@ if os.path.exists(SAID + ".keys"):
     os.unlink(SAID + ".keys")
 t0 = time.time()
 t.send(b"\x1b", settle=0, collect=0)
-opened = waitfor(t, '[ "${MB_OPEN:--1}" != -1 ]', 2)
+opened = waitfor(t, '[ "${MB_OPEN:--1}" != -1 ]', 2 + LATE / 1000)
 took = time.time() - t0
 early = not os.path.exists(SAID + ".keys")
 check("escape to an app taking two seconds over it: the menu bar opens anyway, "
@@ -371,7 +378,7 @@ t.send(b"h", settle=0.05, collect=0.05)
 time.sleep(0.2)
 t0 = time.time()
 t.send(b"\x1b", settle=0, collect=0)
-opened = waitfor(t, '[ "${MB_OPEN:--1}" != -1 ]', 2)
+opened = waitfor(t, '[ "${MB_OPEN:--1}" != -1 ]', 2 + LATE / 1000)
 took = time.time() - t0
 early = not os.path.exists(SAID + ".keys")
 check("escape behind a key the app is still spinning on: the menu opens before "

@@ -1600,7 +1600,7 @@ fn dt_rtzygote(int zfd) {
 # channel; its loop.
 if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "${1-}" = --zygote ] && [ "$#" = 2 ]; then
 	dt_rtzygote "$2" || exit 0
-	DT_HOLDWHAT=${DT_RTZFILE##*/}
+	DT_HOLDWHAT=${DT_RTZAPP##*/}
 	DT_HOLDWHAT="${DT_HOLDWHAT%.hibr}'s own process"
 	dt_rtopen "$DT_RTZAPP" || { dt_log "app runtime: $DT_RTZAPP: $DT_RTSAID"; exit 1; }
 	for f in "${DT_TICKERS[@]}"; do

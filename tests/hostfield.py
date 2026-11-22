@@ -34,6 +34,15 @@ MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 TERM = tree("programs/desktop/apps/term.hibr")
 SAID = scratch("hostfield-said")
+# A stall is judged against the session's DT_HOLDMS, which screen.py sets:
+# 300 ms, and eight times that for the sanitizer build. A stall made here
+# lasts twice the mark (a second at least), so the processor time it is
+# judged by reaches it on a loaded box; and a process with no window is
+# looked at every RES seconds, two marks' worth at least, since a spin is
+# named only when one look to the next held the mark on the processor.
+HOLD = int(os.environ["DT_HOLDMS"])
+STALL = max(1.0, 2 * HOLD / 1000.0)
+RES = max(2, -(-2 * HOLD // 1000))
 APPS = {n: scratch("hostfield-%s.hibr" % n) for n in ("fdapp", "mnapp", "keyapp", "bigapp", "cutapp", "spcapp", "spinapp", "calmapp", "blkapp", "idleapp")}
 
 # A field and nothing else -- no _menus, no _copy, no _selall -- focused
@@ -162,8 +171,8 @@ fn spcapp_copy(int id) {
 	ret "${SPC["$id"]}"
 }
 """ % {"s": SAID})
-# A ticker that does nothing until a file says spin, then spins for eight
-# seconds without returning; or says stall, then spins for a second and
+# A ticker that does nothing until a file says spin, then spins for four
+# looks without returning; or says stall, then spins for STALL and
 # returns.
 open(APPS["spinapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app spinapp "Spin" 6 30
 spinapp_tick() {
@@ -171,13 +180,13 @@ spinapp_tick() {
 	echo "$$" > %(s)s.spid
 	if [ -f %(s)s.stall ]; then
 		command rm -f %(s)s.stall
-		e=$((${EPOCHREALTIME/./} + 1000000))
+		e=$((${EPOCHREALTIME/./} + %(stall)d))
 		while [ "${EPOCHREALTIME/./}" -lt "$e" ]; do :; done
 		echo done > %(s)s.stalled
 	fi
 	if [ -f %(s)s.spin ]; then
 		command rm -f %(s)s.spin
-		e=$((SECONDS + 8))
+		e=$((SECONDS + %(spin)d))
 		while [ "$SECONDS" -lt "$e" ]; do :; done
 		echo done > %(s)s.spun
 	fi
@@ -187,7 +196,7 @@ command -v dt_ticker > /dev/null && dt_ticker spinapp_tick
 fn spinapp_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "spin"
 }
-""" % {"s": SAID})
+""" % {"s": SAID, "stall": STALL * 1000000, "spin": 4 * RES})
 # A ticker that, once a file says block, opens a pipe nothing writes to and
 # waits there, using no processor, until the test writes to it.
 open(APPS["blkapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app blkapp "Block" 6 30
@@ -543,6 +552,7 @@ check("a copy of 400,000 spaces, three times that on the wire, is refused with a
 do(t, "dt_del $L; dt_del $P")
 
 # --- A process kept with no window ----------------------------------------
+do(t, "DT_RTENDSECS=%d" % RES)
 host(t, "spinapp")
 do(t, "S := dt_new Spin 6 30 12 60 spinapp")
 until(t, ".spid", lambda s: s != "")
@@ -555,7 +565,7 @@ expect(r"held: spinapp_tick held")
 open(SAID + ".stall", "w").close()
 check("an app process's ticker that stalls a second and returns is a held: line, from its own timing, "
       "naming that process and not the desktop",
-      until(t, ".stalled", lambda s: s == "done", 6) and
+      until(t, ".stalled", lambda s: s == "done", 5 + STALL) and
       until(t, "", lambda s: "held: spinapp_tick held spinapp's own process" in log(t), 6),
       log(t)[-800:])
 do(t, "dt_del $S")
@@ -563,7 +573,7 @@ time.sleep(2.5)
 open(SAID + ".spin", "w").close()
 expect(r"held: resident:spinapp")
 check("a process kept with no window and stuck in its ticker is a held: line in the log, judged from outside",
-      until(t, "", lambda s: "held: resident:spinapp" in log(t), 9), log(t)[-800:])
+      until(t, "", lambda s: "held: resident:spinapp" in log(t), 3 * RES + 3), log(t)[-800:])
 check("and it is left running", alive(spid), spid)
 check("said once, though it went on spinning",
       log(t).count("held: resident:spinapp") == 1, log(t).count("held: resident:spinapp"))
@@ -593,8 +603,8 @@ expect(r"held: resident:blkapp")
 open(SAID + ".block", "w").close()
 check("a process kept with no window whose ticker is blocked, opening a pipe nothing writes to, is a held: "
       "line judged from outside, naming where it waits",
-      until(t, "", lambda s: "held: resident:blkapp" in log(t) and "wait_for_partner" in log(t), 14), log(t)[-800:])
-t.collect(4.5)                                     # two looks more
+      until(t, "", lambda s: "held: resident:blkapp" in log(t) and "wait_for_partner" in log(t), 4 * RES + 6), log(t)[-800:])
+t.collect(2 * RES + 0.5)                           # two looks more
 blocked = alive(bpid) and log(t).count("held: resident:blkapp") == 1
 try:
     fd = os.open(SAID + ".fifo", os.O_WRONLY | os.O_NONBLOCK)

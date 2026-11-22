@@ -32,6 +32,12 @@ PANEL = tree("programs/desktop/system/panel.hibr")
 MOUSE = tree("programs/desktop/control-panel/mouse.hibr")
 DATETIME = tree("programs/desktop/control-panel/datetime.hibr")
 SAID = scratch("hostparts-said")
+# A stall made here is a tenth of a second past the session's DT_HOLDMS on
+# the processor (screen.py: 300 ms, and eight times that for the sanitizer
+# build), in clock ticks; spun for no longer than END microseconds by the
+# clock.
+TICKS = int(os.environ["DT_HOLDMS"]) // 10 + 10
+END = 4000000 * SLOW
 ROOT = scratch("hostparts-tree")
 for d in ("apps", "control-panel", "menubar"):
     os.makedirs(os.path.join(ROOT, d), exist_ok=True)
@@ -130,8 +136,9 @@ fn tbunb_popkey(key) {
 fn tbunb_popmouse(act, int r, int c) {
 	printf 'popmouse %%s %%s\n' "$$" "$act" >> %s
 	[ "$act" = press ] || return 0
-	# 400 ms on the processor, as a stall is judged, however loaded the box.
-	local s t0 end=$((${EPOCHREALTIME/./} + 4000000))
+	# A tenth of a second past DT_HOLDMS on the processor, as a stall is
+	# judged, however loaded the box.
+	local s t0 end=$((${EPOCHREALTIME/./} + %d))
 	local -a f
 	read -r s < /proc/$$/stat
 	f=(${s##*) })
@@ -139,10 +146,10 @@ fn tbunb_popmouse(act, int r, int c) {
 	while [ "${EPOCHREALTIME/./}" -lt "$end" ]; do
 		read -r s < /proc/$$/stat
 		f=(${s##*) })
-		[ $((f[11] + f[12] - t0)) -lt 40 ] || break
+		[ $((f[11] + f[12] - t0)) -lt %d ] || break
 	done
 }
-''' % (SAID, SAID, SAID))
+''' % (SAID, SAID, END, TICKS, SAID))
 # A second bundle, which declares the first's shared pane too (as Calendar
 # and Contacts both declare pimset), and that pane.
 APP2 = os.path.join(ROOT, "apps", "tbun2.hibr")
@@ -154,7 +161,7 @@ fn shp_draw(int id, int h, int w, int bx) {
 }
 ''')
 # Another's: a pane and an item no bundle declares, and a pane that holds
-# its process a quarter of a second each time it draws, and 400 ms of its
+# its process a quarter of a second each time it draws, and TICKS of its
 # processor time on a click -- counted on the processor, since that is how
 # a stall is judged, so a loaded box cannot make it a mere slow call.
 open(OPANE, "w").write(r'''command -v cp_pane > /dev/null && cp_pane opane "Other Pane" "+"
@@ -170,7 +177,7 @@ fn slowp_draw(int id, int h, int w, int bx) {
 	console put -p "w$id" 1 "$bx" "slow"
 }
 fn slowp_click(int id, int r, int c) {
-	local s t0 end=$((${EPOCHREALTIME/./} + 4000000))
+	local s t0 end=$((${EPOCHREALTIME/./} + %d))
 	local -a f
 	read -r s < /proc/$$/stat
 	f=(${s##*) })
@@ -178,10 +185,10 @@ fn slowp_click(int id, int r, int c) {
 	while [ "${EPOCHREALTIME/./}" -lt "$end" ]; do
 		read -r s < /proc/$$/stat
 		f=(${s##*) })
-		[ $((f[11] + f[12] - t0)) -lt 40 ] || break
+		[ $((f[11] + f[12] - t0)) -lt %d ] || break
 	done
 }
-''')
+''' % (END, TICKS))
 
 SESSION = r'''%s. %s
 dt_open
@@ -410,7 +417,7 @@ check("a press in it reaches its _popmouse there",
 # Held by the desktop while it waits, and by the item's own process when
 # its call ends, as the slow pane's click is below.
 expect(r"held: input:tbun has not answered the person's input to pop:tbunb:press")
-expect(r"held: tbunb_popmouse held the desktop")
+expect(r"held: tbunb_popmouse held tbun's own process")
 deadline = time.time() + 3 * SLOW
 while time.time() < deadline and "input to pop:tbunb:press" not in log(t):
     t.collect(0.1)
@@ -610,7 +617,7 @@ check("and telling what another's pane holds is refused: the search does not "
 # by the desktop while it waits, and by the pane's own process when its
 # call ends, as hostfail's hanger is by both.
 expect(r"held: input:\S*slowp\.hibr has not answered the person's input to pane:slowp:click")
-expect(r"held: slowp_click held the desktop")
+expect(r"held: slowp_click held slowp's own process")
 do(t, "dt_rthostk pane slowp")
 waitfor(t, '[ -n "${DT_RVPC[slowp]-}" ]')
 do(t, "panel_goto $P slowp")
