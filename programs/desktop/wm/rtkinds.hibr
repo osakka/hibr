@@ -178,8 +178,8 @@ dt_rvpfn() {
 		dt_rvxsend "$c" 0 "${p}_$what" "$@"
 		;;
 	pane:key)
-		if dt_rvwithheld "${1-}"; then
-			dt_log "hosted: key ${1-} withheld, the desktop's"
+		if dt_rvwithheld "${2-}"; then
+			dt_log "hosted: key ${2-} withheld, the desktop's"
 			return 1
 		fi
 		DT_RVSEQ=$((DT_RVSEQ + 1))
@@ -377,11 +377,13 @@ fn dt_rvpaneseen(int id, pane = "") {
 # its views are let go, said in the log.
 fn dt_rvxdrop(int c) {
 	local p n f
+	local -a ks
 
 	for p in "${!DT_RVP[@]}"; do
 		[ "${DT_RVPC["$p"]-}" = "$c" ] || continue
 		dt_log "app runtime: the process drawing ${DT_RVP["$p"]} $p has gone"
-		for f in ${DT_RVPK["$p"]}; do
+		read -ra ks <<< "${DT_RVPK["$p"]}"
+		for f in "${ks[@]}"; do
 			unset DT_RVFN["${p}_$f"]
 		done
 		unset DT_RVP["$p"] DT_RVPC["$p"] DT_RVPF["$p"] DT_RVPK["$p"]

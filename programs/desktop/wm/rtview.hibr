@@ -371,7 +371,7 @@ fn dt_rvtook(int c, seq, st = "") {
 	fi
 	# A press a hosted pane declined (wm/rtkinds.hibr).
 	if [ "$kind" = pmouse ]; then
-		dt_rvxpress "$seq" "$st"
+		dt_rvxpress "$id" "$st"
 		return 0
 	fi
 	[ "${DT_RVC[$id]-}" = "$c" ] || return 0

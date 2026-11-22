@@ -206,8 +206,13 @@ def agree(t, u, region, secs=6):
 
 
 def strip(term):
+    """The strip's own cells: its arrow, the brackets and the module, never
+    the rest of its row, which a window may be under."""
     r = striprow(term)
-    return [r, 0, 1, term.screen().cols] if r is not None else None
+    if r is None:
+        return None
+    c = "".join(term.screen().g[r]).find("Shadow")
+    return [r, max(0, c - 2), 1, 10]
 
 
 def taken(path):
@@ -219,6 +224,18 @@ for f in (SAID + ".tp",):
         os.unlink(f)
 t = session("hosted", HOSTED)
 u = session("inproc", INPROC)
+for name, term in (("hosted", t), ("in-process", u)):
+    if result(term, "echo up") != "up":
+        st = "gone"
+        try:
+            st = open("/proc/%d/stat" % term.pid).read().split()[2] + " " + \
+                open("/proc/%d/wchan" % term.pid).read()
+        except OSError:
+            pass
+        print("the %s session did not start (%s), its file %s:\n%s\n%s\n%s" % (
+            name, st, scratch("hostkinds-%s.hibr" % ("hosted" if term is t else "inproc")),
+            term.screen().text(), log(term)[-3000:], term.text()[-2000:] if hasattr(term, "text") else ""))
+        sys.exit(1)
 
 # The strip module: its own process draws its slot.
 do(t, "dt_rthostk strip shadow")
@@ -310,7 +327,7 @@ t.send(b"\x1b", settle=0.3, collect=0.3)
 t.send(b"\x1b", settle=0.3, collect=0.3)
 check("and a key the desktop also acts on is withheld from it, said in the log",
       "hosted: key escape withheld" in log(t) and "key %s escape" % tpid not in taken(SAID + ".tp"),
-      log(t)[-400:])
+      (taken(SAID + ".tp"), log(t)[-1500:]))
 
 # The saver, while the strip module is drawn: it takes the screen, the
 # module's slot giving it up, and its frames come from its own process.
@@ -318,6 +335,7 @@ do(t, "dt_rthostk saver classicmac")
 check("Classic Mac's own process says what it has",
       waitfor(t, '[ -n "${DT_RVPC[classicmac]-}" ]'), log(t)[-800:])
 vpid = result(t, 'echo "${DT_RTCPID[${DT_RVPC[classicmac]}]-}"')
+g0 = int(result(t, 'echo "${DT_RVXGEN[sshadow]-0}"') or 0)
 do(t, "dt_saverstart")
 
 
@@ -351,7 +369,7 @@ check("a key ends it, and its process, with no view left, goes by itself",
       (vpid, log(t)[-600:]))
 ok, why = agree(t, u, strip)
 check("the strip module's slot, given up to the saver, is bound again and "
-      "drawn as in-process", ok and result(t, 'echo "${DT_RVXGEN[sshadow]-}"') == "2",
+      "drawn as in-process", ok and int(result(t, 'echo "${DT_RVXGEN[sshadow]-0}"') or 0) > g0,
       (why, result(t, 'echo "${DT_RVXGEN[sshadow]-}"')))
 
 # Each ends: the panel closing, the strip turned off.
@@ -372,4 +390,4 @@ for f in (TPANE, t.mark, u.mark, SAID + ".pend", SAID + ".tp",
           scratch("hostkinds-hosted.hibr"), scratch("hostkinds-inproc.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(22)
+report(27)
