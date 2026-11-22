@@ -370,11 +370,6 @@ fn dt_move(int id, int r, int c) {
 	dt_rtsend ask dt_move "$id" "$r" "$c"
 }
 
-# Told to the desktop, wm/native.hibr.
-dt_natcell() {
-	dt_rtsend tell dt_natcell "$@"
-}
-
 # Asked of the desktop, wm/windows.hibr.
 fn dt_new(title, int h, int w, int row, int col, ap = "", arg = "") {
 	dt_rtsend ask dt_new "$title" "$h" "$w" "$row" "$col" "$ap" "$arg" && ret -k

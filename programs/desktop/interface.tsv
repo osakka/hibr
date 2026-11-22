@@ -35,7 +35,7 @@ declare	dt_baritoggle	wm/bar.hibr	2	2	told	-	dt_baritoggle(name)	-	-
 declare	dt_baridraw	wm/bar.hibr	2	2	told	-	dt_baridraw(name, fn)	-	-
 local	dt_item	wm/menubuild.hibr	694	80	told	-	dt_item()	-	-
 local	dt_tr	lib/tr.hibr	541	82	asked	-	dt_tr(key, ...rest)	-	-
-local	dt_has	wm/names.hibr	406	104	waited	-	dt_has(name)	-	-
+local	dt_has	wm/names.hibr	404	104	waited	-	dt_has(name)	-	-
 local	dt_tput	wm/lang.hibr	321	52	told	-	dt_tput(int id, int r, int c, text, ...rest)	-	-
 local	dt_want	wm/loop.hibr	255	74	waited	-	dt_want(int ms)	-	-
 local	dt_sep	wm/menubuild.hibr	198	75	told	-	dt_sep()	-	-
@@ -54,8 +54,8 @@ local	dt_textkey	widgets/text.hibr	56	42	asked	-	dt_textkey(text, int cur, key)	
 local	dt_jobfile	wm/jobs.hibr	55	26	asked	-	dt_jobfile(int n, which = "out")	-	-
 local	dt_job	wm/jobs.hibr	52	26	asked	-	dt_job(kind, tag, then, ...cmd)	-	-
 local	pe_f	lib/pim.hibr	52	2	asked	-	pe_f(int i, f)	-	-
+local	dt_droplist	widgets/dropdown.hibr	49	19	told	dt_droplist > dt_dropat > dt_context_open	dt_droplist(int id, int r, int c, cb, ...rest)	-	-
 local	dt_rpad	wm/lang.hibr	48	19	asked	-	dt_rpad(t, int n)	-	-
-local	dt_droplist	widgets/dropdown.hibr	47	19	told	dt_droplist > dt_dropat > dt_context_open	dt_droplist(int id, int r, int c, cb, ...rest)	-	-
 local	dt_focuskey	widgets/button.hibr	45	34	asked	-	dt_focuskey(key, int? onbtn = "")	-	-
 local	dt_scrollbar	widgets/scrollbar.hibr	45	31	told	-	dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos, key = "", thumb1 = "")	-	-
 local	dt_searchq	widgets/search.hibr	43	14	asked	-	dt_searchq(int id)	-	-
@@ -64,9 +64,9 @@ local	dt_end	wm/menubuild.hibr	41	17	told	-	dt_end()	-	-
 local	dt_scrollfit	widgets/scrollbar.hibr	38	16	asked	-	dt_scrollfit(int top, int total, int vis, int? at = "")	-	-
 local	dt_ms	wm/loop.hibr	37	16	asked	-	dt_ms()	-	-
 local	dt_searchopen	widgets/search.hibr	36	14	told	-	dt_searchopen(int id)	-	-
+local	dt_wdrop	widgets/dropdown.hibr	35	16	told	-	dt_wdrop(int id, int r, int c, int w, value, tag = "")	-	-
 local	dt_ticker	wm/loop.hibr	34	21	told	-	dt_ticker(name)	-	-
 local	dt_sub	wm/menubuild.hibr	33	13	told	-	dt_sub(label, key = "")	-	-
-local	dt_wdrop	widgets/dropdown.hibr	33	16	told	-	dt_wdrop(int id, int r, int c, int w, value, tag = "")	-	-
 local	dt_cut	wm/draw.hibr	32	14	asked	-	dt_cut(t, int n)	-	-
 local	dt_scrollmove	widgets/scrollbar.hibr	32	21	asked	-	dt_scrollmove(k, int top, int total, int vis, int? step = "")	-	-
 local	pe_sync	lib/pim.hibr	32	6	told	-	pe_sync(srv = "")	-	-
@@ -83,9 +83,9 @@ local	tb_text	widgets/textarea.hibr	20	8	asked	-	tb_text(int id)	-	-
 local	dt_hotpen	widgets/hit.hibr	20	13	told	-	dt_hotpen(id, tag, fg, bg, ...attrs)	-	-
 local	pe_servers	lib/pim.hibr	20	4	waited	-	pe_servers()	-	-
 local	dt_hot	widgets/hit.hibr	19	7	waited	-	dt_hot(id, tag)	-	-
+local	dt_wcol	widgets/hit.hibr	19	5	asked	-	dt_wcol(int id, int r, tag)	-	-
 local	dt_searchclear	widgets/search.hibr	18	12	told	-	dt_searchclear(int id)	-	-
 local	dt_joblast	wm/jobs.hibr	17	11	asked	-	dt_joblast(int n)	-	-
-local	dt_wcol	widgets/hit.hibr	17	5	asked	-	dt_wcol(int id, int r, tag)	-	-
 local	dt_buttons	widgets/button.hibr	16	4	told	-	dt_buttons(id, int r, int c, focus, ...pairs)	-	-
 local	dt_searchshut	widgets/search.hibr	16	10	told	-	dt_searchshut(int id)	-	-
 local	tb_insert	widgets/textarea.hibr	16	8	told	-	tb_insert(int id, text)	-	-
@@ -96,6 +96,7 @@ local	dt_digits	wm/lang.hibr	14	6	asked	-	dt_digits(t)	-	-
 local	dt_searchdraw	widgets/search.hibr	14	14	told	-	dt_searchdraw(int id, int r, int w)	-	-
 local	dt_scrollview	widgets/scrollbar.hibr	14	13	asked	-	dt_scrollview(int top, int total, int vis, int sel, seen = "")	-	-
 local	dt_isdbl	wm/loop.hibr	14	10	waited	-	dt_isdbl(int id, item = "")	-	-
+local	pe_qadd	lib/pim.hibr	14	6	told	-	pe_qadd(dir, ...fields)	0.99.556	-
 local	dt_rep	wm/draw.hibr	14	10	asked	-	dt_rep(int n, s)	-	-
 local	dt_searchrows	widgets/search.hibr	13	12	asked	-	dt_searchrows(int id)	-	-
 local	dt_tip	widgets/hit.hibr	13	1	told	-	dt_tip(id, tag, text)	-	-
@@ -134,7 +135,6 @@ local	dt_pwlocal	wm/powerlist.hibr	8	6	waited	-	dt_pwlocal()	-	-
 local	dt_watchstart	wm/state.hibr	8	6	told	-	dt_watchstart(...cmd)	-	-
 local	dt_rowtext	wm/menubuild.hibr	8	2	told	-	dt_rowtext(text)	-	-
 local	dt_keyis	wm/keymatch.hibr	7	3	waited	-	dt_keyis(what, key)	-	-
-local	pe_qadd	lib/pim.hibr	7	3	told	-	pe_qadd(dir, ...fields)	0.99.556	-
 local	dt_imgm	wm/picmode.hibr	6	6	told	-	dt_imgm(mode = "")	-	-
 local	dt_pname	wm/prayertimes.hibr	6	4	asked	-	dt_pname(int i)	-	-
 local	dt_live	wm/loop.hibr	6	2	told	-	dt_live(int id, on = "")	-	-
@@ -185,6 +185,7 @@ local	dt_holdsess	wm/hold.hibr	4	4	asked	-	dt_holdsess()	-	-
 local	dt_vwuntil	wm/vaultfacts.hibr	4	4	asked	-	dt_vwuntil()	-	-
 local	dt_btnlist	wm/orders.hibr	4	4	told	-	dt_btnlist()	-	-
 local	cs_ordered	wm/orders.hibr	4	2	told	-	cs_ordered()	-	-
+local	dt_progscale	wm/winfacts.hibr	4	2	asked	-	dt_progscale(nm)	0.99.556	-
 local	dt_locinfostart	wm/locale.hibr	4	2	told	-	dt_locinfostart()	-	-
 local	dt_locinstall	wm/locale.hibr	4	2	told	dt_locinstall > dt_notep	dt_locinstall(name)	-	-
 local	dt_signmark	wm/vaultfacts.hibr	4	2	waited	-	dt_signmark(int id, int r, int c)	-	-
@@ -237,6 +238,7 @@ local	dt_procfull	wm/draw.hibr	2	2	asked	-	dt_procfull(role, sess = "", handle =
 local	cp_colourread	lib/colours.hibr	2	2	waited	-	cp_colourread(n, f)	-	-
 local	dt_treespec	widgets/tree.hibr	2	2	told	-	dt_treespec(style = "")	-	-
 local	dt_jobtick	wm/jobs.hibr	2	1	told	-	dt_jobtick()	-	-
+local	dt_progscaleset	wm/winfacts.hibr	2	2	told	dt_progscaleset > dt_set	dt_progscaleset(nm, pct)	0.99.556	-
 local	dt_checkmark	widgets/check.hibr	2	2	asked	-	dt_checkmark(int on)	-	-
 local	dt_bidion	wm/lang.hibr	2	2	asked	-	dt_bidion()	-	-
 local	dt_locsupstart	wm/locale.hibr	2	2	told	-	dt_locsupstart()	-	-
@@ -248,7 +250,6 @@ local	dt_appnames	wm/namefacts.hibr	2	2	asked	-	dt_appnames()	-	-
 local	dt_kblabel	wm/keymatch.hibr	2	2	asked	-	dt_kblabel(int n)	-	-
 local	dt_subtext	wm/menubuild.hibr	2	2	told	-	dt_subtext(text)	-	-
 local	dt_notehist_what	wm/namefacts.hibr	2	2	asked	-	dt_notehist_what(int hid)	-	-
-local	dt_progscale	wm/winfacts.hibr	2	1	asked	-	dt_progscale(nm)	0.99.556	-
 local	dt_pastefold	widgets/text.hibr	1	1	told	-	dt_pastefold(t, mode = "")	-	-
 local	dt_slider	widgets/slider.hibr	1	1	told	-	dt_slider(int id, int r, int c, int w, int value, int min, int max, tag)	-	-
 local	dt_hotcolour	widgets/button.hibr	1	1	asked	-	dt_hotcolour()	-	-
@@ -256,9 +257,8 @@ local	dt_lcd	wm/glyphs.hibr	1	1	asked	-	dt_lcd(text)	-	-
 local	dt_windisp	wm/winfacts.hibr	1	1	told	-	dt_windisp(int id)	-	-
 local	dt_fieldsel	widgets/text.hibr	1	1	asked	-	dt_fieldsel()	-	-
 local	dt_fieldcut	widgets/text.hibr	1	1	asked	-	dt_fieldcut(id)	-	-
-local	dt_progscaleset	wm/winfacts.hibr	1	1	told	dt_progscaleset > dt_set	dt_progscaleset(nm, pct)	0.99.556	-
 request	dt_notep	wm/notify.hibr	588	86	told	-	dt_notep(prio, text, ...rest)	-	-
-request	dt_set	wm/settings.hibr	378	99	told	-	dt_set(...pairs)	0.99.554	-
+request	dt_set	wm/settings.hibr	379	99	told	-	dt_set(...pairs)	0.99.554	-
 request	dt_del	wm/windows.hibr	220	46	told	-	dt_del(int id)	-	-
 request	dt_launch	wm/apps.hibr	67	36	asked	-	dt_launch(n, arg = "")	-	-
 request	dt_retitle	wm/windows.hibr	64	25	waited	-	dt_retitle(int id, title)	-	-
@@ -311,7 +311,6 @@ request	dt_onrescan	wm/apps.hibr	4	2	told	-	dt_onrescan(fn)	0.99.555	-
 request	dt_setgeom	wm/windows.hibr	4	2	told	-	dt_setgeom(int id, int r, int c, int h, int w)	-	-
 request	dt_trash	wm/files.hibr	4	2	told	-	dt_trash()	-	-
 request	dt_dnd	wm/files.hibr	4	2	told	-	dt_dnd()	-	-
-request	dt_natcell	wm/native.hibr	4	1	told	-	dt_natcell()	-	-
 request	dt_launched	wm/native.hibr	4	2	told	-	dt_launched()	-	-
 request	dt_rslog	wm/restart.hibr	4	2	told	-	dt_rslog(text)	-	-
 request	dt_vwacct	wm/vault.hibr	4	4	waited	-	dt_vwacct()	-	-
