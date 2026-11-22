@@ -23,6 +23,7 @@ local	dt_item	wm/menubuild.hibr	694	80	told	-	dt_item()	-	-
 local	dt_tr	lib/tr.hibr	541	82	asked	-	dt_tr(key, ...rest)	-	-
 local	dt_has	wm/names.hibr	404	104	waited	-	dt_has(name)	-	-
 local	dt_tput	wm/lang.hibr	321	52	told	-	dt_tput(int id, int r, int c, text, ...rest)	-	-
+local	cp_choice	widgets/rows.hibr	295	72	told	-	cp_choice(int w, int n, cur, set, ...vals)	-	-
 local	dt_want	wm/loop.hibr	255	74	waited	-	dt_want(int ms)	-	-
 local	dt_sep	wm/menubuild.hibr	198	75	told	-	dt_sep()	-	-
 local	dt_menu	wm/menubuild.hibr	186	81	told	-	dt_menu(title)	-	-
@@ -34,6 +35,7 @@ local	dt_wclear	widgets/hit.hibr	80	48	told	-	dt_wclear(id)	-	-
 local	dt_dlgbtns	widgets/button.hibr	70	33	told	-	dt_dlgbtns(int id, int h, int w, focus, ...pairs)	-	-
 local	dt_textdraw	widgets/text.hibr	68	42	told	-	dt_textdraw(int id, int r, int c, int w, text, int cur, int focused, paste = "", secret = "")	-	-
 local	dt_rowaccel	wm/menubuild.hibr	67	11	told	-	dt_rowaccel(text)	-	-
+local	cp_save	widgets/rows.hibr	60	28	told	cp_save > dt_save	cp_save()	-	-
 local	dt_button	widgets/button.hibr	59	8	told	-	dt_button(id, int r, int c, label, int on, tag, int? w = "", state = "")	-	7@0.99.556;8@0.99.556
 local	dt_focus	widgets/button.hibr	56	33	asked	-	dt_focus(cur, int dir, ...tags)	-	-
 local	dt_textkey	widgets/text.hibr	56	42	asked	-	dt_textkey(text, int cur, key)	-	-
@@ -42,6 +44,7 @@ local	dt_dlgat	wm/winfacts.hibr	55	38	told	-	dt_dlgat(int h, int w, int? m = "")
 local	dt_job	wm/jobs.hibr	52	26	asked	-	dt_job(kind, tag, then, ...cmd)	-	-
 local	pe_f	lib/pim.hibr	52	2	asked	-	pe_f(int i, f)	-	-
 local	dt_droplist	widgets/dropdown.hibr	49	19	told	dt_droplist > dt_dropat > dt_context_open	dt_droplist(int id, int r, int c, cb, ...rest)	-	-
+local	cp_toggle	widgets/rows.hibr	49	39	told	cp_toggle > dt_set	cp_toggle(var)	-	-
 local	dt_rpad	wm/lang.hibr	48	19	asked	-	dt_rpad(t, int n)	-	-
 local	dt_focuskey	widgets/button.hibr	45	34	asked	-	dt_focuskey(key, int? onbtn = "")	-	-
 local	dt_scrollbar	widgets/scrollbar.hibr	45	31	told	-	dt_scrollbar(int id, int row0, int col, int h, int total, int shown, int pos, key = "", thumb1 = "")	-	-
@@ -59,6 +62,7 @@ local	dt_scrollmove	widgets/scrollbar.hibr	32	21	asked	-	dt_scrollmove(k, int to
 local	pe_sync	lib/pim.hibr	32	6	told	-	pe_sync(srv = "")	-	-
 local	dt_searchon	widgets/search.hibr	31	14	waited	-	dt_searchon(int id)	-	-
 local	dt_hotreg	widgets/hit.hibr	31	13	told	-	dt_hotreg(id, int r, int c, int w, tag)	-	-
+local	cp_absent	widgets/rows.hibr	29	29	told	-	cp_absent(int w, what)	-	-
 local	dt_check	widgets/check.hibr	27	11	told	-	dt_check(int id, int r, int c, int on, label, tag = "")	-	-
 local	pe_dir	lib/pim.hibr	26	6	asked	-	pe_dir(srv)	-	-
 local	tb_set	widgets/textarea.hibr	24	8	told	-	tb_set(int id, text = "")	-	-
@@ -226,6 +230,7 @@ local	dt_procfull	wm/draw.hibr	2	2	asked	-	dt_procfull(role, sess = "", handle =
 local	cp_colourread	lib/colours.hibr	2	2	waited	-	cp_colourread(n, f)	-	-
 local	dt_treespec	widgets/tree.hibr	2	2	told	-	dt_treespec(style = "")	-	-
 local	dt_jobtick	wm/jobs.hibr	2	1	told	-	dt_jobtick()	-	-
+local	cp_join	widgets/rows.hibr	2	2	asked	-	cp_join(...vals)	-	-
 local	dt_progscaleset	wm/winfacts.hibr	2	2	told	dt_progscaleset > dt_set	dt_progscaleset(nm, pct)	0.99.556	-
 local	dt_checkmark	widgets/check.hibr	2	2	asked	-	dt_checkmark(int on)	-	-
 local	dt_bidion	wm/lang.hibr	2	2	asked	-	dt_bidion()	-	-

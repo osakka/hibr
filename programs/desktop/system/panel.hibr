@@ -61,11 +61,6 @@ declare -gA CPSRC
 # it -- panel_mouse then falls through to <name>_click for that same
 # press, exactly as if _mouse did not exist; only a press it actually
 # accepts (return 0) ever sees the drag or the release that follows it.
-# Whose the rows built under an id are -- the pane that built them, its
-# file's (dt_hookown) -- so a row's setter and namer run as that pane's
-# through the seam (ADR 0050), whichever id the rows were built under: a
-# panel window's, or the search's scratch one.
-declare -gA CP_ROWOWNER
 fn cp_pane(pane, title, icon, group = "system") {
 	CP_PANES[$pane]["title"]="$title"
 	CP_PANES[$pane]["icon"]="${icon:-◆}"
@@ -200,24 +195,11 @@ cp_rescan() {
 declare -gA CP_GONE
 declare -gA CP_GONEB
 
-# Per window: which pane is selected (an index into CP_PANE_LIST), and
-# whether the arrows move the pane list or the selected pane's own rows --
-# tab switches which, the same split dt_grab's move/resize already gives
-# one set of arrows two meanings by. CP holds the selected pane's own rows,
-# rebuilt every frame the same reason it always was: a pane showing a
-# window that closed a second ago is worse than no pane.
-declare -gA PW
-declare -gA CP
-
 # How wide the pane list is, and how much is left for the selected pane's
 # own content once the divider is taken out of it too. The divider can be
 # dragged (widgets/split.hibr), and where it was left is kept.
 CP_DIVCOL="${CP_DIVCOL-19}"
 command -v dt_keep > /dev/null && dt_keep CP_DIVCOL
-# How wide a slider's track is, in one place: the draw and the click that
-# works out which value a column means both read it, and a rule kept in two
-# places is a rule kept in one of them.
-CP_SLIDEW=11
 
 fn panel_open(int w, arg) {
 	PW[$w]["pane"]=0
@@ -300,97 +282,6 @@ fn panel_filter(int id) {
 		i=$((i + 1))
 	done
 	PW[$id]["m"]=${out# }
-}
-
-# Whether row i of the rows built under id holds the search text q, in
-# lower case: its label as drawn, what follows the label, or its value. The
-# one test, for which panes a search finds and which of their rows it shows.
-fn cp_rowhas(int id, int i, q) {
-	local t v
-
-	t=${CP[$id][$i]["text"]}
-	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
-	v := cp_rowval "$id" "$i"
-	t="$t ${CP[$id][$i]["after"]-} $v"
-	[[ ${t,,} == *"$q"* ]]
-}
-
-# Row i of the rows under from, as row j under to -- every field but the
-# place in a group that can be reordered, which means nothing in a part.
-fn cp_rowcopy(int from, int i, int to, int j) {
-	local f
-
-	for f in "${!CP[$from][$i][@]}"; do
-		[ "$f" = ord ] && continue
-		CP[$to][$j]["$f"]=${CP[$from][$i]["$f"]}
-	done
-}
-
-# A pane's rows, built under id; while a search is on, only the rows that
-# hold its text, each under its own heading, and a last row that shows the
-# rest (Gitea #513). A pane found by its title, or one no row of which
-# holds the text, is shown whole, so a pane the search found never draws
-# empty; so is one whose rest was asked for. Each row kept says where it
-# was in the whole pane (["oi"]), so the selection follows when the search
-# is cleared. Answers the number of rows.
-fn cp_rowsbuild(int id, pane) {
-	local n q t i=0 j=0 h=-1 hd=-1 first= s=999998
-
-	unset "CP[$id]"
-	n := dt_prefixfn "$pane" rows "$id"
-	CP_ROWOWNER[$id]=${DT_HOOKOWNER["${pane}_"]-}
-	PW[$id]["narrow"]=
-	q := dt_searchq "$id"
-	q=${q,,}
-	if [ -z "$q" ] || [ "${PW[$id]["all"]-}" = "$pane $q" ]; then
-		ret "$n"
-		return 0
-	fi
-	t=${CP_PANES[$pane]["title"]}
-	case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
-	if [[ ${t,,} == *"$q"* ]]; then
-		ret "$n"
-		return 0
-	fi
-	unset "CP[$s]"
-	while [ "$i" -lt "$n" ]; do
-		if [ "${CP[$id][$i]["kind"]}" = head ]; then
-			h=$i
-		elif cp_rowhas "$id" "$i" "$q"; then
-			if [ "$h" -ge 0 ] && [ "$hd" != "$h" ]; then
-				cp_rowcopy "$id" "$h" "$s" "$j"
-				j=$((j + 1))
-				hd=$h
-			fi
-			cp_rowcopy "$id" "$i" "$s" "$j"
-			CP[$s][$j]["oi"]=$i
-			[ -n "$first" ] || first=$i
-			j=$((j + 1))
-		fi
-		i=$((i + 1))
-	done
-	if [ "$j" = 0 ]; then
-		unset "CP[$s]"
-		ret "$n"
-		return 0
-	fi
-	unset "CP[$id]"
-	i=0
-	while [ "$i" -lt "$j" ]; do
-		cp_rowcopy "$s" "$i" "$id" "$i"
-		i=$((i + 1))
-	done
-	unset "CP[$s]"
-	CP[$id][$j]["kind"]=head
-	CP[$id][$j]["text"]=""
-	j=$((j + 1))
-	t := dt_tr "Show all of %s" "$t"
-	CP[$id][$j]["kind"]=action
-	CP[$id][$j]["text"]=$t
-	CP[$id][$j]["key"]=cp:showall
-	CP[$id][$j]["oi"]=$first
-	PW[$id]["narrow"]=1
-	ret $((j + 1))
 }
 
 # Whether pane index i is among what the search found.
@@ -548,218 +439,6 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	fi
 }
 
-# The shared row-list renderer every ordinary pane uses: builds this
-# pane's own rows fresh every frame, then draws them exactly the single
-# list panel.hibr used to draw for everything, just offset into the
-# pane's own body at column bx.
-#
-# CP[$id] is unset first, not just overwritten: a row is a handful of
-# fields (kind, text, val, key, and wtype only for a checkbox), and a
-# pane that never sets wtype leaves whatever the previous pane shown in
-# this same window left there. Appearance's own Wallpaper row -- a
-# dropdown, no wtype -- drew as a checkbox once Behaviour's Icons row
-# (wtype=bool) had ever occupied the same row index first; it still
-# worked when clicked, since that only changes cp_rowsdraw's own choice
-# of widget, not what key a click reaches, which is what made it look
-# like a rendering glitch rather than the stale field it was.
-fn cp_rowsdraw(int id, pane, int h, int w, int bx) {
-	local i r t v n top sel kind wtype on kv vw wc xc xa poi rk at aw hq
-	local sb=$((bx + w))
-
-	# Where the selected row was in the whole pane, before the rows are
-	# built again -- the search may have hidden the others.
-	sel=${PW[$id]["sel"]:-0}
-	poi=${CP[$id][$sel]["oi"]-}
-	n := cp_rowsbuild "$id" "$pane"
-	hq=
-	if [ -n "${PW[$id]["narrow"]}" ]; then
-		hq := dt_searchq "$id"
-		hq=${hq,,}
-	fi
-	# The rows changed under the selection: a search narrowed the pane, or
-	# was cleared, or its rest was asked for. A narrowed pane starts at its
-	# first row; a whole one at the row that was selected in the part.
-	rk="$pane ${PW[$id]["narrow"]} $hq"
-	if [ "${PW[$id]["rk"]-}" != "$rk" ]; then
-		if [ "${PW[$id]["rk"]%% *}" = "$pane" ]; then
-			if [ -n "$hq" ]; then
-				PW[$id]["sel"]=0
-				PW[$id]["top"]=0
-			elif [ -n "$poi" ]; then
-				PW[$id]["sel"]=$poi
-				at := dt_scrollfit 0 "$n" "$h" "$poi"
-				PW[$id]["top"]=$at
-			fi
-			PW[$id]["last"]=-1
-		fi
-		PW[$id]["rk"]=$rk
-	fi
-	vw := cp_valw "$id" "$n" "$w"
-	wc=$((bx + w - 1 - vw))
-	xc=$((bx + w - 4))
-	case $DT_MIRRORON in 1) wc=$bx; xc=$bx; sb=$((bx - 1)) ;; esac
-	PW[$id]["n"]=$n
-	PW[$id]["vis"]=$h
-	sel=${PW[$id]["sel"]}
-	top=${PW[$id]["top"]}
-	while [ "$sel" -lt $((n - 1)) ] && [ "${CP[$id][$sel]["kind"]}" = head ]; do
-		sel=$((sel + 1))
-	done
-	[ "$sel" -ge "$n" ] && sel=$((n - 1))
-	[ "$sel" -lt 0 ] && sel=0
-	PW[$id]["sel"]=$sel
-	i=$top
-	r=1
-	while [ "$r" -le "$h" ]; do
-		t=""
-		v=""
-		kv=""
-		kind=""
-		wtype=""
-		if [ "$i" -lt "$n" ]; then
-			t=${CP[$id][$i]["text"]}
-			case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
-			# A row that carries a number in its own label --
-			# a slider's percentage -- keeps it apart from the
-			# label, and it is appended after the catalogue has
-			# been asked: "Tiled Main ($DT_TILEMAIN%)" as one
-			# string is a string tools/strings.py cannot see
-			# and no catalogue can hold.
-			case ${CP[$id][$i]["after"]} in
-			?*) t="$t ${CP[$id][$i]["after"]}" ;;
-			esac
-			v=${CP[$id][$i]["val"]}
-			[ -n "${CP[$id][$i]["vname"]-}" ] && v := cp_rowval "$id" "$i"
-			kind=${CP[$id][$i]["kind"]}
-			wtype=${CP[$id][$i]["wtype"]}
-		fi
-		if [ "$i" -ge "$n" ]; then
-			console pen "$DT_INK" "$DT_FACE"
-			t := str repeat " " "$w"
-		elif [ "$kind" = head ]; then
-			console pen "$DT_DIM" "$DT_FACE" bold
-			case $DT_MIRRORON in
-			1) t := cp_rowm "$t" head "" "$w" ;;
-			*) t := str pad "$t" "$w" ;;
-			esac
-		elif [ "$DT_MIRRORON" = 1 ]; then
-			if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
-				console pen "$DT_SELINK" "$DT_ACTIVE" bold
-			else
-				dt_hotpen "$id" "row:$i" "$DT_INK" "$DT_FACE"
-			fi
-			[ "$kind" = key ] && kv=$v
-			t := cp_rowm "$t" "$kind" "$v" "$w" "$vw"
-		else
-			if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
-				console pen "$DT_SELINK" "$DT_ACTIVE" bold
-			else
-				dt_hotpen "$id" "row:$i" "$DT_INK" "$DT_FACE"
-			fi
-			# A "set" row's value is drawn as a widget below, in the
-			# same pen, rather than appended to this string -- a real
-			# checkbox or a dropdown caret instead of on/off text. A
-			# shortcut's leaves room for the + that adds a key and the
-			# ✕ that clears them (ADR 0057).
-			if [ "$kind" = key ]; then
-				kv=$v
-				t := cp_fit "  $t" $((w - vw - 9))
-				t := str pad "$t" $((w - vw - 7))
-				v := cp_fit "$v" "$vw"
-				v := str pad "$v" "$vw"
-				t="$t$v"
-			else
-				t := cp_fit "  $t" $((w - vw - 3))
-				t := str pad "$t" $((w - vw - 1))
-				if [ "$kind" != set ]; then
-					v := cp_fit "$v" "$vw"
-					v := str pad "$v" "$vw"
-					t="$t$v"
-				fi
-			fi
-		fi
-		# The rest of a narrowed pane is a link, drawn as one.
-		if [ "$i" -lt "$n" ] && [ "${CP[$id][$i]["key"]-}" = cp:showall ] &&
-		   ! { [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; }; then
-			dt_hotpen "$id" "row:$i" "$DT_ACTIVE" "$DT_FACE" underline
-		fi
-		console put -p "w$id" "$r" "$bx" "$t"
-		# What the search found, marked where the row says it (#513).
-		# Not in a mirrored pane, whose text is put in display order.
-		if [ -n "$hq" ] && [ "$i" -lt "$n" ] && [ "$kind" != head ] &&
-		   [ "${CP[$id][$i]["key"]-}" != cp:showall ] &&
-		   [ "$DT_MIRRORON" != 1 ]; then
-			at := str index "${t,,}" "$hq"
-			if [ "$at" -ge 0 ]; then
-				aw := str width "${t:0:$at}"
-				if [ "$i" = "$sel" ] && [ "${PW[$id]["side"]}" != list ]; then
-					console pen "$DT_SELINK" "$DT_ACTIVE" bold underline
-				else
-					dt_hotpen "$id" "row:$i" "$DT_ACTIVE" "$DT_FACE" bold underline
-				fi
-				console put -p "w$id" "$r" $((bx + aw)) "${t:$at:${#hq}}"
-			fi
-		fi
-		# A row that can be dragged into another place says so with a
-		# grip in its margin (Gitea #396).
-		if [ "$i" -lt "$n" ] && [ -n "${CP[$id][$i]["ord"]-}" ]; then
-			case $DT_MIRRORON in
-			1) console put -p "w$id" "$r" $((bx + w - 1)) "${GL[grip]}" ;;
-			*) console put -p "w$id" "$r" "$bx" "${GL[grip]}" ;;
-			esac
-		fi
-		# A row lights under the pointer, its widgets for themselves (#370).
-		[ "$i" -lt "$n" ] && [ "$kind" != head ] &&
-			dt_hotreg "$id" "$r" "$bx" "$w" "row:$i"
-		if [ -n "${CP[$id][$i]["btns"]}" ] && [ "$i" -lt "$n" ]; then
-			case $DT_MIRRORON in
-			1) cp_rowbtns "$id" "$i" "$r" $((bx + vw + 1)) $((bx + w - ${#CP[$id][$i]["text"]} - 4)) ;;
-			*) cp_rowbtns "$id" "$i" "$r" $((bx + ${#CP[$id][$i]["text"]} + 4)) "$wc" ;;
-			esac
-		fi
-		if [ "$kind" = key ]; then
-			console pen "$DT_INK" "$DT_IDLE"
-			case $DT_MIRRORON in
-			1) xa=$((xc + 3)) ;;
-			*) xa=$((xc - 3)) ;;
-			esac
-			console put -p "w$id" "$r" "$xa" " ${GL[plus]} "
-			dt_wreg "$id" "$r" "$xa" 3 "add:$i"
-			if [ -n "$kv" ]; then
-				console put -p "w$id" "$r" "$xc" " ${GL[cross]} "
-				dt_wreg "$id" "$r" "$xc" 3 "clear:$i"
-			fi
-		fi
-		if [ "$kind" = set ]; then
-			if [ "$wtype" = bool ]; then
-				on=0
-				[ "$v" = on ] && on=1
-				dt_check "$id" "$r" "$wc" "$on" "" \
-					"${CP[$id][$i]["key"]}"
-			elif [ "$wtype" = slider ]; then
-				dt_slider "$id" "$r" "$wc" "$CP_SLIDEW" "$v" \
-					"${CP[$id][$i]["min"]:-0}" \
-					"${CP[$id][$i]["max"]:-10}" \
-					"${CP[$id][$i]["key"]}"
-			elif cp_isdrop "$id" "$i" "$pane"; then
-				dt_wdrop "$id" "$r" "$wc" "$vw" "$v" \
-					"${CP[$id][$i]["key"]}"
-			else
-				# A value with no list to choose from is shown, and
-				# offers no caret that would open nothing.
-				v := cp_fit "$v" "$vw"
-				console put -p "w$id" "$r" "$wc" "$v"
-			fi
-		fi
-		r=$((r + 1))
-		i=$((i + 1))
-	done
-	# A pane longer than the window says so: Shortcuts outgrew it, and a
-	# row below the edge with nothing to show it was there is one nobody
-	# finds. The wheel and the arrows scroll it.
-	dt_scrollbar "$id" 1 "$sb" "$h" "$n" "$h" "$top" body
-}
-
 # A scrollbar held and dragged (Gitea #298): the pane list's, or the pane's.
 fn panel_scroll(int id, key, int top) {
 	case $key in
@@ -768,104 +447,12 @@ fn panel_scroll(int id, key, int top) {
 	esac
 }
 
-# How wide a pane's value column is: eleven columns, or as wide as its
-# widest value or dropdown when one is wider -- so a value is shown whole
-# rather than run past the window's edge (Gitea #282) -- but never more
-# than half the pane, which the labels keep. Every row shares it, so the
-# values and widgets of a pane line up whatever their length; one wider
-# still is cut by cp_fit, and a dropdown's by dt_wdrop.
-fn cp_valw(int id, int n, int w) {
-	local i=0 x vw=11 vmax=$(((w - 4) / 2))
-
-	while [ "$i" -lt "$n" ]; do
-		x=0
-		case ${CP[$id][$i]["kind"]} in
-		head) ;;
-		set)
-			# A row whose value is a list -- Item Order's -- says
-			# so with vcut: it is cut to the column rather than
-			# widening it, since one long list would take the room
-			# every other row's buttons are drawn in (Gitea #341).
-			case ${CP[$id][$i]["wtype"]}:${CP[$id][$i]["vcut"]} in
-			bool:* | slider:* | *:1) ;;
-			*)
-				x=${CP[$id][$i]["val"]}
-				[ -n "${CP[$id][$i]["vname"]-}" ] && x := cp_rowval "$id" "$i"
-				x := str width "$x"
-				x=$((x + 2))
-				;;
-			esac
-			;;
-		*) x := str width "${CP[$id][$i]["val"]}" ;;
-		esac
-		[ "$x" -gt "$vw" ] && vw=$x
-		i=$((i + 1))
-	done
-	[ "$vw" -gt "$vmax" ] && vw=$vmax
-	[ "$vw" -lt 11 ] && vw=11
-	ret "$vw"
-}
-
-# Text cut to n display columns, ending in an ellipsis when it was cut.
-fn cp_fit(t, int n) {
-	local -i tw
-
-	tw := str width "$t"
-	[ "$tw" -le "$n" ] && { ret "$t"; return 0; }
-	t := dt_cut "$t" $((n - 1))
-	ret "$t${GL[ellipsis]}"
-}
-
-# A pane's row mirrored: its value or widget at the left, its label right-aligned.
-fn cp_rowm(t, kind, v, int w, int vw = 11) {
-	local n=$((w - vw - 1)) lead="" pad
-	local -i tw
-
-	case $kind in
-	head) n=$w ;;
-	key)
-		n=$((w - vw - 7))
-		v := cp_fit "$v" "$vw"
-		v := str pad "$v" "$vw"
-		lead="      $v"
-		;;
-	set) lead := str repeat " " $((vw + 1)) ;;
-	*) v := cp_fit "$v" "$vw"; v := str pad "$v" "$vw"; lead="$v " ;;
-	esac
-	[ "$kind" = head ] || t="$t  "
-	[ "${#t}" -gt "$n" ] && t="${GL[ellipsis]}${t:$((${#t} - n + 1))}"
-	tw := str width "$t"
-	pad=""
-	[ "$tw" -lt "$n" ] && pad := str repeat " " $((n - tw))
-	ret "$lead$pad$t"
-}
-
-# A row's own buttons, after its label: CP[w][i]["btns"] is "key:Label"
-# words, each a button whose click runs the pane's _do with that key, as
-# a dropdown's choice does -- Appearance's Save, Rename and Delete on the
-# Theme row. Drawn from column c, as many as fit before column e.
-fn cp_rowbtns(int id, int i, int r, int c, int e) {
-	local b k l
-	local -a bs
-
-	read -ra bs <<< "${CP[$id][$i]["btns"]}"
-	for b in "${bs[@]}"; do
-		k=${b%%:*}
-		l=${b#*:}
-		[ $((c + ${#l} + 2)) -le "$e" ] || break
-		console pen "$DT_INK" "$DT_WELL"
-		console put -p "w$id" "$r" "$c" " $l "
-		dt_wreg "$id" "$r" "$c" $((${#l} + 2)) "rbtn:$k"
-		c=$((c + ${#l} + 3))
-	done
-}
-
 # Move the selection within the pane list, or within the selected pane's
 # own rows, whichever has the arrows right now -- skipping headings in a
 # row list, and wrapping at either end in the pane list, the way the hibr
 # menu's own items already do.
 fn panel_move(int w, int d) {
-	local i n vis top k=0 pane
+	local i n
 
 	if [ "${PW[$w]["side"]}" = list ]; then
 		n=${#CP_PANE_LIST[@]}
@@ -882,241 +469,7 @@ fn panel_move(int w, int d) {
 		PW[$w]["last"]=-1
 		return 0
 	fi
-	n=${PW[$w]["n"]}
-	vis=${PW[$w]["vis"]}
-	top=${PW[$w]["top"]}
-	i=${PW[$w]["sel"]}
-	[ "$n" -lt 1 ] && return 0
-	while [ "$k" -lt "$n" ]; do
-		i=$(((i + d + n) % n))
-		[ "${CP[$w][$i]["kind"]}" != head ] && break
-		k=$((k + 1))
-	done
-	PW[$w]["sel"]=$i
-	[ "$i" -lt "$top" ] && top=$i
-	[ "$i" -ge $((top + vis)) ] && top=$((i - vis + 1))
-	[ "$top" -lt 0 ] && top=0
-	PW[$w]["top"]=$top
-}
-
-# Step through a list, wrapping at either end -- shared by every ordinary
-# pane's own cycling, not just one.
-fn cp_next(cur, int dir, ...rest) {
-	local n=0 i=0 hit=-1 x
-
-	shift 2
-	for x in "$@"; do
-		[ "$x" = "$cur" ] && hit=$n
-		n=$((n + 1))
-	done
-	[ "$hit" -lt 0 ] && hit=0
-	i=$(((hit + dir + n) % n))
-	n=0
-	for x in "$@"; do
-		[ "$n" = "$i" ] && { ret "$x"; return 0; }
-		n=$((n + 1))
-	done
-}
-
-# A dropdown row's choices, declared once where the row is built: the value
-# chosen now, the function that sets one, and every value it may take. The
-# panel opens them on a click or enter, steps them on the arrows and draws
-# the chosen one's name, all from this, so no pane keeps a second list
-# (the Tray Icons rows had arrows and no list, 0.99.532). The setter is
-# called "set w value", or "set w value arg" when CP[..]["sarg"] is set --
-# the one row of many it is, a program's in Tray Icons. CP[..]["vname"]
-# turns a value into its words and CP[..]["dims"], joined the same way,
-# lists those shown and not offered; CP[..]["ons"], joined the same way,
-# the values ticked where that is more than the one chosen -- a list of
-# things each on or off. CP[..]["menu"] marks a list of things
-# to do rather than values to hold -- Forget a Device -- which a click or
-# enter opens and the arrows never step, since each step would do one.
-fn cp_choice(int w, int n, cur, set, ...vals) {
-	local IFS=$'\x1f'
-
-	CP[$w][$n]["val"]=$cur
-	CP[$w][$n]["set"]=$set
-	CP[$w][$n]["choices"]="${vals[*]}"
-}
-
-# A value in milliseconds, in words, for CP[..]["vname"].
-fn cp_ms(v) {
-	ret "$v ms"
-}
-
-# The values of a list a pane builds, joined for CP[..]["dims"].
-fn cp_join(...vals) {
-	local IFS=$'\x1f'
-
-	ret "${vals[*]}"
-}
-
-# What row i shows for its value: its own words where it names them --
-# asked of an empty value too, which a list of things on or off has when
-# none is.
-fn cp_rowval(int w, int i) {
-	local v=${CP[$w][$i]["val"]-} f=${CP[$w][$i]["vname"]-}
-
-	[ -n "$f" ] && v := dt_appfn "${CP_ROWOWNER[$w]-}" "$f" "$v"
-	ret "$v"
-}
-
-# Row i's choices into CP_CHV, and those it does not offer into CP_CHD.
-declare -ga CP_CHV CP_CHD
-fn cp_rowchoices(int w, int i) {
-	CP_CHV=()
-	CP_CHD=()
-	[ -n "${CP[$w][$i]["choices"]-}" ] &&
-		IFS=$'\x1f' read -ra CP_CHV <<< "${CP[$w][$i]["choices"]}"
-	[ -n "${CP[$w][$i]["dims"]-}" ] &&
-		IFS=$'\x1f' read -ra CP_CHD <<< "${CP[$w][$i]["dims"]}"
-	return 0
-}
-
-# Whether row i is a dropdown: one that declares choices and has some, or,
-# in a pane written before they could be declared (one installed from
-# elsewhere), whose pane has a <pane>_drop. A row that declares an empty
-# list is shown as its value with no caret, since there is nothing to open.
-fn cp_isdrop(int w, int i, pane = "") {
-	[ "${CP[$w][$i]["kind"]}" = set ] || return 1
-	case ${CP[$w][$i]["wtype"]-} in bool | slider) return 1 ;; esac
-	[ -n "${CP[$w][$i]["set"]-}" ] && { [ -n "${CP[$w][$i]["choices"]-}" ]; return; }
-	[ -n "$pane" ] && dt_has "${pane}_drop"
-}
-
-# Open row i's list under its value, at r and c of the window.
-declare -gA CP_PICKKEY
-fn cp_droprow(int w, int i, int r, int c) {
-	local pane
-
-	if [ -n "${CP[$w][$i]["set"]-}" ]; then
-		cp_rowchoices "$w" "$i"
-		CP_PICKKEY[$w]=${CP[$w][$i]["key"]}
-		DT_POPDIMNEXT=("${CP_CHD[@]}")
-		DT_POPNAMENEXT=${CP[$w][$i]["vname"]-}
-		DT_POPCURNEXT=${CP[$w][$i]["val"]-}
-		DT_POPONNEXT=()
-		[ -n "${CP[$w][$i]["ons"]-}" ] &&
-			IFS=$'\x1f' read -ra DT_POPONNEXT <<< "${CP[$w][$i]["ons"]}"
-		dt_droplist "$w" "$r" "$c" cp_pick "${CP_CHV[@]}"
-		return 0
-	fi
-	pane := panel_pane "$w"
-	dt_has "${pane}_drop" && dt_prefixfn "$pane" drop "$w" "$r" "$c" "${CP[$w][$i]["key"]}"
-	return 0
-}
-
-# A value chosen from a row's list: the row is found again by its key, as
-# the rows are built again every frame and the list may have moved them.
-fn cp_pick(int w, v) {
-	local i=0 n=${PW[$w]["n"]:-0} k=${CP_PICKKEY[$w]-}
-
-	while [ "$i" -lt "$n" ]; do
-		if [ "${CP[$w][$i]["key"]}" = "$k" ]; then
-			cp_rowset "$w" "$i" "$v"
-			return 0
-		fi
-		i=$((i + 1))
-	done
-	return 0
-}
-
-# Set row i to v through its own setter, the one way a choice is made.
-fn cp_rowset(int w, int i, v) {
-	local f=${CP[$w][$i]["set"]} o=${CP_ROWOWNER[$w]-}
-
-	if [ -n "${CP[$w][$i]["sarg"]-}" ]; then
-		dt_appfn "$o" "$f" "$w" "$v" "${CP[$w][$i]["sarg"]}"
-	else
-		dt_appfn "$o" "$f" "$w" "$v"
-	fi
-}
-
-# The next or previous value of row i that is offered, set.
-fn cp_rowstep(int w, int i, int dir) {
-	local v d
-	local -a can=()
-
-	local cur=${CP[$w][$i]["val"]-}
-
-	[ -z "${CP[$w][$i]["menu"]-}" ] || return 0
-	# A row that says more than its value -- a change waiting -- ticks the
-	# entry it is, and that is where a step starts from.
-	[ -n "${CP[$w][$i]["ons"]-}" ] && cur=${CP[$w][$i]["ons"]%%$'\x1f'*}
-	cp_rowchoices "$w" "$i"
-	for v in "${CP_CHV[@]}"; do
-		for d in "${CP_CHD[@]}"; do
-			[ "$d" = "$v" ] && continue 2
-		done
-		can+=("$v")
-	done
-	[ "${#can[@]}" -gt 0 ] || return 0
-	v := cp_next "$cur" "$dir" "${can[@]}"
-	cp_rowset "$w" "$i" "$v"
-}
-
-# Open the selected row's list from the keyboard, where a click would.
-fn cp_dropkey(int w) {
-	local i=${PW[$w]["sel"]} top=${PW[$w]["top"]:-0} r c
-
-	r=$((i - top + 1))
-	c := dt_wcol "$w" "$r" "${CP[$w][$i]["key"]}"
-	[ -n "$c" ] || return 1
-	cp_droprow "$w" "$i" "$r" "$c"
-}
-
-# Flip an on/off setting, named by var -- shared by every pane's checkboxes.
-# Flip an on/off kept setting, through dt_set: the one way an installable
-# changes one (ADR 0050), so it is saved, and refused from an app's own
-# process for a name its file never names.
-fn cp_toggle(var) {
-	if [ "${!var}" = 1 ]; then
-		dt_set "$var" 0
-	else
-		dt_set "$var" 1
-	fi
-}
-
-# Change the selected row in the selected pane.
-fn cp_do(int w, int dir) {
-	local pane sel k
-
-	pane := panel_pane "$w"
-	[ -z "$pane" ] && return 0
-	sel=${PW[$w]["sel"]}
-	k=${CP[$w][$sel]["key"]}
-	# The last row of a pane a search narrowed shows the rest of it.
-	if [ "$k" = cp:showall ]; then
-		k := dt_searchq "$w"
-		PW[$w]["all"]="$pane ${k,,}"
-		return 0
-	fi
-	# A row that declares its choices is stepped through them, by the panel.
-	if [ "${CP[$w][$sel]["kind"]}" = set ] && [ -n "${CP[$w][$sel]["set"]-}" ]; then
-		cp_rowstep "$w" "$sel" "$dir"
-		return 0
-	fi
-	case ${CP[$w][$sel]["kind"]} in
-	# action is a plain button: no value of its own to cycle, so the
-	# pane's own _do sees whatever dir a click or a key happened to
-	# give it, and ignores it -- the same call "set" already makes.
-	set | action) dt_has "${pane}_do" && dt_prefixfn "$pane" do "$w" "$k" "$dir" ;;
-	key) command -v dt_keycap > /dev/null && dt_keycap "$k" ;;
-	esac
-}
-
-# An app's pane with the app not loaded says so, rather than showing
-# nothing at all: one heading row, which nothing can select.
-fn cp_absent(int w, what) {
-	CP[$w][0]["kind"]=head
-	CP[$w][0]["text"]="$what is not loaded"
-}
-
-# Every change is kept at once: there is no Save to forget. Shared by
-# every pane, not redefined by each.
-cp_save() {
-	command -v dt_save > /dev/null && dt_save
-	return 0
+	cp_rowsmove "$w" "$d"
 }
 
 fn panel_find(int w) {
@@ -1126,7 +479,7 @@ fn panel_find(int w) {
 }
 
 fn panel_key(int w, key) {
-	local pane k q r
+	local pane
 
 	# The search first, wherever the keyboard is: `/` opens it and the
 	# keys go into it while it is open, the same in this window as in
@@ -1162,41 +515,7 @@ fn panel_key(int w, key) {
 		return 1
 	fi
 
-	case $key in
-	up) panel_move "$w" -1 ;;
-	down) panel_move "$w" 1 ;;
-	shift-up) cp_ordkey "$w" -1 || return 1 ;;
-	shift-down) cp_ordkey "$w" 1 || return 1 ;;
-	# Enter and space open a dropdown's list, as a click does; the arrows
-	# step it in place. Anything else they do what they always did.
-	enter | " ")
-		k=${PW[$w]["sel"]}
-		if cp_isdrop "$w" "$k" "$pane" && cp_dropkey "$w"; then
-			:
-		else
-			cp_do "$w" 1
-		fi
-		;;
-	right) cp_do "$w" 1 ;;
-	left) cp_do "$w" -1 ;;
-	delete | backspace)
-		k=${PW[$w]["sel"]}
-		[ "${CP[$w][$k]["kind"]}" = key ] || return 1
-		dt_keyclear "${CP[$w][$k]["key"]}"
-		;;
-	+ | insert)
-		k=${PW[$w]["sel"]}
-		[ "${CP[$w][$k]["kind"]}" = key ] || return 1
-		dt_keycap "${CP[$w][$k]["key"]}" add
-		;;
-	*)
-		if [ -n "$pane" ] && dt_has "${pane}_key"; then
-			dt_prefixfn "$pane" key "$w" "$key"
-			return $?
-		fi
-		return 1
-		;;
-	esac
+	cp_rowskey "$w" "$pane" "$key"
 }
 
 # A click in the pane list selects a pane and moves focus there; a click
@@ -1212,7 +531,7 @@ fn panel_inlist(int w, int c) {
 }
 
 fn panel_click(int w, int r, int c, btn = "") {
-	local pane i n top tag k wc
+	local pane tag
 
 	# Before the list/pane split, because the search bar runs the
 	# window's whole width and a click on its right half is not a
@@ -1240,75 +559,7 @@ fn panel_click(int w, int r, int c, btn = "") {
 		dt_has "${pane}_click" && dt_prefixfn "$pane" click "$w" "$r" "$c"
 		return 0
 	fi
-	n=${PW[$w]["n"]}
-	top=${PW[$w]["top"]}
-	i=$((top + r - 1))
-	[ "$r" -lt 1 ] || [ "$i" -ge "$n" ] && return 0
-	tag := dt_hit "$w" "$r" "$c"
-	# A slider is set where it is clicked, which is what a slider is for
-	# and what a dropdown of five chosen values could not do (Gitea
-	# #193). The value is the pane's to keep, so it goes through
-	# <pane>_slide; a pane without one is untouched -- its slider still
-	# selects on a click and steps on the arrows, exactly as before.
-	if [ "${CP[$w][$i]["kind"]}" = set ] &&
-	   [ "${CP[$w][$i]["wtype"]}" = slider ] && [ -n "$tag" ] &&
-	   dt_has "${pane}_slide"; then
-		wc := dt_wcol "$w" "$r" "$tag"
-		PW[$w]["sel"]=$i
-		PW[$w]["last"]=$i
-		CP_MSLIDE[$w]="$i $wc"
-		cp_slide "$w" "$c" "$r"
-		return 0
-	fi
-	case $tag in
-	clear:*)
-		dt_keyclear "${CP[$w][${tag#clear:}]["key"]}"
-		PW[$w]["sel"]=${tag#clear:}
-		return 0
-		;;
-	add:*)
-		PW[$w]["sel"]=${tag#add:}
-		command -v dt_keycap > /dev/null &&
-			dt_keycap "${CP[$w][${tag#add:}]["key"]}" add
-		return 0
-		;;
-	rbtn:*)
-		PW[$w]["sel"]=$i
-		dt_has "${pane}_do" && dt_prefixfn "$pane" do "$w" "${tag#rbtn:}" 1
-		return 0
-		;;
-	esac
-	[ "${CP[$w][$i]["kind"]}" = head ] && return 0
-	# A click on a checkbox switches it, as a checkbox does anywhere: it
-	# took a click to select its row and a second to switch it, so one
-	# click looked like a box that did nothing (the owner, 2026-11-13,
-	# Write Tashkeel). A click elsewhere on the row still only selects it.
-	if [ "${CP[$w][$i]["kind"]}" = set ] &&
-	   [ "${CP[$w][$i]["wtype"]}" = bool ] && [ -n "$tag" ] &&
-	   [ "$tag" = "${CP[$w][$i]["key"]}" ]; then
-		PW[$w]["sel"]=$i
-		PW[$w]["last"]=$i
-		cp_do "$w" 1
-		return 0
-	fi
-	if cp_isdrop "$w" "$i" "$pane"; then
-		tag := dt_hit "$w" "$r" "$c"
-		if [ -n "$tag" ]; then
-			wc := dt_wcol "$w" "$r" "$tag"
-			PW[$w]["sel"]=$i
-			PW[$w]["last"]=$i
-			cp_droprow "$w" "$i" "$r" "$wc"
-			return 0
-		fi
-	fi
-	if [ "$i" = "${PW[$w]["sel"]}" ] && [ "$i" = "${PW[$w]["last"]}" ] ||
-	   [ "${CP[$w][$i]["key"]-}" = cp:showall ]; then
-		PW[$w]["sel"]=$i
-		cp_do "$w" 1
-		return 0
-	fi
-	PW[$w]["sel"]=$i
-	PW[$w]["last"]=$i
+	cp_rowsclick "$w" "$pane" "$r" "$c"
 }
 
 # Forward press/drag/release to whichever pane is selected, when it has
@@ -1327,119 +578,6 @@ fn panel_click(int w, int r, int c, btn = "") {
 # never a bare global, for the same reason every other per-window pane
 # state here is.
 declare -gA CP_MDRAG
-# The slider a press landed on, as "row column", so a drag goes on setting
-# it: keyed by window id, never a bare global, for the same reason every
-# other per-window pane state here is -- two Control Panels are two
-# sliders.
-declare -gA CP_MSLIDE
-# A press on a row that can be moved, as "row screen-row column moved".
-declare -gA CP_MORD
-
-# Rows a pane marks with ["ord"]=group and ["oname"]=name can be put in
-# another order, by a drag or by shift and an arrow; the pane is told the
-# whole group's new order by <pane>_order w group name..., keeps it, and
-# draws the rows in it from then on (Gitea #396). Move the group row at
-# index from to the place of the one at index to.
-fn cp_ordmove(int w, int from, int to) {
-	local g=${CP[$w][$from]["ord"]-} n=${PW[$w]["n"]:-0} i=0 pf=-1 pt=-1 pane m
-	local -a rows nm new
-
-	[ -n "$g" ] || return 1
-	while [ "$i" -lt "$n" ]; do
-		if [ "${CP[$w][$i]["ord"]-}" = "$g" ]; then
-			[ "$i" = "$from" ] && pf=${#rows[@]}
-			[ "$i" = "$to" ] && pt=${#rows[@]}
-			rows+=("$i")
-			nm+=("${CP[$w][$i]["oname"]}")
-		fi
-		i=$((i + 1))
-	done
-	[ "$pf" -ge 0 ] && [ "$pt" -ge 0 ] && [ "$pf" != "$pt" ] || return 1
-	pane := panel_pane "$w"
-	[ -n "$pane" ] && dt_has "${pane}_order" || return 1
-	m=${nm[$pf]}
-	i=0
-	while [ "$i" -lt "${#nm[@]}" ]; do
-		[ "$i" = "$pt" ] && [ "$pt" -lt "$pf" ] && new+=("$m")
-		[ "$i" = "$pf" ] || new+=("${nm[$i]}")
-		[ "$i" = "$pt" ] && [ "$pt" -gt "$pf" ] && new+=("$m")
-		i=$((i + 1))
-	done
-	dt_prefixfn "$pane" order "$w" "$g" "${new[@]}"
-	# The rows again at once, so a second move before the next frame
-	# starts from this one's order rather than the last frame's.
-	unset "CP[$w]"
-	n := dt_prefixfn "$pane" rows "$w"
-	CP_ROWOWNER[$w]=${DT_HOOKOWNER["${pane}_"]-}
-	PW[$w]["n"]=$n
-	PW[$w]["sel"]=${rows[$pt]}
-	PW[$w]["last"]=${rows[$pt]}
-	PW[$w]["side"]=pane
-	return 0
-}
-
-# A drag or a release after a press on a row that can be moved.
-fn cp_orddrag(int w, act, int r) {
-	local -a at
-	local i t g n lo=-1 hi=-1 j=0
-
-	read -ra at <<< "${CP_MORD[$w]}"
-	i=${at[0]}
-	if [ "$act" = release ]; then
-		CP_MORD[$w]=
-		[ "${at[3]}" = 1 ] || panel_click "$w" "${at[1]}" "${at[2]}"
-		return 0
-	fi
-	g=${CP[$w][$i]["ord"]-}
-	[ -n "$g" ] || return 0
-	n=${PW[$w]["n"]:-0}
-	while [ "$j" -lt "$n" ]; do
-		if [ "${CP[$w][$j]["ord"]-}" = "$g" ]; then
-			[ "$lo" = -1 ] && lo=$j
-			hi=$j
-		fi
-		j=$((j + 1))
-	done
-	t=$((${PW[$w]["top"]:-0} + r - 1))
-	[ "$t" -lt "$lo" ] && t=$lo
-	[ "$t" -gt "$hi" ] && t=$hi
-	[ "$t" = "$i" ] && return 0
-	cp_ordmove "$w" "$i" "$t" || return 0
-	CP_MORD[$w]="$t ${at[1]} ${at[2]} 1"
-	dt_want 10
-}
-
-# Shift and up or down move the selected row, when it is one that moves.
-fn cp_ordkey(int w, int d) {
-	local i=${PW[$w]["sel"]:-0} t g
-
-	g=${CP[$w][$i]["ord"]-}
-	[ -n "$g" ] || return 1
-	t=$((i + d))
-	[ "${CP[$w][$t]["ord"]-}" = "$g" ] || return 0
-	cp_ordmove "$w" "$i" "$t"
-	return 0
-}
-
-# Set the slider CP_MSLIDE names to whatever column c is over.
-fn cp_slide(int w, int c, int r = 0) {
-	local pane i wc v o fx=500
-	local -a at
-
-	read -ra at <<< "${CP_MSLIDE[$w]}"
-	[ "${#at[@]}" -ge 2 ] || return 0
-	i=${at[0]}
-	wc=${at[1]}
-	pane := panel_pane "$w"
-	[ -n "$pane" ] && dt_has "${pane}_slide" || return 0
-	# Finer than a cell where the terminal reports the pixel (#370).
-	o := dt_cellpx "$w" "$r" "$c" 1000 1000
-	fx=${o%% *}
-	v := dt_slidepos "$c" "$wc" "$CP_SLIDEW" "${CP[$w][$i]["min"]:-0}" \
-		"${CP[$w][$i]["max"]:-10}" "$fx"
-	dt_prefixfn "$pane" slide "$w" "${CP[$w][$i]["key"]}" "$v"
-	return 0
-}
 
 fn panel_mouse(int id, act, button, int r, int c, mods) {
 	local pane
@@ -1462,16 +600,9 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 			return 0
 		fi
 		# A press on a row that can be moved is held until it is known
-		# whether it is a drag: one that moves takes the row with it, and
-		# one let go where it was is the ordinary click it would have been,
-		# checkbox and all (Gitea #396).
-		if ! panel_inlist "$id" "$c" && [ "$r" -ge 1 ]; then
-			local oi=$((${PW[$id]["top"]:-0} + r - 1))
-			if [ "$oi" -lt "${PW[$id]["n"]:-0}" ] &&
-			   [ -n "${CP[$id][$oi]["ord"]-}" ]; then
-				CP_MORD[$id]="$oi $r $c 0"
-				return 0
-			fi
+		# whether it is a drag (widgets/rows.hibr).
+		if ! panel_inlist "$id" "$c" && cp_rowspress "$id" "$r" "$c"; then
+			return 0
 		fi
 		pane := panel_pane "$id"
 		if ! panel_inlist "$id" "$c" && [ -n "$pane" ] &&
@@ -1483,18 +614,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 		panel_click "$id" "$r" "$c"
 		return 0
 	fi
-	# A drag that began on a slider keeps setting it, which is the other
-	# half of clicking one: a value a person is choosing by eye is chosen
-	# by moving, not by pressing eleven times.
-	if [ -n "${CP_MSLIDE[$id]}" ]; then
-		cp_slide "$id" "$c" "$r"
-		[ "$act" = release ] && CP_MSLIDE[$id]=
-		return 0
-	fi
-	if [ -n "${CP_MORD[$id]-}" ]; then
-		cp_orddrag "$id" "$act" "$r"
-		return 0
-	fi
+	cp_rowsdrag "$id" "$act" "$r" "$c" && return 0
 	pane=${CP_MDRAG[$id]}
 	[ -n "$pane" ] && dt_prefixfn "$pane" mouse "$id" "$act" "$button" "$r" "$c"
 	[ "$act" = release ] && CP_MDRAG[$id]=
@@ -1516,10 +636,7 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 		dt_has "${pane}_wheel" && dt_prefixfn "$pane" wheel "$w" "$dir"
 		return 0
 	fi
-	top=${PW[$w]["top"]}
-	top := dt_scrollmove "$dir" "$top" "${PW[$w]["n"]}" "${PW[$w]["vis"]}" \
-		"$DT_SCROLLWHEEL" || return 0
-	PW[$w]["top"]=$top
+	cp_rowswheel "$w" "$dir"
 }
 
 # What it can show depends entirely on which panes got sourced before this

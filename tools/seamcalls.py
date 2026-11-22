@@ -309,7 +309,7 @@ OWNERKIND = {"dt_imetype": "_key"}
 GLOBALKIND = {"DT_POPNAME": "list:namer"}
 
 
-PREFIXKIND = {"system/panel.hibr": "pane", "wm/strip.hibr": "strip", "wm/locations.hibr": "location",
+PREFIXKIND = {"system/panel.hibr": "pane", "widgets/rows.hibr": "pane", "wm/strip.hibr": "strip", "wm/locations.hibr": "location",
               "wm/copying.hibr": "location",
               "savers/saver.hibr": "saver"}
 # Hooks whose list is not named at the call: by the function that calls them.
