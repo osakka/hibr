@@ -38,8 +38,9 @@ declare -gA DT_RVEDIT
 # An edit in a window its app's own process draws: sent whole, never
 # waited on. A window not bound yet, or whose app has gone, has nothing to
 # send it to: said once in the log, and nothing is done, as when no answer
-# comes.
-fn dt_rvedit(int id, op) {
+# comes. Select All from its key carries the key, which is the window's
+# own when it has no field and no _selall (runtime.hibr's dt_rtedit).
+fn dt_rvedit(int id, op, key = "") {
 	local c=${DT_RVC[$id]-} seq
 	local -a w=()
 
@@ -50,6 +51,7 @@ fn dt_rvedit(int id, op) {
 	seq := dt_rvinput "$id" "$op"
 	DT_RVEDIT["$seq"]="$DT_CLIPN $c $id $op"
 	[ "$op" != paste ] || w=("$DT_CLIP" "${DT_CLIPOP:-copy}")
+	[ -z "$key" ] || w=("$key")
 	console cells input "w$id"
 	dt_rvsend "$id" "$seq" "$op" "${w[@]}"
 	return 0
@@ -86,6 +88,19 @@ fn dt_rvedited(int c, seq, st = "", t = "", v = "") {
 	return 0
 }
 
+# Whether window id's app's own process last said, with its menus, that a
+# field of that window is live (field) -- or, given what, that it has typing
+# to take back or put again (fundo, fredo) -- which only that process can
+# know: the desktop's Edit menu and the Select All key ask it for a window
+# its app's own process draws, as they ask dt_fieldlive of their own.
+fn dt_rvfield(id = "", what = field) {
+	local ap
+
+	[ -n "$id" ] && [ -n "${DT_RVC[$id]+x}" ] || return 1
+	ap=${DT[$id]["app"]-}
+	[ "${DT_RVMENU["menus:$ap"]["id"]-}" = "$id" ] && [ "${DT_RVMENU["menus:$ap"]["$what"]-}" = 1 ]
+}
+
 # An app process with no window left whose time to end has come, still at
 # work of its own: anything in its jobs folder -- a job's files, there from
 # its start until its callback has run, so a job that has ended and whose
@@ -115,5 +130,42 @@ fn dt_rvbusy(int p, int now) {
 	[ -n "$k" ] || return 1
 	DT_RTENDPID["$p"]=$((now + DT_RTENDSECS * 1000))
 	dt_rvonce "busy:$p" "app runtime: process $p has no window left and is still at work ($k); not ended while it is"
+	dt_rvresjudge "$p" "$now"
+	return 0
+}
+
+# A process kept with no window, judged from outside by its processor time
+# between two looks (schedstat), as a window's late input is judged under
+# cpu (wm/rtfail.hibr's dt_rvlate). Its own tickers and callbacks that
+# return are timed inside it, as in the desktop (dt_spent); what only the
+# outside can see is one that never returns, which wants the processor for
+# the whole time between two looks: on it or waiting its turn for nine
+# tenths of that time, and on it for DT_HOLDMS at least, so a loaded box
+# that gives it less of a turn hides nothing. That is a `held:` line in the
+# log, once until it calms down. A process at its work in a program of its
+# own spends nothing here and is never named. Never ended or paused for it,
+# never charged to the person: it has no window, and nobody at the screen
+# waits on it (ADR 0050, the Requirement).
+declare -gA DT_RVRESON DT_RVRESAT DT_RVRESHELD
+fn dt_rvresjudge(int p, int now) {
+	local on= wt= prev=${DT_RVRESON["$p"]-} at=${DT_RVRESAT["$p"]-} ms want el c ap=
+
+	read -r on wt _ 2> /dev/null < "/proc/$p/schedstat" || [ -n "$wt" ] || return 0
+	DT_RVRESON["$p"]="$on $wt"
+	DT_RVRESAT["$p"]=$now
+	[ -n "$prev" ] && [ -n "$at" ] || return 0
+	ms=$(((on - ${prev% *}) / 1000000))
+	want=$(((on + wt - ${prev% *} - ${prev#* }) / 1000000))
+	el=$((now - at))
+	if [ "$ms" -lt "$DT_HOLDMS" ] || [ $((want * 10)) -lt $((el * 9)) ]; then
+		unset DT_RVRESHELD["$p"]
+		return 0
+	fi
+	[ -z "${DT_RVRESHELD["$p"]-}" ] || return 0
+	DT_RVRESHELD["$p"]=1
+	for c in "${!DT_RTCPID[@]}"; do
+		[ "${DT_RTCPID["$c"]}" != "$p" ] || ap=${DT_RTC["$c"]-}
+	done
+	dt_log "held: resident:${ap:-$p} has no window and has not stopped for $el ms: $ms ms on the processor (a stall is $DT_HOLDMS ms); left running"
 	return 0
 }

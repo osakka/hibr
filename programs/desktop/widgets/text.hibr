@@ -1022,6 +1022,9 @@ fn dt_editsay(op, id = "") {
 		t := dt_tr "${DT[$id]["title"]}"
 		dt_notep low "%s cannot %s" "$t" "$op"
 		;;
+	toolong)
+		dt_notep low "Too much to %s at once: %s characters" "$op" "${DT_EDITR["n"]}"
+		;;
 	esac
 	return 0
 }

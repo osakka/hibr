@@ -77,6 +77,13 @@ DT_RTLINEMAX="${DT_RTLINEMAX-1048576}"
 DT_RTGOT=()
 
 # Read what is waiting on fd, never waiting (recv -p), and take up to
+# The longest answer an edit gives on the wire, in characters: under the
+# desktop's own DT_RTLINEMAX (1 MiB), which it reads a line to before
+# letting the connection go, with room to spare. A copy longer than that is
+# refused with a note, and a cut is measured first and then not made, so
+# nothing is lost and the connection stays (runtime.hibr's dt_rtedit).
+DT_RTEDITMAX="${DT_RTEDITMAX-1040000}"
+
 # DT_RTLINES whole lines into DT_RTGOT; the rest waits for the next pass,
 # which reads nothing new until they are taken (DT_RTMORE). One reader for
 # the desktop's end and an app's. Status 1 when the other end has gone, 2

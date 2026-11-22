@@ -1478,10 +1478,18 @@ fn dt_event(k) {
 	# Select All is one key everywhere (0.99.422): the focused field's,
 	# the window's own when its app has one, and with no window focused
 	# the desktop's icons, further down. A window with neither keeps it.
-	if [ -z "$pa" ] && [ -n "$DT_FOCUS" ] && dt_keyis selectall "$k" &&
-	   { dt_fieldlive || [ -n "${DT[$DT_FOCUS]["selall"]}" ]; }; then
-		dt_editdo selall
-		return 0
+	# A window its app's own process draws is asked in that order there,
+	# the key itself last, since only that process knows its field and
+	# what it knows may not have reached the desktop yet.
+	if [ -z "$pa" ] && [ -n "$DT_FOCUS" ] && dt_keyis selectall "$k"; then
+		if [ -n "${DT_RVC[$DT_FOCUS]+x}" ]; then
+			dt_rvedit "$DT_FOCUS" selall "$k"
+			return 0
+		fi
+		if dt_fieldlive || [ -n "${DT[$DT_FOCUS]["selall"]}" ]; then
+			dt_editdo selall
+			return 0
+		fi
 	fi
 	case $k in
 	"paste "*)

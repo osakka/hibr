@@ -1241,6 +1241,7 @@ Title:
 Titlebar Click
 Today
 Today  Month  Agenda
+Too much to %s at once: %s characters
 Tooltip Delay
 Tooltips
 Top

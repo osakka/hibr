@@ -380,6 +380,7 @@ fn dt_rtcalled(line) {
 		[ -n "${DT_RTV["$name"]+x}" ] || return 0
 		console cells forget "$name"
 		unset DT_RTV["$name"] DT_RTVNEW["$name"] DT_RTVDUE["$name"] DT_RTVH["$name"] DT_RTVW["$name"] DT_RTWAITOPEN["$name"]
+		unset DT_RTFTOLD["${name#w}"]
 		;;
 	revoke)
 		if [ -n "${DT_RTDROPPED["${a[0]-}"]+x}" ]; then
@@ -486,7 +487,15 @@ declare -gA DT_RTMSENT
 fn dt_rtbuild(kind, int id) {
 	local ap=${DT[$id]["app"]-} t0
 
-	[ -n "$ap" ] && dt_has "${ap}_$kind" || return 0
+	[ -n "$ap" ] || return 0
+	# An app with no _menus still says whether its window's field is live,
+	# with no menus beside it: the desktop's own File and Edit stand.
+	if ! dt_has "${ap}_$kind"; then
+		[ "$kind" = menus ] || return 0
+		dt_rtmbreset
+		dt_rtmbpush menus "$ap" "$id"
+		return 0
+	fi
 	dt_rtmbreset
 	t0=${EPOCHREALTIME/./}
 	if [ "$kind" = menus ]; then
@@ -496,6 +505,24 @@ fn dt_rtbuild(kind, int id) {
 	fi
 	dt_spent "$kind:$ap" "$((${EPOCHREALTIME/./} - t0))" "$ap"
 	dt_rtmbpush "$kind" "$ap" "$id"
+}
+
+# Whether window id's field is live, and has typing to take back or put
+# again, as this process last drew it: three digits, told with its menus
+# (dt_rtmbpush) whenever they change, since only this process knows them
+# and the desktop's Edit menu and Select All ask (wm/rtcarry.hibr).
+declare -gA DT_RTFTOLD
+fn dt_rtfieldtell(int id) {
+	local f=0 u=0 r=0
+
+	if dt_fieldlive && [ "$DT_FOCUS" = "$id" ]; then
+		f=1
+		dt_fieldcan undo && u=1
+		dt_fieldcan redo && r=1
+	fi
+	[ "${DT_RTFTOLD["$id"]-000}" != "$f$u$r" ] || return 0
+	DT_RTFTOLD["$id"]=$f$u$r
+	dt_rtbuild menus "$id"
 }
 
 # A list of choices this process is opening (dt_dropat, then dt_context_open
@@ -523,6 +550,10 @@ fn dt_rtmbpush(kind, ap, id = "", ...sel) {
 	j='{"id":'
 	v := json emit v
 	j+="$v,\"n\":$MB_N,\"edited\":$MB_EDITED"
+	if [ "$kind" = menus ] && [ "${#sel[@]}" = 0 ]; then
+		v=${DT_RTFTOLD["$id"]-000}
+		j+=",\"field\":${v:0:1},\"fundo\":${v:1:1},\"fredo\":${v:2:1}"
+	fi
 	if [ "${#sel[@]}" -gt 0 ]; then
 		v=${sel[0]}
 		v := json emit v
@@ -539,18 +570,69 @@ fn dt_rtmbpush(kind, ap, id = "", ...sel) {
 }
 
 # An edit the desktop asked of window id (`call SEQ ID OP`, a paste with
-# the clipboard and how it was taken): done here whole (dt_editwin), and
-# answered with what it took for the clipboard and the note to give, which
-# the desktop says, since the clipboard is the desktop's (wm/rtcarry.hibr).
+# the clipboard and how it was taken, Select All from its key with the
+# key): done here whole (dt_editwin), and answered with what it took for
+# the clipboard and the note to give, which the desktop says, since the
+# clipboard is the desktop's (wm/rtcarry.hibr). An answer longer than
+# DT_RTEDITMAX is refused with a note instead, and a cut is measured before
+# it is made, so the connection stays and nothing is lost.
 fn dt_rtedit(int seq, int id, op, clip = "", clipop = "") {
-	local k v
+	local k v n=
 
-	dt_editwin "$id" "$op" "$clip" "$clipop"
-	DT_RTVNEW["w$id"]=1
-	[ "$seq" = 0 ] && return 0
+	# A cut is measured by the same copy before it is made: one too long
+	# to answer is not made, so it stays where it was.
+	if [ "$op" = cut ] && [ "$seq" != 0 ]; then
+		dt_editwin "$id" copy
+		k := dt_rteditline "$seq"
+		[ "${#k}" -le "$DT_RTEDITMAX" ] || n=${#DT_EDITR["clip"]}
+	fi
+	if [ -z "$n" ]; then
+		dt_editwin "$id" "$op" "$clip" "$clipop"
+		DT_RTVNEW["w$id"]=1
+		# The Select All key, sent as an edit with the key beside it: with
+		# no field and no _selall, it is the window's own key, as the
+		# desktop gives it to a window of its own.
+		if [ "$op" = selall ] && [ -n "$clip" ] && [ "${DT_EDITR["say"]-}" = cannot ]; then
+			DT_EDITR=()
+			dt_has "${DT[$id]["app"]-}_key" && dt_appcall "$id" "${DT[$id]["app"]}_key" "$clip"
+		fi
+		[ "$seq" = 0 ] && return 0
+		k := dt_rteditline "$seq"
+		if [ "${#k}" -gt "$DT_RTEDITMAX" ]; then
+			n=${#DT_EDITR["clip"]}
+			dt_rteditback "$id" "$op"
+		fi
+	fi
+	if [ -n "$n" ]; then
+		dt_log "app runtime: window $id's $op of $n characters is longer than one answer can carry ($DT_RTEDITMAX); refused, nothing taken"
+		DT_EDITR=()
+		DT_EDITR["say"]=toolong
+		DT_EDITR["n"]=$n
+		k := dt_rteditline "$seq"
+	fi
+	send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+	return 0
+}
+
+# The answer to edit seq: what DT_EDITR holds, as JSON on a took line.
+fn dt_rteditline(int seq) {
+	local v k
+
 	v := json emit DT_EDITR
 	k := dt_rtline took "$seq" 0 j "$v" ""
-	send "$DT_RTFD" "$k" 2> /dev/null || dt_log "app runtime: the desktop has gone"
+	ret "$k"
+}
+
+# A cut too long to answer from a window whose app has no _copy to measure
+# it by first: put back with its own _paste, as a cut, so nothing is lost.
+fn dt_rteditback(int id, op) {
+	local cb=${DT[$id]["paste"]-}
+
+	[ "$op" = cut ] || return 0
+	if [ -n "$cb" ] && dt_wincall "$id" "$cb" "${DT_EDITR["clip"]}" cut; then
+		return 0
+	fi
+	dt_log "app runtime: window $id's cut of ${#DT_EDITR["clip"]} characters could not be put back: its app has no _copy to measure a cut by and no _paste to undo one"
 	return 0
 }
 
@@ -699,6 +781,7 @@ dt_rtdraw() {
 		[ "$or$oc" = 00 ] || console pane origin "$v" 0 0
 		DT_NOTEWIN=
 		drew=1
+		dt_rtfieldtell "$id"
 	done
 	[ -z "$drew" ] || console flush > /dev/null
 	return 0
