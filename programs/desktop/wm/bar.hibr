@@ -102,7 +102,8 @@ dt_barrescan() {
 			for nm in "${DT_BARIN[@]}"; do
 				[ "${DT_BARI["$nm"]["src"]-}" = "$f" ] || continue
 				h=${DT_BARI["$nm"]["stop"]-}
-				[ -n "$h" ] && dt_has "$h" && dt_appfn "${DT_BARI["$nm"]["owner"]-}" "$h"
+				[ -n "$h" ] && { [ -n "${DT_RVB[$nm]+x}" ] || dt_has "$h"; } &&
+					dt_appfn "${DT_BARI["$nm"]["owner"]-}" ${DT_RVB[$nm]+dt_rvbfn stop "$nm"} "$h"
 				dt_baritem "$nm" ""
 			done
 			keep=()
@@ -207,7 +208,11 @@ DT_COLS=80
 #
 # Clears the bar's gate, which is the whole of what an app has to think
 # about: call this when the thing changes and the bar draws once.
+# Told by an item's own process (ADR 0050, the view kinds), this and every
+# other change to an item acts only on that process's own items
+# (dt_rvbmine): one test of DT_RTFROM for every other caller.
 fn dt_baritem(name, text = "", ...cmd) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_baritem || return 1
 	local i=0 n=${#DT_BARIN[@]}
 
 	[ -n "$name" ] || return 1
@@ -243,6 +248,7 @@ fn dt_baritem(name, text = "", ...cmd) {
 # dt_baritem, so nothing else keeps a list of who puts what on the bar
 # (Gitea #341).
 fn dt_barilabel(name, label) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_barilabel || return 1
 	DT_BARI["$name"]["label"]=$label
 }
 
@@ -252,6 +258,7 @@ fn dt_barilabel(name, label) {
 # checkbox and the pane's are one setting rather than two that disagree
 # (Gitea #396). An item that names none is hidden by DT_BARHIDE.
 fn dt_bariswitch(name, var, fn = "") {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_bariswitch || return 1
 	DT_BARI["$name"]["svar"]=$var
 	DT_BARI["$name"]["sfn"]=$fn
 }
@@ -288,12 +295,14 @@ fn dt_barishown(name) {
 
 # Switch an item on or off.
 fn dt_baritoggle(name) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_baritoggle || return 1
 	local v=${DT_BARI["$name"]["svar"]-} f=${DT_BARI["$name"]["sfn"]-} o= x
 	local -a hid
 
 	if [ -n "$v" ]; then
 		dt_swflip "$v"
-		[ -n "$f" ] && dt_has "$f" && dt_appfn "${DT_BARI["$name"]["owner"]-}" "$f"
+		[ -n "$f" ] && { [ -n "${DT_RVB[$name]+x}" ] || dt_has "$f"; } &&
+			dt_appfn "${DT_BARI["$name"]["owner"]-}" ${DT_RVB[$name]+dt_rvbfn sfn "$name"} "$f"
 	elif dt_barishown "$name"; then
 		DT_BARHIDE="${DT_BARHIDE:+$DT_BARHIDE }$name"
 	else
@@ -313,6 +322,7 @@ fn dt_baritoggle(name) {
 # the top, and the sound menu given row 1 opened on the display above the
 # bar (owner, 2026-10-19). tests/540-examples.t refuses a literal row.
 fn dt_barmenu(name, who, id = "") {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_barmenu || return 1
 	local r
 
 	r := dt_ptop
@@ -326,12 +336,14 @@ fn dt_barmenu(name, who, id = "") {
 DT_BARWROW=0
 DT_BARWCOL=0
 fn dt_bariwheel(name, fn) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_bariwheel || return 1
 	DT_BARI["$name"]["wheel"]=$fn
 }
 
 # What a right click on an item runs, its words kept as words; an item
 # with none runs the same thing for either button.
 fn dt_bariright(name, ...cmd) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_bariright || return 1
 	local i=0
 
 	DT_BARI["$name"]["rargc"]=${#cmd[@]}
@@ -360,6 +372,7 @@ DT_POPH=0
 DT_POPW=0
 DT_POPHELD=
 fn dt_baripop(name, who, int h, int w) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_baripop || return 1
 	dt_popat "$name" "$who" "${DT_BARI["$name"]["c"]:-${DT_PRIMARY_COL:-0}}" \
 		"$h" "$w"
 }
@@ -398,6 +411,7 @@ fn dt_popat(name, who, int c, int h, int w) {
 # keyboard steps through from the menu bar (Gitea #519). An item whose press
 # starts an app or opens a menu is not: arriving at it would set it off.
 fn dt_barikbd(name) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_barikbd || return 1
 	DT_BARI["$name"]["kbd"]=1
 }
 
@@ -436,7 +450,8 @@ fn dt_barikey(name) {
 	DT_POPKBD=$name
 	b=${DT_BARI["$name"]["press"]-}
 	if [ -n "$b" ]; then
-		dt_appfn "${DT_BARI["$name"]["owner"]-}" "$b" left "$r" "$c" || dt_barido "$name" left
+		dt_appfn "${DT_BARI["$name"]["owner"]-}" ${DT_RVB[$name]+dt_rvbfn press "$name"} "$b" left "$r" "$c" ||
+			dt_barido "$name" left
 	else
 		dt_barido "$name" left
 	fi
@@ -539,7 +554,7 @@ fn dt_barido(name, btn = "") {
 		a+=("${DT_BARI["$name"]["$p$i"]}")
 		i=$((i + 1))
 	done
-	dt_appfn "${DT_BARI["$name"]["owner"]-}" "${a[@]}"
+	dt_appfn "${DT_BARI["$name"]["owner"]-}" ${DT_RVB[$name]+dt_rvbfn do "$name"} "${a[@]}"
 }
 
 # The places on the bar an item may pin itself to, rather than take its turn
@@ -551,6 +566,7 @@ fn dt_barido(name, btn = "") {
 # one sits beyond every ordinary item, -1 nearest them. An ordinary item is
 # never pinned and is the only kind Item Order offers to move.
 fn dt_baripin(name, int n) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_baripin || return 1
 	DT_BARI["$name"]["pin"]=$n
 }
 
@@ -559,6 +575,7 @@ fn dt_baripin(name, int n) {
 # application menu keeps fourteen for a name of up to eleven columns, and
 # its own leading space is one of the gap's.
 fn dt_bariwide(name, int w, int adj = 0) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_bariwide || return 1
 	DT_BARI["$name"]["rw"]=$w
 	DT_BARI["$name"]["gadj"]=$adj
 }
@@ -567,6 +584,7 @@ fn dt_bariwide(name, int w, int adj = 0) {
 # given the column it landed at and whether the pointer is over it. The text
 # is still what is measured, and what says whether there is anything to draw.
 fn dt_baridraw(name, fn) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_baridraw || return 1
 	DT_BARI["$name"]["draw"]=$fn
 }
 
@@ -575,6 +593,7 @@ fn dt_baridraw(name, fn) {
 # numbers), or that opens something at the pointer. A status of 1 says it
 # did not want this press, which then goes on to the bar's own menu.
 fn dt_baripress(name, fn) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_baripress || return 1
 	DT_BARI["$name"]["press"]=$fn
 }
 
@@ -596,6 +615,7 @@ fn dt_barhook(fn) {
 # What stops whatever an item keeps running -- a watcher on a program --
 # when its file is taken away while the desktop runs.
 fn dt_baristop(name, fn) {
+	[ -z "${DT_RTFROM-}" ] || dt_rvbmine "$name" dt_baristop || return 1
 	DT_BARI["$name"]["stop"]=$fn
 }
 
@@ -643,7 +663,7 @@ fn dt_barilay(int gap) {
 		[ "$nm" = "$DT_HOVERBI" ] && hv=1
 		d=${DT_BARI["$nm"]["draw"]-}
 		if [ -n "$d" ]; then
-			dt_appfn "${DT_BARI["$nm"]["owner"]-}" "$d" "$c" "$hv"
+			dt_appfn "${DT_BARI["$nm"]["owner"]-}" ${DT_RVB[$nm]+dt_rvbfn draw "$nm"} "$d" "$c" "$hv"
 		else
 			dt_bariput "$nm" "$c" "$t"
 		fi
@@ -662,14 +682,6 @@ fn dt_bariput(nm, int c, t) {
 	dt_barput "$c" "$t"
 }
 
-# Write into the bar's own pane, given an absolute column.
-#
-# One place does the subtraction, and it is the only thing in this file that
-# knows the bar is paned: everything stored stays absolute, so dt_mhit,
-# dt_wshit and the click handling in wm/input.hibr are untouched by the move.
-fn dt_barput(int col, t) {
-	console put -p bar 0 $((col - DT_PRIMARY_COL)) "$t"
-}
 
 # When the bar must be drawn again: anything it reads having changed. The
 # clock is in here as the text it rendered, not as the time, so a frame

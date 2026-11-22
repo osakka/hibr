@@ -49,6 +49,7 @@ need console || dt_log "app runtime: no console module, so no wait for this app"
 # Both are recorded before the file is read, so the desktop can never call
 # them by name.
 declare -gA DT_RTKP
+DT_RTBARD=
 fn cp_pane(pane, title, icon, group = "system") {
 	DT_RTKP["$pane"]=pane
 }
@@ -213,6 +214,9 @@ fn dt_rtsend(verb, name, ...args) {
 		DT_RTKP["${args[0]-}"]=strip
 		return 0
 	fi
+	# A bar item that draws itself is drawn here, in a view the desktop
+	# binds once its drawing is due: so this process opens a cells channel.
+	[ "$name" = dt_baridraw ] && DT_RTBARD=1
 	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
 	case $verb in
 	tell)
@@ -527,6 +531,8 @@ fn dt_rtmbpush(kind, ap, id = "", ...sel) {
 # `view NAME GEN H W KIND ARGS...`: a place the desktop gave this process to
 # draw in. A window's (KIND win, ARGS ID DH DW OR OC) is drawn by its own
 # app's _draw with ID, DH, DW and its row and column, at pane origin OR OC.
+# A bar item's (bar, ARGS NAME FN C HV, NAME b$NAME) by its own drawing
+# function FN into the bar's pane, which here is the view's, at column C.
 # A Control Panel pane's (pane, ARGS ID PANE OR OC, NAME p$ID) is drawn by
 # the pane's _draw into the panel's window, w$ID, which here is the view's
 # own pane: the body H by W from OR OC of it. A strip module's (strip, ARGS
@@ -541,6 +547,9 @@ fn dt_rtview(name, gen, h, w, kind = "", ...args) {
 	pane:4) [ "$name" = "p${args[0]}" ] && [ "${DT_RTKP["$p"]-}" = pane ] && ok=1 && pn="w${args[0]}" ;;
 	strip:2) [ "$name" = "s${args[0]}" ] && [ "${DT_RTKP["${args[0]}"]-}" = strip ] && ok=1 ;;
 	saver:1) [ "$name" = v ] && [[ ${DT_RTKP["${args[0]}"]-} == saver\ * ]] && ok=1 ;;
+	bar:4)
+		[ "$name" = "b${args[0]}" ] && [ -z "${DT_RTIFACE["$p"]+x}" ] && dt_has "$p" && ok=1 && pn=bar
+		;;
 	esac
 	if [ -z "$ok" ]; then
 		dt_log "app runtime: the desktop bound $name as ${kind:-nothing} ${args[*]}, which this process does not draw; refused"
@@ -674,6 +683,17 @@ fn dt_rtkind(v) {
 		DT_RTVDUE["$v"]=$((now + ms))
 		dt_want "$ms"
 		;;
+	bar)
+		who=$a
+		console cells clear "$v"
+		console pen "$DT_INK" "$DT_BAR"
+		console pane origin bar 0 $((c - ${DT_PRIMARY_COL:-0}))
+		unset DT_RTVNEW["$v"]
+		DT_WHO="bar:$who"
+		slowest on "${DT_SLOWMS:-50}"
+		t0=${EPOCHREALTIME/./}
+		"$b" "$c" "$d"
+		;;
 	*) return 1 ;;
 	esac
 	t=$((${EPOCHREALTIME/./} - t0))
@@ -697,7 +717,7 @@ dt_rtcells() {
 	for q in "${DT_RTPFX[@]}"; do
 		dt_has "${q}_draw" && { p=$q; break; }
 	done
-	[ "${#DT_RTKP[@]}" = 0 ] || p=1
+	[ "${#DT_RTKP[@]}" = 0 ] && [ -z "$DT_RTBARD" ] || p=1
 	[ -n "$p" ] || return 0
 	[ -n "$DT_RTCTOK" ] || { dt_log "app runtime: the desktop gave no cells token"; return 1; }
 	connect -U "$DT_RTSOCK" fd 2> /dev/null || { dt_log "app runtime: cannot open a cells channel"; return 1; }

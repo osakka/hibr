@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
-"""A Control Panel pane, a Control Strip module and a screen saver drawn by
-their own processes (ADR 0050, the view kinds): the desktop starts each by
-its file (dt_rthostk), binds a view of its kind -- `pane` in the panel's
-window, `strip` in its slot of the strip, `saver` on the screen -- the
+"""A Control Panel pane, a Control Strip module, a screen saver and menu bar
+items drawn by their own processes (ADR 0050, the view kinds): the desktop
+starts each by its file (dt_rthostk, dt_rthostb), binds a view of its kind
+-- `pane` in the panel's window, `strip` in its slot of the strip, `saver`
+on the screen, `bar` in the bar's pane for an item that draws itself; a
+text item needs none, its text and command told as requests -- the
 process draws through its headless console, and the desktop shows the cells
 where the in-process code would have drawn, and never draws them itself.
 Input goes as a call by name: a click on the strip module, a press, a key
 and the wheel in the pane's body, a press the pane declines becoming the
-panel's own click. Each ends: the strip turned off, the panel showing
-another pane or closing, the saver stopped, and the process with no view
-left goes by itself.
+panel's own click, a click on a bar item running its command in its
+process and a press on a drawn one reaching its handler. Each ends: the
+strip turned off, the panel showing another pane or closing, the saver
+stopped, and the process with no view left goes by itself; a bar item whose
+process ends goes off the bar. An item's process naming another's item is
+refused.
 
     python3 tests/hostkinds.py
 
-The real ones are the Shadow strip module and the Date & Time pane, each
+The bar items are the test's own: the tree's text items need a bar hook
+(prayer) or two keyboards (keyboard), and its one drawn installable, the
+tray, draws pictures, which do not cross yet. The real ones are the Shadow
+strip module and the Date & Time pane, each
 compared cell for cell, glyphs and pens, with the same installable sourced
 in a second session; Classic Mac, whose frames move with time, is found on
 the screen; the pane that records its input is the test's own. In the
@@ -25,7 +33,7 @@ two functions are counted there and must never run.
 import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
-from screen import Term, check, report, load, tree, scratch
+from screen import Term, check, report, load, tree, scratch, expect
 
 MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
@@ -62,6 +70,38 @@ fn tpane_mouse(int id, act, button, int r, int c) {
 }
 ''' % ((SAID + ".tp",) * 4))
 
+# Two menu bar items of the test's own: one that is its text and a command,
+# one that draws itself and takes a press; and a function the first can be
+# told to run, naming the second's item, which is not its own.
+TBAR = scratch("hostkinds-tbar.hibr")
+DBAR = scratch("hostkinds-dbar.hibr")
+open(TBAR, "w").write(r'''TB_N=0
+dt_baritem tbar "T:0" tbar_do
+dt_barilabel tbar "Test Text"
+tbar_do() {
+	TB_N=$((TB_N + 1))
+	dt_baritem tbar "T:$TB_N" tbar_do
+	printf 'do %%s\n' "$$" >> %s
+}
+tbar_steal() {
+	dt_baritem dbar "STOLEN"
+}
+''' % (SAID + ".bar"))
+open(DBAR, "w").write(r'''DB_N=0
+dt_baritem dbar "D:0   "
+dt_baridraw dbar dbar_draw
+dt_baripress dbar dbar_press
+fn dbar_draw(int c, int hover) {
+	console pen "$DT_ACTIVE" "$DT_BAR" bold
+	dt_barput "$c" "D:$DB_N"
+}
+fn dbar_press(btn, int r, int c) {
+	DB_N=$((DB_N + 1))
+	printf 'press %%s %%s\n' "$$" "$btn" >> %s
+	return 0
+}
+''' % (SAID + ".bar"))
+
 SESSION = r'''%s. %s
 dt_open
 DT_NOTEMS=60000
@@ -93,6 +133,8 @@ DT_LOADING=%s dt_app dtz "Time Zone" 16 46 "" "" fixed hidden
 DT_LOADING=%s dt_app dts "Set Date & Time" 10 46 "" "" fixed hidden
 DT_LOADING=%s dt_app dtf "Clock Format" 9 50 "" "" fixed hidden
 DT_LOADING=%s cp_pane tpane "Test Pane" "+"
+DT_LOADING=%s dt_baritem tbar ""
+DT_LOADING=%s dt_baritem dbar ""
 DT_LOADING=
 DT_SAVER=classicmac
 dt_saverload
@@ -101,13 +143,15 @@ eval "$(declare -f classicmac_start | sed '1s/classicmac_start(/hk_start(/')"
 eval "$(declare -f classicmac_frame | sed '1s/classicmac_frame(/hk_frame(/')"
 classicmac_start() { HK_CALLS=$((HK_CALLS + 1)); hk_start "$@"; }
 classicmac_frame() { HK_CALLS=$((HK_CALLS + 1)); hk_frame "$@"; }''' % (
-    PANEL, PANEL, SHADOW, DATETIME, DATETIME, DATETIME, DATETIME, TPANE)
+    PANEL, PANEL, SHADOW, DATETIME, DATETIME, DATETIME, DATETIME, TPANE, TBAR, DBAR)
 # The in-process session: each sourced as a desktop sources it.
 INPROC = r'''DT_LOADING=%s . %s
 DT_LOADING=%s . %s
 DT_LOADING=%s . %s
 DT_LOADING=%s . %s
-DT_LOADING=''' % (PANEL, PANEL, SHADOW, SHADOW, DATETIME, DATETIME, TPANE, TPANE)
+DT_LOADING=%s . %s
+DT_LOADING=%s . %s
+DT_LOADING=''' % (PANEL, PANEL, SHADOW, SHADOW, DATETIME, DATETIME, TPANE, TPANE, TBAR, TBAR, DBAR, DBAR)
 
 
 def session(name, body):
@@ -219,7 +263,7 @@ def taken(path):
     return open(path).read().split("\n") if os.path.exists(path) else []
 
 
-for f in (SAID + ".tp",):
+for f in (SAID + ".tp", SAID + ".bar"):
     if os.path.exists(f):
         os.unlink(f)
 t = session("hosted", HOSTED)
@@ -259,6 +303,65 @@ check("a click reaches its own _click, whose setting the desktop takes",
       (was, result(t, 'echo "$DT_SHADOW"'), log(t)[-600:]))
 ok, why = agree(t, u, strip)
 check("and it redraws in its own process, as the in-process one does", ok, why)
+
+# The menu bar items: a text one, all of it told by its own process, and a
+# drawn one, whose cells come from its own process into the bar's pane.
+do(t, "dt_rthostb tbar; dt_rthostb dbar")
+
+
+def bar(term):
+    return [0, 0, 1, term.screen().cols]
+
+
+def onbar(term, text, secs=6):
+    deadline = time.time() + secs
+    while time.time() < deadline:
+        term.collect(0.1)
+        if text in "".join(term.screen().g[0]):
+            return True
+    return False
+
+
+ok, why = agree(t, u, bar) if onbar(t, "D:0") and onbar(t, "T:0") else (False, t.screen().text())
+check("a text item's own process puts it on the bar, and a drawn one's draws "
+      "its slot: the bar is cell for cell the in-process one, and the desktop "
+      "never defined their functions",
+      ok and result(t, 'command -v tbar_do dbar_draw || echo none') == "none", why)
+row = "".join(t.screen().g[0])
+tc, dc = row.find("T:0"), row.find("D:0")
+for term in (t, u):
+    term.send(screen.press(0, tc), settle=0.1, collect=0.1)
+    term.send(screen.release(0, tc), settle=0.1, collect=0.1)
+ok, why = agree(t, u, bar) if onbar(t, "T:1") else (False, t.screen().text())
+said = [l for l in taken(SAID + ".bar") if l]
+bpid = result(t, 'echo "${DT_RTCPID[${DT_RVB[tbar]}]-}"')
+check("a click on the text item runs its command in its own process, whose new "
+      "text it tells the desktop, as in-process",
+      ok and "do %s" % bpid in said, (said, bpid, why))
+for term in (t, u):
+    term.send(screen.press(0, dc), settle=0.1, collect=0.1)
+    term.send(screen.release(0, dc), settle=0.1, collect=0.1)
+ok, why = agree(t, u, bar) if onbar(t, "D:1") else (False, t.screen().text())
+dpid = result(t, 'echo "${DT_RTCPID[${DT_RVB[dbar]}]-}"')
+check("a press on the drawn item reaches its own handler, and its redraw "
+      "comes back drawn, as in-process",
+      ok and "press %s left" % dpid in taken(SAID + ".bar"), (taken(SAID + ".bar"), why))
+expect(r"refused: dt_baritem: .* named the bar item dbar, which is not its own")
+do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVB[tbar]}]}" tbar_steal')
+deadline = time.time() + 3
+while time.time() < deadline and "named the bar item dbar" not in log(t):
+    t.collect(0.1)
+check("an item's process naming another's item is refused, and the item stays",
+      "named the bar item dbar, which is not its own" in log(t) and onbar(t, "D:1", 1)
+      and "STOLEN" not in t.screen().text(), log(t)[-600:])
+for pid in (bpid, dpid):
+    if pid:
+        os.kill(int(pid), 15)
+check("an item whose process ends goes off the bar, and its view with it",
+      waitend(t, bpid) and waitend(t, dpid) and
+      waitfor(t, '[ -z "${DT_RVB[*]-}${DT_RVX[bdbar]-}" ]', 3) and
+      not onbar(t, "T:1", 1) and not onbar(t, "D:1", 0.5),
+      (result(t, 'echo "${!DT_RVB[@]} / ${!DT_RVX[@]}"'), t.screen().text()[:300]))
 
 # Date & Time's pane: its own process draws the body of the panel's window,
 # against the same pane in-process, at a moment both show the same second.
@@ -390,8 +493,8 @@ check("the strip turned off lets its module's process go, and the desktop "
 
 u.close()
 t.close()
-for f in (TPANE, t.mark, u.mark, SAID + ".pend", SAID + ".tp",
+for f in (TPANE, TBAR, DBAR, SAID + ".bar", t.mark, u.mark, SAID + ".pend", SAID + ".tp",
           scratch("hostkinds-hosted.hibr"), scratch("hostkinds-inproc.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(23)
+report(28)

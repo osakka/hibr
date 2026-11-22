@@ -438,7 +438,7 @@ dt_rtlaunches() {
 		fi
 		[ -n "$why" ] || continue
 		dt_log "app runtime: ${DT_RTLAUNCH["$t"]} started from ${DT_RTLFILE["$t"]:-nothing} $why; its launch is void"
-		[ "${#DT_RVP[@]}" = 0 ] || dt_rvxvoid "${DT_RTLAUNCH["$t"]}"
+		[ "${#DT_RVP[@]}${#DT_RVB[@]}" = 00 ] || dt_rvxvoid "${DT_RTLAUNCH["$t"]}"
 		# A note from a ticker asks for the frame that shows it, or it
 		# expires before anything draws.
 		if [ -n "${DT_RTLFILE["$t"]-}" ]; then

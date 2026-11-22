@@ -378,7 +378,11 @@ def sites():
             i = c["span"]["line"] - 1
             text, _ = logical(lines, i)
             w = words(text[re.search(r"(?<![\w$])" + seam + r"\b", text).end():])
-            args = [x for x in w[:4] if x not in (";", "&", "|")]
+            # A bar item its own process draws is handed to dt_rvbfn by a
+            # word folded in before the callback (wm/rtkinds.hibr), which
+            # expands to nothing for every other: not the callback.
+            args = [x for x in w[:5] if x not in (";", "&", "|") and
+                    not x.startswith("${DT_RVB[")][:4]
             cb = callback(seam, args)
             u, how = use(lines, i, seam, c.get("bound"), owner)
             k = kind(rel, owner, seam, cb, lines, i)

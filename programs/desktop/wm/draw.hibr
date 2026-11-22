@@ -605,3 +605,14 @@ fn dt_wintimed(...ids) {
 			DT_STAT["y:${ap:-bare}:$DT_WHY"]=$((${DT_STAT["y:${ap:-bare}:$DT_WHY"]:-0} + 1))
 	done
 }
+
+# Write into the bar's own pane, given an absolute column.
+#
+# One place does the subtraction, and it is the only thing that knows the
+# bar is paned: everything stored stays absolute, so dt_mhit, dt_wshit and
+# the click handling in wm/input.hibr are untouched by the move. Shared, so
+# a bar item drawn by its own process (ADR 0050, the view kinds) writes
+# through it too: there the pane is its view's, at the item's own column.
+fn dt_barput(int col, t) {
+	console put -p bar 0 $((col - DT_PRIMARY_COL)) "$t"
+}

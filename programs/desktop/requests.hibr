@@ -70,34 +70,34 @@ fn dt_barhook(fn) {
 	dt_rtsend declare dt_barhook "$fn"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_baridraw(name, fn) {
-	dt_rtsend declare dt_baridraw "$name" "$fn"
+	dt_rtsend tell dt_baridraw "$name" "$fn"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_barikbd(name) {
-	dt_rtsend declare dt_barikbd "$name"
+	dt_rtsend tell dt_barikbd "$name"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_barilabel(name, label) {
-	dt_rtsend declare dt_barilabel "$name" "$label"
+	dt_rtsend tell dt_barilabel "$name" "$label"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_baripop(name, who, int h, int w) {
-	dt_rtsend declare dt_baripop "$name" "$who" "$h" "$w"
+	dt_rtsend tell dt_baripop "$name" "$who" "$h" "$w"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_baripress(name, fn) {
-	dt_rtsend declare dt_baripress "$name" "$fn"
+	dt_rtsend tell dt_baripress "$name" "$fn"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_bariright(name, ...cmd) {
-	dt_rtsend declare dt_bariright "$name" "${cmd[@]}"
+	dt_rtsend tell dt_bariright "$name" "${cmd[@]}"
 }
 
 # Declared to the desktop, wm/bar.hibr.
@@ -105,39 +105,34 @@ fn dt_barishown(name) {
 	dt_rtsend declare dt_barishown "$name"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_baristop(name, fn) {
-	dt_rtsend declare dt_baristop "$name" "$fn"
+	dt_rtsend tell dt_baristop "$name" "$fn"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_bariswitch(name, var, fn = "") {
-	dt_rtsend declare dt_bariswitch "$name" "$var" "$fn"
+	dt_rtsend tell dt_bariswitch "$name" "$var" "$fn"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_baritem(name, text = "", ...cmd) {
-	dt_rtsend declare dt_baritem "$name" "$text" "${cmd[@]}"
+	dt_rtsend tell dt_baritem "$name" "$text" "${cmd[@]}"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_baritoggle(name) {
-	dt_rtsend declare dt_baritoggle "$name"
+	dt_rtsend tell dt_baritoggle "$name"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_bariwheel(name, fn) {
-	dt_rtsend declare dt_bariwheel "$name" "$fn"
+	dt_rtsend tell dt_bariwheel "$name" "$fn"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 fn dt_barmenu(name, who, id = "") {
-	dt_rtsend declare dt_barmenu "$name" "$who" "$id"
-}
-
-# Declared to the desktop, wm/bar.hibr.
-fn dt_barput(int col, t) {
-	dt_rtsend declare dt_barput "$col" "$t"
+	dt_rtsend tell dt_barmenu "$name" "$who" "$id"
 }
 
 # Declared to the desktop, wm/bar.hibr.
@@ -505,9 +500,9 @@ fn dt_pointerlock(int id, on) {
 	dt_rtsend ask dt_pointerlock "$id" "$on"
 }
 
-# Declared to the desktop, wm/bar.hibr.
+# Told to the desktop, wm/bar.hibr.
 dt_popclose() {
-	dt_rtsend declare dt_popclose "$@"
+	dt_rtsend tell dt_popclose "$@"
 }
 
 # Told to the desktop, wm/programs.hibr.

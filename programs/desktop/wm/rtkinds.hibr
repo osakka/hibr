@@ -108,10 +108,15 @@ fn dt_rvxpend(p, kind, f) {
 	DT_RVPK["$p"]=" "
 }
 
-# A launch that never said hello (dt_rtlaunches): the prefixes it was to
-# host are this desktop's again.
+# A launch that never said hello (dt_rtlaunches): the prefixes and bar
+# items it was to host are this desktop's again.
 fn dt_rvxvoid(f = "") {
 	local p
+	for p in "${!DT_RVB[@]}"; do
+		[ -z "${DT_RVB["$p"]}" ] && [ "${DT_BARI["$p"]["src"]-}" = "$f" ] || continue
+		dt_log "app runtime: bar item $p was to be drawn by $f's process, which did not start"
+		unset DT_RVB["$p"]
+	done
 
 	for p in "${!DT_RVP[@]}"; do
 		[ "${DT_RVPF["$p"]-}" = "$f" ] && [ -z "${DT_RVPC["$p"]-}" ] || continue
@@ -253,8 +258,8 @@ fn dt_rvxpress(id, st = "") {
 # its process is asked for all of it again (`again NAME`), or it would send
 # only what changed since it last drew. Status 1 while there is no cells
 # channel.
-fn dt_rvxbind(name, p, pane, int r, int col, int h, int w, ...args) {
-	local c=${DT_RVPC["$p"]-} fd a x new=
+fn dt_rvxbind(name, p, c, pane, int r, int col, int h, int w, ...args) {
+	local fd a x new=
 
 	[ -n "$c" ] || return 1
 	fd=${DT_RTCELLS["$c"]-}
@@ -264,7 +269,7 @@ fn dt_rvxbind(name, p, pane, int r, int col, int h, int w, ...args) {
 	[ "${DT_RVX["$name"]-}" = "$c" ] || new=1
 	DT_RVXGEN["$name"]=$((${DT_RVXGEN["$name"]:-0} + 1))
 	if ! console cells own "$fd" "$name" "${DT_RVXGEN["$name"]}" "$pane" "$r" "$col" "$h" "$w" 2> /dev/null; then
-		[ "$pane" = - ] && dt_rvxscreen "$name"
+		case $pane in - | bar) dt_rvxscreen "$name" "$pane" ;; esac
 		if ! console cells own "$fd" "$name" "${DT_RVXGEN["$name"]}" "$pane" "$r" "$col" "$h" "$w"; then
 			dt_log "app runtime: $name of $p could not be bound"
 			return 1
@@ -284,13 +289,15 @@ fn dt_rvxbind(name, p, pane, int r, int col, int h, int w, ...args) {
 	return 0
 }
 
-# Let every view on the screen go here but one, each to be bound again where
-# it is next drawn; its process keeps drawing it and is never told.
-fn dt_rvxscreen(but = "") {
+# Let every view on the screen (or the bar) go here but one, each to be
+# bound again where it is next drawn; its process keeps drawing it and is
+# never told. The bar is drawn again for those on it.
+fn dt_rvxscreen(but = "", pane = "-") {
 	local n c fd
 
+	[ "$pane" != bar ] || DT_BARWAS=
 	for n in "${!DT_RVX[@]}"; do
-		[ "$n" != "$but" ] && [[ ${DT_RVXARGS["$n"]-} == "- "* ]] || continue
+		[ "$n" != "$but" ] && [[ ${DT_RVXARGS["$n"]-} == "$pane "* ]] || continue
 		c=${DT_RVX["$n"]}
 		fd=${DT_RTCELLS["$c"]-}
 		[ -z "$fd" ] || console cells drop "$fd" "$n"
@@ -317,7 +324,7 @@ fn dt_rvxpane(p, int id, int h, int w, int bx) {
 	local n="p$id"
 
 	[ -z "${DT_RVXP["$n"]-}" ] || [ "${DT_RVXP["$n"]}" = "$p" ] || dt_rvxforget "$n"
-	dt_rvxbind "$n" "$p" "w$id" 1 "$bx" "$h" "$w" pane "$id" "$p" 1 "$bx" || {
+	dt_rvxbind "$n" "$p" "${DT_RVPC["$p"]-}" "w$id" 1 "$bx" "$h" "$w" pane "$id" "$p" 1 "$bx" || {
 		dt_rvonce "pend:$n" "app runtime: pane $p waits for its process's cells; its face meanwhile"
 		return 0
 	}
@@ -332,7 +339,7 @@ fn dt_rvxstrip(p, int row, int col) {
 	local n="s$p" hv=0
 
 	[ "${CS_MOD_LIST[${DT_HOTSTRIP:--1}]-}" = "$p" ] && [ -n "${DT_HOTSTRIP-}" ] && hv=1
-	dt_rvxbind "$n" "$p" - "$row" "$col" 1 "${CS_MODS["$p"]["w"]:-1}" strip "$p" "$hv" || return 0
+	dt_rvxbind "$n" "$p" "${DT_RVPC["$p"]-}" - "$row" "$col" 1 "${CS_MODS["$p"]["w"]:-1}" strip "$p" "$hv" || return 0
 	dt_rvxshow "$n" -a
 }
 
@@ -341,7 +348,7 @@ fn dt_rvxstrip(p, int row, int col) {
 # the screen sv_begin cleared; its frames show what changed.
 fn dt_rvxsaver(p, int rows, int cols) {
 	dt_rvxscreen v
-	dt_rvxbind v "$p" - 0 0 "$rows" "$cols" saver "$p" || return 0
+	dt_rvxbind v "$p" "${DT_RVPC["$p"]-}" - 0 0 "$rows" "$cols" saver "$p" || return 0
 	dt_rvxshow v -a
 }
 
@@ -393,6 +400,13 @@ fn dt_rvxdrop(int c) {
 		[ -z "${DT_RTCELLS["$c"]-}" ] || console cells drop "${DT_RTCELLS["$c"]}" "$n"
 		unset DT_RVX["$n"] DT_RVXGEN["$n"] DT_RVXARGS["$n"] DT_RVXDIRTY["$n"] DT_RVXP["$n"]
 	done
+	# Its bar items go off the bar, as an ended app's windows close.
+	for n in "${!DT_RVB[@]}"; do
+		[ "${DT_RVB["$n"]}" = "$c" ] || continue
+		unset DT_RVB["$n"]
+		dt_log "app runtime: the process of bar item $n has gone; the item goes"
+		dt_baritem "$n" ""
+	done
 	dt_want 0
 	return 0
 }
@@ -407,4 +421,101 @@ dt_rvxstrips() {
 		[[ " ${CS_MOD_LIST[*]-} " == *" ${DT_RVXP["$n"]} "* ]] || dt_rvxforget "$n"
 	done
 	return 0
+}
+
+# A menu bar item its own process puts on the bar, by name: its request
+# connection, empty while that process is being started. Its text, its
+# command and every other change come as told requests (dt_baritem and the
+# rest), each the process's own item only (dt_rvbmine); a drawn one's cells
+# as a view, `bar` (NAME b$NAME, the bar's pane at the item's slot, ARGS
+# NAME FN C HV); its press, command, wheel, switch and stop as calls, by the
+# word the bar's seam calls fold in (${DT_RVB[$nm]+dt_rvbfn ROLE "$nm"}).
+declare -gA DT_RVB
+
+# Whether a bar item a process names is its own, as a change told by that
+# process: one it put there, or one its file registered. A new one becomes
+# that process's from now. Refused and said otherwise, and the item stays.
+fn dt_rvbmine(name, what) {
+	local o=${DT_BARI["$name"]["owner"]-} me
+
+	me := dt_rvsrc "$DT_CALLER"
+	if [ -n "$o" ]; then
+		o := dt_rvsrc "$o"
+		if [ "$o" != "$me" ]; then
+			dt_log "refused: $what: ${DT_CALLER:-an app} named the bar item $name, which is not its own"
+			return 1
+		fi
+	fi
+	DT_RVB["$name"]=$DT_RTFROM
+	return 0
+}
+
+# A call from the bar's seam to an item its own process draws (ROLE, the
+# item, the function it names, its words): its drawing shown from its
+# cells; a press numbered as an ask the desktop never waits for, taken at
+# once and, declined, the item's own command after it (bar:press); its
+# command a request the desktop runs as the item's when it names one, a
+# call to the process otherwise; the wheel, its switch and its stop told.
+# While its process is being started nothing is drawn and nothing sent.
+dt_rvbfn() {
+	local role=$1 nm=$2 c=${DT_RVB["$2"]-}
+
+	shift 2
+	if [ -z "$c" ]; then
+		dt_rvonce "early:b$nm:$role" "app runtime: bar item $nm was given $role before its process said anything; not sent"
+		[ "$role" != press ]
+		return
+	fi
+	case $role in
+	draw) dt_rvbdraw "$nm" "$@" ;;
+	press)
+		DT_RVSEQ=$((DT_RVSEQ + 1))
+		DT_RVASK[$DT_RVSEQ]="bpress $nm:${2-left} $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
+		[ -z "${DT_RVX["b$nm"]-}" ] || console cells input "b$nm"
+		dt_rvxsend "$c" "$DT_RVSEQ" "$@"
+		;;
+	do)
+		if [ -n "${DT_RTALLOW["${1-}"]+x}" ] || [ -n "${DT_RTASK["${1-}"]+x}" ]; then
+			DT_RTFROM=$c "$@"
+			return
+		fi
+		dt_rvxsend "$c" 0 "$@"
+		;;
+	*) dt_rvxsend "$c" 0 "$@" ;;
+	esac
+}
+
+# A press a hosted item's own handler declined, answered: its command runs,
+# as the bar does with a press an item does not want.
+fn dt_rvbpress(id, st = "") {
+	local nm=${id%%:*}
+
+	[ "$st" = 1 ] && [ -n "${DT_BARI["$nm"]["text"]+x}" ] || return 0
+	dt_barido "$nm" "${id#*:}"
+	dt_want 0
+}
+
+# A hosted item's drawing, where dt_barilay would have run its own: the
+# bar's pane at the item's slot, its width the one laid out, shown whole
+# over the bar just painted; lit while the pointer is over it.
+fn dt_rvbdraw(nm, fn, int c, hv = 0) {
+	local w=${DT_BARI["$nm"]["w"]:-0}
+
+	[ "$w" -gt 0 ] || return 0
+	dt_rvxbind "b$nm" "b:$nm" "${DT_RVB["$nm"]}" bar 0 $((c - ${DT_PRIMARY_COL:-0})) 1 "$w" bar "$nm" "$fn" "$c" "$hv" || return 0
+	dt_rvxshow "b$nm" -a
+}
+
+# Start the process of the file that put a bar item there -- a test
+# session's, as dt_rthostk is -- and host every item of that file from now.
+fn dt_rthostb(name) {
+	local f=${DT_BARI["$name"]["src"]-} n t
+
+	[ -n "$f" ] || { dt_log "app runtime: no bar item $name with a file to start"; return 1; }
+	dt_rtlisten || return 1
+	for n in "${DT_BARIN[@]}"; do
+		[ "${DT_BARI["$n"]["src"]-}" = "$f" ] && DT_RVB["$n"]=
+	done
+	t := dt_rtspawn "$f" "$f" "$DT_HERE/runtime.hibr" "$f" "$f"
+	ret "$t"
 }

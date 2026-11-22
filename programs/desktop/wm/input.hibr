@@ -98,7 +98,8 @@ dt_mouse() {
 			if bi := dt_barihit "$mc"; then
 				b=${DT_BARI["$bi"]["press"]-}
 				if [ -n "$b" ]; then
-					dt_appfn "${DT_BARI["$bi"]["owner"]-}" "$b" "$1" "$mr" "$mc" && return 0
+					dt_appfn "${DT_BARI["$bi"]["owner"]-}" ${DT_RVB[$bi]+dt_rvbfn press "$bi"} "$b" "$1" "$mr" "$mc" &&
+						return 0
 				else
 					dt_mclose
 					dt_barido "$bi" "$1"
@@ -556,7 +557,8 @@ dt_mouse() {
 			if [ -n "${DT_BARI["$bi"]["wheel"]-}" ]; then
 				DT_BARWROW=$mr
 				DT_BARWCOL=$mc
-				dt_appfn "${DT_BARI["$bi"]["owner"]-}" "${DT_BARI["$bi"]["wheel"]}" "${act#wheel}"
+				dt_appfn "${DT_BARI["$bi"]["owner"]-}" ${DT_RVB[$bi]+dt_rvbfn wheel "$bi"} \
+					"${DT_BARI["$bi"]["wheel"]}" "${act#wheel}"
 				return 0
 			fi
 		fi

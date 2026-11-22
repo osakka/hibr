@@ -3,24 +3,12 @@ declare	dt_app	wm/apps.hibr	242	87	told	-	dt_app(name, title, int h, int w, once
 declare	dt_keep	wm/settings.hibr	209	60	told	-	dt_keep()	-	-
 declare	dt_keepstate	wm/restart.hibr	68	34	told	-	dt_keepstate(app, ...maps)	-	-
 declare	dt_editmenu	wm/menus.hibr	65	60	told	-	dt_editmenu()	-	-
-declare	dt_baritem	wm/bar.hibr	55	17	told	-	dt_baritem(name, text = "", ...cmd)	-	-
 declare	cs_module	wm/strip.hibr	32	16	told	-	cs_module(name, title, w = "")	-	-
-declare	dt_barmenu	wm/bar.hibr	19	15	told	-	dt_barmenu(name, who, id = "")	-	-
-declare	dt_barilabel	wm/bar.hibr	17	17	told	-	dt_barilabel(name, label)	-	-
 declare	dt_clocktext	wm/bar.hibr	16	6	asked	-	dt_clocktext(fmt, int when)	-	-
-declare	dt_popclose	wm/bar.hibr	16	6	told	-	dt_popclose()	-	-
-declare	dt_bariright	wm/bar.hibr	14	12	told	-	dt_bariright(name, ...cmd)	-	-
-declare	dt_bariswitch	wm/bar.hibr	13	13	told	-	dt_bariswitch(name, var, fn = "")	-	-
 declare	dt_appaction	wm/keys.hibr	12	3	told	-	dt_appaction(app, act, name, key = "")	-	-
 declare	cs_dropopen	wm/strip.hibr	12	6	told	-	cs_dropopen(int r, int c, cb, ...rest)	-	-
-declare	dt_barikbd	wm/bar.hibr	12	6	told	-	dt_barikbd(name)	-	-
 declare	dt_trashask	wm/menus.hibr	8	2	told	-	dt_trashask()	-	-
 declare	cs_relist	wm/strip.hibr	8	4	told	-	cs_relist()	-	-
-declare	dt_baristop	wm/bar.hibr	8	8	told	-	dt_baristop(name, fn)	-	-
-declare	dt_barput	wm/bar.hibr	8	2	told	-	dt_barput(int col, t)	-	-
-declare	dt_baripop	wm/bar.hibr	7	7	told	-	dt_baripop(name, who, int h, int w)	-	-
-declare	dt_baripress	wm/bar.hibr	5	5	told	-	dt_baripress(name, fn)	-	-
-declare	dt_bariwheel	wm/bar.hibr	5	5	told	-	dt_bariwheel(name, fn)	-	-
 declare	dt_atstart	wm/apps.hibr	4	2	told	-	dt_atstart(f)	-	-
 declare	dt_trashcount	wm/menus.hibr	4	2	waited	-	dt_trashcount()	-	-
 declare	dt_editdo	wm/menus.hibr	4	1	told	-	dt_editdo(op)	-	-
@@ -31,8 +19,6 @@ declare	dt_swon	wm/bar.hibr	2	2	waited	-	dt_swon(var)	-	-
 declare	dt_swflip	wm/bar.hibr	2	2	told	-	dt_swflip(var)	-	-
 declare	dt_bellglyph	wm/bar.hibr	2	2	asked	-	dt_bellglyph(style)	-	-
 declare	dt_barishown	wm/bar.hibr	2	2	waited	-	dt_barishown(name)	-	-
-declare	dt_baritoggle	wm/bar.hibr	2	2	told	-	dt_baritoggle(name)	-	-
-declare	dt_baridraw	wm/bar.hibr	2	2	told	-	dt_baridraw(name, fn)	-	-
 local	dt_item	wm/menubuild.hibr	694	80	told	-	dt_item()	-	-
 local	dt_tr	lib/tr.hibr	541	82	asked	-	dt_tr(key, ...rest)	-	-
 local	dt_has	wm/names.hibr	404	104	waited	-	dt_has(name)	-	-
@@ -133,6 +119,7 @@ local	dt_davserver	wm/servers.hibr	8	4	told	dt_davserver > dt_dlgat	dt_davserver
 local	dt_sysdir	wm/state.hibr	8	2	asked	-	dt_sysdir(kind)	-	-
 local	dt_pwlocal	wm/powerlist.hibr	8	6	waited	-	dt_pwlocal()	-	-
 local	dt_watchstart	wm/state.hibr	8	6	told	-	dt_watchstart(...cmd)	-	-
+local	dt_barput	wm/draw.hibr	8	2	told	-	dt_barput(int col, t)	-	-
 local	dt_rowtext	wm/menubuild.hibr	8	2	told	-	dt_rowtext(text)	-	-
 local	dt_keyis	wm/keymatch.hibr	7	3	waited	-	dt_keyis(what, key)	-	-
 local	dt_imgm	wm/picmode.hibr	6	6	told	-	dt_imgm(mode = "")	-	-
@@ -258,7 +245,7 @@ local	dt_windisp	wm/winfacts.hibr	1	1	told	-	dt_windisp(int id)	-	-
 local	dt_fieldsel	widgets/text.hibr	1	1	asked	-	dt_fieldsel()	-	-
 local	dt_fieldcut	widgets/text.hibr	1	1	asked	-	dt_fieldcut(id)	-	-
 request	dt_notep	wm/notify.hibr	588	86	told	-	dt_notep(prio, text, ...rest)	-	-
-request	dt_set	wm/settings.hibr	379	99	told	-	dt_set(...pairs)	0.99.554	-
+request	dt_set	wm/settings.hibr	381	99	told	-	dt_set(...pairs)	0.99.554	-
 request	dt_del	wm/windows.hibr	220	46	told	-	dt_del(int id)	-	-
 request	dt_launch	wm/apps.hibr	67	36	asked	-	dt_launch(n, arg = "")	-	-
 request	dt_retitle	wm/windows.hibr	64	25	waited	-	dt_retitle(int id, title)	-	-
@@ -266,6 +253,7 @@ request	dt_new	wm/windows.hibr	64	41	asked	-	dt_new(title, int h, int w, int row
 request	dt_filepick	wm/filepick.hibr	57	24	told	-	dt_filepick(mode, title, types, dir, name, callback, for, oncancel = "")	-	-
 request	dt_close_focused	wm/windows.hibr	56	53	told	-	dt_close_focused()	-	-
 request	dt_dlgat	wm/windows.hibr	55	38	told	-	dt_dlgat(int h, int w, int? m = "")	-	-
+request	dt_baritem	wm/bar.hibr	55	17	told	-	dt_baritem(name, text = "", ...cmd)	-	-
 request	dt_confirm	wm/confirm.hibr	47	36	told	-	dt_confirm(msg, cmd, owner = "")	-	-
 request	dt_save	wm/settings.hibr	46	10	told	-	dt_save()	-	-
 request	dt_note	wm/notify.hibr	42	19	told	-	dt_note(text, ...rest)	-	-
@@ -275,16 +263,22 @@ request	dt_locof	wm/locations.hibr	34	2	asked	-	dt_locof(p)	-	-
 request	dt_wantclose	wm/windows.hibr	26	17	waited	-	dt_wantclose(int id)	-	-
 request	dt_panelpane	wm/context.hibr	24	17	told	-	dt_panelpane(pane)	-	-
 request	dt_opener	wm/handlers.hibr	22	11	told	-	dt_opener(name, title, types, how, app = "", kind = "")	-	-
+request	dt_barmenu	wm/bar.hibr	19	15	told	-	dt_barmenu(name, who, id = "")	-	-
 request	dt_notify	wm/notify.hibr	18	9	told	-	dt_notify(text, ...rest)	-	-
+request	dt_barilabel	wm/bar.hibr	17	17	told	-	dt_barilabel(name, label)	-	-
+request	dt_popclose	wm/bar.hibr	16	6	told	-	dt_popclose()	-	-
 request	dt_context_open	wm/context.hibr	15	11	told	-	dt_context_open(who, id, int r, int c)	-	-
 request	dt_edit	wm/files.hibr	14	6	told	-	dt_edit(op)	-	-
 request	dt_vwdialog	wm/vault.hibr	14	4	told	-	dt_vwdialog(mode)	-	-
+request	dt_bariright	wm/bar.hibr	14	12	told	-	dt_bariright(name, ...cmd)	-	-
 request	dt_raise	wm/windows.hibr	13	10	told	-	dt_raise(int id)	-	-
 request	dt_pointer	wm/input.hibr	13	3	told	-	dt_pointer(int id, shape = "")	-	-
+request	dt_bariswitch	wm/bar.hibr	13	13	told	-	dt_bariswitch(name, var, fn = "")	-	-
 request	dt_sticky	wm/workspaces.hibr	12	3	waited	-	dt_sticky(int id, on = "")	-	-
 request	dt_openerverb	wm/handlers.hibr	12	3	told	-	dt_openerverb(ext, label, app, call = "", test = "")	-	-
 request	dt_ids	wm/windows.hibr	12	8	asked	-	dt_ids()	-	-
 request	dt_buson	wm/bus.hibr	12	4	told	-	dt_buson(w, fn)	-	-
+request	dt_barikbd	wm/bar.hibr	12	6	told	-	dt_barikbd(name)	-	-
 request	dt_vwstate	wm/vault.hibr	10	5	asked	-	dt_vwstate()	-	-
 request	dt_openfile	wm/handlers.hibr	10	6	told	-	dt_openfile(path)	-	-
 request	dt_noteapp	wm/notify.hibr	10	2	told	-	dt_noteapp(from, pop, list, count)	0.99.555	-
@@ -294,7 +288,9 @@ request	dt_loccan	wm/locations.hibr	8	2	waited	-	dt_loccan(p, op)	-	-
 request	dt_fopsave	wm/files.hibr	8	2	told	-	dt_fopsave(kind, ...rest)	-	-
 request	dt_fopundo	wm/files.hibr	8	2	told	-	dt_fopundo(op)	-	-
 request	dt_busoff	wm/bus.hibr	8	4	told	-	dt_busoff(w, fn)	-	-
+request	dt_baristop	wm/bar.hibr	8	8	told	-	dt_baristop(name, fn)	-	-
 request	dt_vwcopy	wm/vault.hibr	7	3	told	-	dt_vwcopy(field, id)	-	-
+request	dt_baripop	wm/bar.hibr	7	7	told	-	dt_baripop(name, who, int h, int w)	-	-
 request	dt_resize	wm/windows.hibr	6	4	waited	-	dt_resize(int id, int h, int w)	-	-
 request	dt_termhere	wm/handlers.hibr	6	2	told	-	dt_termhere(dir)	-	-
 request	dt_fileop	wm/copying.hibr	6	2	told	-	dt_fileop(op, dst, ...rest)	-	-
@@ -306,6 +302,8 @@ request	dt_statadd	wm/budget.hibr	6	6	told	-	dt_statadd(key)	0.99.555	-
 request	dt_clipdel	wm/clip.hibr	6	2	told	-	dt_clipdel(int id)	-	-
 request	dt_vwmatch	wm/vault.hibr	5	1	asked	-	dt_vwmatch(host)	-	-
 request	dt_pointerlock	wm/input.hibr	5	1	waited	-	dt_pointerlock(int id, on)	-	-
+request	dt_baripress	wm/bar.hibr	5	5	told	-	dt_baripress(name, fn)	-	-
+request	dt_bariwheel	wm/bar.hibr	5	5	told	-	dt_bariwheel(name, fn)	-	-
 request	dt_location	wm/locations.hibr	4	2	told	-	dt_location(scheme, prefix, app = "")	-	-
 request	dt_onrescan	wm/apps.hibr	4	2	told	-	dt_onrescan(fn)	0.99.555	-
 request	dt_setgeom	wm/windows.hibr	4	2	told	-	dt_setgeom(int id, int r, int c, int h, int w)	-	-
@@ -359,6 +357,7 @@ request	dt_sbscan	wm/standby.hibr	2	2	waited	-	dt_sbscan()	-	-
 request	dt_sbcall	wm/standby.hibr	2	2	told	-	dt_sbcall(nm)	-	-
 request	dt_blank	wm/standby.hibr	2	2	told	-	dt_blank(nm)	-	-
 request	dt_notifyp	wm/notify.hibr	2	2	told	-	dt_notifyp(prio, text, ...rest)	-	-
+request	dt_baritoggle	wm/bar.hibr	2	2	told	-	dt_baritoggle(name)	-	-
 request	dt_progload	wm/programs.hibr	2	2	told	-	dt_progload()	-	-
 request	dt_proghide	wm/programs.hibr	2	2	told	-	dt_proghide(key, on = "")	0.99.555	-
 request	dt_progput	wm/programs.hibr	2	2	told	-	dt_progput(key, name, cmd, dir, term, hidden)	0.99.555	-
@@ -369,6 +368,7 @@ request	dt_wallforget	wm/wallpaper.hibr	2	2	told	-	dt_wallforget(name)	0.99.555	
 request	cs_modwidth	wm/strip.hibr	2	2	told	-	cs_modwidth(name, int w)	0.99.555	-
 request	dt_pkstart	wm/polkit.hibr	2	2	waited	-	dt_pkstart()	-	-
 request	dt_pwcrit	wm/machine.hibr	2	2	told	-	dt_pwcrit()	0.99.555	-
+request	dt_baridraw	wm/bar.hibr	2	2	told	-	dt_baridraw(name, fn)	-	-
 request	dt_clipuse	wm/clip.hibr	2	2	told	-	dt_clipuse(int id)	-	-
 request	dt_clipkeep	wm/clip.hibr	2	2	told	-	dt_clipkeep(text, kind = text)	-	-
 request	dt_noteseen	wm/notify.hibr	2	2	told	-	dt_noteseen()	0.99.555	-

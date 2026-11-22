@@ -102,6 +102,15 @@ OVERRIDE["dt_sbscan"] = "request"
 # these once the runtime exists.
 OVERRIDE["dt_launched"] = "request"
 OVERRIDE["dt_natlayout"] = "request"
+# A bar item's registrations and the changes it makes to its item are told
+# to the desktop, so an item in a process of its own -- its text, its
+# command, its press and its drawing -- is on the bar (ADR 0050, the view
+# kinds); its drawing goes through dt_barput, which is the interface's own.
+for _n in """dt_baritem dt_barilabel dt_bariright dt_bariswitch dt_barikbd dt_baristop
+        dt_baripress dt_bariwheel dt_baridraw dt_baritoggle dt_barmenu dt_baripop
+        dt_popclose dt_baripin dt_bariwide""".split():
+    OVERRIDE[_n] = "request"
+OVERRIDE["dt_barput"] = "local"
 
 
 def defs():

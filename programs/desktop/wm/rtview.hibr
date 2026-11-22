@@ -374,6 +374,11 @@ fn dt_rvtook(int c, seq, st = "") {
 		dt_rvxpress "$id" "$st"
 		return 0
 	fi
+	# A press a hosted bar item declined (wm/rtkinds.hibr).
+	if [ "$kind" = bpress ]; then
+		dt_rvbpress "$id" "$st"
+		return 0
+	fi
 	[ "${DT_RVC[$id]-}" = "$c" ] || return 0
 	if [ "$kind" != close ]; then
 		[ "$DT_RVHOLD" != "$seq" ] || dt_rvunhold "$seq" "$st"
@@ -465,6 +470,7 @@ fn dt_rvtake(int fd) {
 			for n in "${w[@]:1}"; do
 				if [ -n "${DT_RVX["$n"]+x}" ]; then
 					DT_RVXDIRTY["$n"]=1
+					[[ $n == b* ]] && DT_BARWAS=
 				else
 					DT_RVDIRTY[${n#w}]=1
 				fi
@@ -475,6 +481,7 @@ fn dt_rvtake(int fd) {
 			for n in "${w[@]:1}"; do
 				if [ -n "${DT_RVX["$n"]+x}" ]; then
 					DT_RVXDIRTY["$n"]=1
+					[[ $n == b* ]] && DT_BARWAS=
 				else
 					DT_RVDIRTY[${n#w}]=1
 					DT_RVUNC[${n#w}]=1
