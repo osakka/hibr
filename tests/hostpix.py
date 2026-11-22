@@ -625,8 +625,11 @@ check("a program's dmabuf frames, sent to the frames module in an app's own "
       sa and sb and set(sa) == set(sb) and len(set(sa)) == 1 and sa[0] != I
       and sa[0] >> 14 == I >> 14, (sa, sb, I))
 rel = [a for a in (pb.answers(1.0) if pb else []) if a.startswith("FRAME release")]
+# Released by a display's Blit, not only given back unsent: a stream
+# whose frames never left the app's process is handed its buffers back too.
+blitrel = [x for x in lines(lba) if x["kind"] == "released" and sa and x["id"] == sa[0]]
 check("and the displays' releases come back to the program as its own id",
-      rel and all(a.split()[2] == "42" for a in rel), rel)
+      rel and all(a.split()[2] == "42" for a in rel) and blitrel, (rel, blitrel))
 ap = apps(nmb).get(apid)
 check("hold keeps the app's two pictures apart, each its own slot",
       ap and ap[0] == 2 and ap[2] == 0, apps(nmb))
