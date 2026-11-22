@@ -465,6 +465,12 @@ int cw_verb(sh *s, int ac, char **av);
 int cw_image(const char *pane, int row, int col, int h, int w,
 	     const unsigned char *rgb, int iw, int ih, unsigned flags);
 void cw_cellpx(int *w, int *h);
+int cw_picon(void);
+int cw_imgdma(const char *pane, int row, int col, int h, int w, unsigned sid,
+	      unsigned *cid, int sub);
+unsigned cw_dmaslot(unsigned sid);
+void cw_dmadrop(unsigned sid);
+int cw_dsend(const unsigned char *h, size_t hn, const int *fds, int n);
 void cw_regrantall(void);
 unsigned cn_hash(const void *p, size_t n, unsigned h);
 long cw_flush(void);

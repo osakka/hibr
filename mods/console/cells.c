@@ -13,6 +13,7 @@
 
 const hf_api *cn_hold(sh *s);
 int cn_d3conn(sh *s);
+void cn_dans(const char *line);
 
 extern char **cn_lk;
 extern int cn_lkn;
@@ -66,7 +67,8 @@ typedef struct cw_pic {
 	unsigned long long seq;
 	int pw, ph;
 	unsigned sum;
-	int live, said, mfd, held;
+	int live, said, mfd, held, gone;
+	unsigned sid;
 } cw_pic;
 
 static vec cw_pics;
@@ -78,6 +80,7 @@ static const hf_api *cw_hf;
 static int cw_hfd = -1, cw_pcw, cw_pch, cw_hfsaid;
 static long long cw_hftry;
 static unsigned cw_slotn;
+static int cw_subsaid;
 
 /* The desktop's side: a connection, and each view it was given. */
 typedef struct cw_view cw_view;
@@ -348,6 +351,11 @@ int cw_hfread(void *ctx, int fd)
 			cw_pch = a > 1 && b > 1 ? b : 0;
 			lg(HIBR_LDBG, "cells: pictures %s (%d by %d a cell)",
 			   cw_pcw ? "may go" : "may not go", a, b);
+		} else if (!strncmp(o.p, "FRAME ", 6)) {
+			/* What the displays said of a stream's frame, by the
+			   slot that is its id here: the stream's producer is
+			   told in its own numbers. */
+			cn_dans(o.p);
 		} else {
 			lg(HIBR_LDBG, "cells: the displays said: %s", o.p);
 		}
@@ -461,7 +469,7 @@ int cw_image(const char *pane, int row, int col, int h, int w,
 	for (i = 0; i < cw_pics.n; i++) {
 		cw_pic *x = cw_pics.p[i];
 
-		if (!strcmp(x->view, v->nm) && x->r == r && x->c == c &&
+		if (!x->sid && !strcmp(x->view, v->nm) && x->r == r && x->c == c &&
 		    x->h == h && x->w == w) {
 			p = x;
 			break;
@@ -507,6 +515,101 @@ int cw_image(const char *pane, int row, int col, int h, int w,
 	return 1;
 }
 
+/* The picture a stream another program sends is placed as in this app's
+   own console (Gitea #486's frames, in an app's process): a slot of the
+   app's own, kept for the stream's life and moved in place, its frames
+   going to the session's server on this app's connection; the slot is
+   the id the stream's frames carry here, so what comes back finds its
+   stream. A subsurface or a cut is not carried yet, said once. 0 where it
+   cannot go. */
+int cw_imgdma(const char *pane, int row, int col, int h, int w, unsigned sid,
+	      unsigned *cid, int sub)
+{
+	cw_av *v;
+	cw_pic *p = 0;
+	cn_pane *pp;
+	int prow, pcol, ph, pw, r, c;
+	size_t i;
+
+	if (!pane || !sid || !(v = cw_apane(pane)) || !cw_picon())
+		return 0;
+	if (sub) {
+		if (!cw_subsaid++)
+			lg(HIBR_LDBG, "cells: a stream's subsurface or cut is not "
+				      "carried from an app's own process yet");
+		return 0;
+	}
+	if (!cn_prect(pane, &prow, &pcol, &ph, &pw) || row < 0 || col < 0 ||
+	    row + h > ph || col + w > pw || h < 1 || w < 1)
+		return 0;
+	r = prow + row - v->row;
+	c = pcol + col;
+	for (i = 0; i < cw_pics.n; i++)
+		if (((cw_pic *)cw_pics.p[i])->sid == sid)
+			p = cw_pics.p[i];
+	if (!p) {
+		p = xm(sizeof *p);
+		memset(p, 0, sizeof *p);
+		p->view = xs(v->nm);
+		p->slot = ++cw_slotn;
+		p->sid = sid;
+		p->mfd = -1;
+		v_add(&cw_pics, p);
+	}
+	if (strcmp(p->view, v->nm)) {
+		free(p->view);
+		p->view = xs(v->nm);
+		p->said = 0;
+	}
+	if (p->r != r || p->c != c || p->h != h || p->w != w)
+		p->said = 0;
+	p->r = r;
+	p->c = c;
+	p->h = h;
+	p->w = w;
+	p->live = 1;
+	if ((pp = cn_pfind(pane)))
+		pp->drawn = 1;
+	*cid = p->slot;
+	return 1;
+}
+
+/* The slot a stream's picture has here, or 0. */
+unsigned cw_dmaslot(unsigned sid)
+{
+	size_t i;
+
+	for (i = 0; i < cw_pics.n; i++)
+		if (((cw_pic *)cw_pics.p[i])->sid == sid)
+			return ((cw_pic *)cw_pics.p[i])->slot;
+	return 0;
+}
+
+/* A stream has ended: its picture goes at the next flush. */
+void cw_dmadrop(unsigned sid)
+{
+	size_t i;
+
+	for (i = 0; i < cw_pics.n; i++)
+		if (((cw_pic *)cw_pics.p[i])->sid == sid)
+			((cw_pic *)cw_pics.p[i])->gone = 1;
+}
+
+/* A stream's frame, its header already under its slot, on this app's own
+   connection: a memfd as appframe, a dmabuf as frame3. 1 when it went. */
+int cw_dsend(const unsigned char *h, size_t hn, const int *fds, int n)
+{
+	int ok;
+
+	if (!cw_picon() || cw_hfd < 0)
+		return 0;
+	ok = hn == BF_HDR ? cw_hf->appframe(cw_hfd, h, fds[0]) :
+			    cw_hf->frame3(cw_hfd, h, fds, n);
+	if (!ok)
+		cw_hflost();
+	return ok;
+}
+
 /* A view's picture lines for its frame: where each drawn picture is, said
    when new or moved or the view starts again, and each not drawn this
    time gone. How many lines. */
@@ -522,7 +625,7 @@ long cw_picdiff(cw_av *v, int whole, str *o)
 			i++;
 			continue;
 		}
-		if (v->drawn && !p->live) {
+		if ((v->drawn && !p->live) || p->gone) {
 			if (p->said) {
 				s_cat(o, "x ");
 				s_num(o, (long)p->slot);

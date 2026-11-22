@@ -542,7 +542,9 @@ int cn_dsend(sh *s, cn_dst *d)
 		return 0;
 	memcpy(h, d->h, d->hn);
 	bf_put32(h + 4, d->cid);
-	if (cn_imgfd == 1) {
+	if (cn_hl) {
+		ok = cw_dsend(h, d->hn, d->fds, d->n);
+	} else if (cn_imgfd == 1) {
 		hf = cn_hold(s);
 		if (!hf)
 			return 0;
@@ -603,7 +605,7 @@ int cn_dcan(sh *s, str *fmts, int *fence)
 		fmts->n = 0;
 	if (!cn_fdon(s))
 		return 0;
-	if (cn_imgfd == 1) {
+	if (cn_imgfd == 1 || cn_hl) {
 		str o;
 		int r;
 

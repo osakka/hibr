@@ -411,6 +411,9 @@ int cn_fdon(sh *s)
 {
 	const char *h;
 
+	/* An app's own console sends on its own connection to hold. */
+	if (cn_hl)
+		return cw_picon();
 	if (cn_imgfd == 0)
 		return 0;
 	if (cn_imgfd == 1)
@@ -589,6 +592,8 @@ int cn_imgdmas(sh *s, const char *pane, int row, int col, int h, int w,
 	long z;
 
 	cn_wrote++;
+	if (cn_hl)
+		return cw_imgdma(pane, row, col, h, w, sid, cid, sr != 0);
 	if (!cn_isopen() || !sid || !pane || h < 1 || w < 1)
 		return 0;
 	if (cn_gfx(s) != CN_GFX_KITTY || !cn_gfxsure(s) || !cn_fdon(s))
@@ -723,6 +728,8 @@ unsigned cn_imgdmaid(unsigned sid)
 {
 	size_t i;
 
+	if (cn_hl)
+		return cw_dmaslot(sid);
 	for (i = 0; i < cn_nimg; i++)
 		if (cn_imgs[i].dma == sid)
 			return cn_imgs[i].id;
@@ -733,8 +740,13 @@ unsigned cn_imgdmaid(unsigned sid)
 void cn_imgdmadrop(unsigned sid)
 {
 	size_t i;
-	unsigned id = cn_imgunpark(sid);
+	unsigned id;
 
+	if (cn_hl) {
+		cw_dmadrop(sid);
+		return;
+	}
+	id = cn_imgunpark(sid);
 	for (i = 0; i < cn_nimg; i++)
 		if (cn_imgs[i].dma == sid) {
 			cn_imgending = 1;
