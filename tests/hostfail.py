@@ -266,6 +266,9 @@ if f and f[0] == 0:
     t.send(press(0, f[1]) + release(0, f[1]), settle=0.3, collect=0.3)
     t.send(b"e", settle=0.3, collect=0.3)
 v2 = readpid(".vpid", secs=8, old=vpid)
+# A menu left open would take every key after it, so what follows starts
+# from a closed one whatever the step above did.
+do(t, "dt_mclose")
 check("Reopen, from the Window menu, starts the app again in a window where the kept one was",
       v2 and waitfor(t, '! dt_iswin %s && id := dt_appwin victim && [ "${DT[$id]["row"]} ${DT[$id]["col"]}" = "2 2" ] && [ -n "${DT_RVC[$id]-}" ] && [ "${DT_RVC[$id]}" != - ]' % vid, 5)
       and t.until("alive 0", tries=40, step=0.1).find("alive 0") is not None,
