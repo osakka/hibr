@@ -1973,8 +1973,18 @@ void cw_vpshow(cw_view *v, cn_pane *p)
 	cw_vp *x;
 	str o;
 
-	if (!v->nvp || !p || !cw_sh ||
-	    !cn_prect(v->pane, &prow, &pcol, &ph, &pw))
+	if (!v->nvp || !cw_sh)
+		return;
+	if (!p) {
+		for (i = 0; i < v->nvp; i++)
+			if (!v->vp[i].said++)
+				lg(HIBR_LDBG, "cells: %s is on the screen "
+					      "itself, with no pane to place "
+					      "picture %u through; left out",
+				   v->nm, v->vp[i].slot);
+		return;
+	}
+	if (!cn_prect(v->pane, &prow, &pcol, &ph, &pw))
 		return;
 	if (cw_regrant) {
 		size_t j, m;
