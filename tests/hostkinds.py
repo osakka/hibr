@@ -62,7 +62,7 @@ fn tpane_click(int id, int r, int c) {
 }
 fn tpane_key(int id, key) {
 	printf 'key %%s %%s\n' "$$" "$key" >> %s
-	return 0
+	[ "$key" != escape ]
 }
 fn tpane_wheel(int id, dir) {
 	printf 'wheel %%s %%s\n' "$$" "$dir" >> %s
@@ -434,8 +434,10 @@ check("a key and the wheel reach its _key and _wheel",
       "key %s x" % tpid in said and "wheel %s down" % tpid in said, said)
 t.send(b"\x1b", settle=0.3, collect=0.3)
 t.send(b"\x1b", settle=0.3, collect=0.3)
-check("and a key the desktop also acts on is withheld from it, said in the log",
-      "hosted: key escape withheld" in log(t) and "key %s escape" % tpid not in taken(SAID + ".tp"),
+check("and a key the desktop also acts on is held for its answer: given to "
+      "its _key, declined there, and the desktop's own action runs",
+      "hosted: key escape declined; the desktop's own action runs" in log(t)
+      and "key %s escape" % tpid in taken(SAID + ".tp"),
       (taken(SAID + ".tp"), log(t)[-1500:]))
 
 # The saver, while the strip module is drawn: it takes the screen, the

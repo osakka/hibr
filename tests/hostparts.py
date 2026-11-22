@@ -59,8 +59,12 @@ dt_app term "Terminal" 10 40
 open(APP, "w").write(r'''# A bundle of the test's own.
 # part: control-panel/tbunp.hibr
 # part: menubar/tbunb.hibr
+# part: control-panel/shp.hibr
 tbun_steal() {
 	dt_baritem obar "STOLEN"
+}
+tbun_rowsof() {
+	dt_rvrowsfound opane "stolen rows"
 }
 tbun_claim() {
 	local l
@@ -81,7 +85,9 @@ fn tbunp_rows(int w) {
 	cp_choice "$w" 2 "$TBP_V" tbunp_setv a b c
 	CP[$w][3]["kind"]=action; CP[$w][3]["text"]="Count $TBP_N"; CP[$w][3]["key"]=go
 	CP[$w][3]["val"]=""
-	ret 4
+	CP[$w][4]["kind"]=key; CP[$w][4]["text"]="Zoom Key"; CP[$w][4]["key"]=zoom
+	CP[$w][4]["val"]=${DT_KEYS["zoom"]-}
+	ret 5
 }
 fn tbunp_do(int w, key, int dir) {
 	case $key in
@@ -123,8 +129,21 @@ fn tbunb_popkey(key) {
 }
 fn tbunb_popmouse(act, int r, int c) {
 	printf 'popmouse %%s %%s\n' "$$" "$act" >> %s
+	[ "$act" = press ] || return 0
+	local t=$((${EPOCHREALTIME/./} + 400000))
+	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
 }
 ''' % (SAID, SAID, SAID))
+# A second bundle, which declares the first's shared pane too (as Calendar
+# and Contacts both declare pimset), and that pane.
+APP2 = os.path.join(ROOT, "apps", "tbun2.hibr")
+SHP = os.path.join(ROOT, "control-panel", "shp.hibr")
+open(APP2, "w").write("# A second bundle of the test's own.\n# part: control-panel/shp.hibr\n")
+open(SHP, "w").write(r'''command -v cp_pane > /dev/null && cp_pane shp "Shared Part" "+"
+fn shp_draw(int id, int h, int w, int bx) {
+	console put -p "w$id" 1 "$bx" "shared $$"
+}
+''')
 # Another's: a pane and an item no bundle declares, and a pane that holds
 # its process a quarter of a second each time it draws, and 400 ms of its
 # processor time on a click -- counted on the processor, since that is how
@@ -185,8 +204,10 @@ DT_LOADING=%s dt_app dtz "Time Zone" 16 46 "" "" fixed hidden
 DT_LOADING=%s dt_app dts "Set Date & Time" 10 46 "" "" fixed hidden
 DT_LOADING=%s dt_app dtf "Clock Format" 9 50 "" "" fixed hidden
 DT_LOADING=%s . %s
+DT_LOADING=%s dt_app tbun2 "Test Bundle Two" 10 30
+DT_LOADING=%s cp_pane shp "Shared Part" "+"
 DT_LOADING=''' % (PANEL, PANEL, MOUSE, APP, BPANE, BBAR, OPANE, OBAR, SPANE,
-                  DATETIME, DATETIME, DATETIME, DATETIME, TERM, TERM)
+                  DATETIME, DATETIME, DATETIME, DATETIME, TERM, TERM, APP2, SHP)
 INPROC = r'''DT_LOADING=%s . %s
 DT_LOADING=%s . %s
 DT_LOADING=%s . %s
@@ -327,6 +348,13 @@ check("starting a bundle's bar item starts its app's process, which says "
               '[ "${DT_RTC[${DT_RVPC[tbunp]}]-}" = tbun ]'),
       (result(t, 'echo "${DT_RVPC[tbunp]-} ${DT_RVB[tbunb]-} ${DT_RTC[${DT_RVPC[tbunp]-0}]-}"'), log(t)[-1500:]))
 bpid = result(t, 'echo "${DT_RTCPID[${DT_RVPC[tbunp]}]-}"')
+# The second bundle, which has the shared part too: it stays the first's.
+do(t, "dt_rthost tbun2")
+check("a part two bundles declare stays the first process's while it runs, "
+      "the second's said and kept",
+      waitfor(t, '[ -n "${DT_RVPALT[shp]-}" ] && [ "${DT_RVPC[shp]-}" = "${DT_RVPC[tbunp]}" ] && '
+              '[ "${DT_RTC[${DT_RVPALT[shp]%% *}]-}" = tbun2 ]'),
+      (result(t, 'echo "${DT_RVPC[shp]-} / ${DT_RVPALT[shp]-} / ${DT_RVPC[tbunp]-}"'), log(t)[-1200:]))
 check("its hook runs in that process, from its first pass, and puts its "
       "text on the bar", onscreen(t, "B:60000") and "hook %s 60000" % bpid in said(),
       (said(), bpid, t.screen().text()[:220]))
@@ -370,6 +398,13 @@ if pr is not None:
     click(t, pr, pc)
 check("a press in it reaches its _popmouse there",
       saidwait("popmouse %s press" % bpid), said())
+expect(r"held: input:tbun has not answered the person's input to pop:tbunb:press")
+deadline = time.time() + 3 * SLOW
+while time.time() < deadline and "input to pop:tbunb:press" not in log(t):
+    t.collect(0.1)
+check("a press its process holds past a stall is named held, as a window's "
+      "input is", "held: input:tbun has not answered the person's input to pop:tbunb:press" in log(t),
+      "\n".join(l for l in log(t).split("\n") if "pop" in l)[-1500:])
 # Its view is there before Escape, or a desktop that never opened one
 # would pass this as well.
 open_before = result(t, 'echo "${DT_RVX[otbunb]+x}"') == "x"
@@ -417,6 +452,55 @@ check("the right arrow steps a list row through the pane's setter, there",
       saidwait("set %s b" % bpid), said())
 ok, why = agree(t, u, body, secs=6)
 check("and the stepped value is drawn as in-process", ok, why)
+
+# The pointer over a row lights it, as in-process: told to the pane's
+# process, whose rows light the one under it.
+def pens(term):
+    rr, cc = find(term, "Switch")
+    return [term.screen().p[rr][cc + i] for i in range(6)] if rr is not None else None
+
+
+before = pens(u)
+for term in (t, u):
+    rr, cc = find(term, "Switch")
+    if rr is not None:
+        do(term, "dt_hover %d %d; dt_want 0" % (rr, cc + 1))
+ok, why = agree(t, u, body, secs=6)
+check("the pointer over a row of the hosted pane lights it, as in-process",
+      ok and before is not None and pens(u) != before, (why, before, pens(u)))
+for term in (t, u):
+    do(term, "dt_hover 0 2; dt_want 0")
+ok, why = agree(t, u, body, secs=6)
+check("and leaving it puts it back, as in-process", ok and pens(u) == before, why)
+
+# The panel's search: the hosted pane is found by its rows, which its
+# process told the desktop, and shows only what holds the text.
+for term in (t, u):
+    term.send(b"/", settle=0.2, collect=0.2)
+    term.send(b"count", settle=0.3, collect=0.3)
+ok, why = agree(t, u, body, secs=8)
+check("the panel's search finds the hosted pane by its rows, and narrows "
+      "them in its process, as in-process",
+      ok and onscreen(t, "Show all of", 1) and "Switch" not in "".join(
+          "".join(t.screen().g[y]) for y in range(t.screen().rows)),
+      (why, result(t, 'echo "${DT_RVROWTEXT[tbunp]-}"')))
+for term in (t, u):
+    term.send(b"\x1b", settle=0.3, collect=0.3)
+ok, why = agree(t, u, body, secs=6)
+check("and closed, the whole pane again, as in-process", ok and onscreen(t, "Switch", 1), why)
+
+# A shortcut row's capture is the desktop's, asked for by the pane's rows.
+for term in (t, u):
+    rr, cc = find(term, "Zoom Key")
+    if rr is not None:
+        click(term, rr, cc + 1)
+    term.send(b"+", settle=0.3, collect=0.3)
+check("a shortcut row asks the desktop to take the next key for it, from "
+      "the hosted pane's process, as in-process",
+      waitfor(t, '[ "${DT_KEYCAP-}" = zoom ]', 4) and waitfor(u, '[ "${DT_KEYCAP-}" = zoom ]', 4),
+      (result(t, 'echo "${DT_KEYCAP-}"'), log(t)[-800:]))
+for term in (t, u):
+    term.send(b"\x1b", settle=0.3, collect=0.3)
 
 # The Mouse pane, a real one that is no bundle's part: started by its file,
 # drawn and stepped in its own process, its setting the desktop's. Shown
@@ -499,6 +583,15 @@ check("and saying it has another's pane is refused: the pane stays the "
       and result(t, 'echo "${DT_RVP[opane]-none} ${DT_RVFN[opane_draw]-none}"') == "none none",
       log(t)[-1500:])
 
+expect(r"refused: dt_rvrowsfound: tbun told the rows of pane opane, which is not its own")
+do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVPC[tbunp]}]}" tbun_rowsof')
+deadline = time.time() + 3 * SLOW
+while time.time() < deadline and "told the rows of pane opane" not in log(t):
+    t.collect(0.1)
+check("and telling what another's pane holds is refused: the search does not "
+      "find it by that", "told the rows of pane opane, which is not its own" in log(t)
+      and result(t, 'echo "${DT_RVROWTEXT[opane]-none}"') == "none", log(t)[-1200:])
+
 # A pane that holds its process past a stall: the person's input to it is
 # named held, judged from outside by a window's rule, the same budget --
 # by the desktop while it waits, and by the pane's own process when its
@@ -534,11 +627,14 @@ check("its process gone, its item goes off the bar and its hook is the "
               '[ -z "${DT_RVPOP[tbunb]+x}" ] && [ -z "${DT_RVFN[tbunb_popdraw]+x}" ]', 4)
       and not onscreen(t, "B:61000", 1),
       (result(t, 'echo "${!DT_RVB[*]} / ${!DT_RVHOOKS[*]} / ${!DT_RVPOP[*]}"'), log(t)[-1000:]))
+check("the shared part is the second bundle's process's once the first's "
+      "has gone", waitfor(t, '[ "${DT_RTC[${DT_RVPC[shp]-0}]-}" = tbun2 ] && [ -z "${DT_RVPALT[shp]+x}" ]', 4),
+      (result(t, 'echo "${DT_RVPC[shp]-} ${DT_RVPALT[shp]-}"'), log(t)[-1000:]))
 expect(r"tbunb_hook: command not found|tbunb_hook: not found")
 
 u.close()
 t.close()
-for f in (APP, BPANE, BBAR, OPANE, OBAR, SPANE, TERM, SAID, t.mark, u.mark, SAID + ".pend",
+for f in (APP, APP2, SHP, BPANE, BBAR, OPANE, OBAR, SPANE, TERM, SAID, t.mark, u.mark, SAID + ".pend",
           scratch("hostparts-hosted.hibr"), scratch("hostparts-inproc.hibr")):
     if os.path.exists(f):
         os.unlink(f)
@@ -547,4 +643,4 @@ for d in ("apps", "control-panel", "menubar", ""):
         os.rmdir(os.path.join(ROOT, d))
     except OSError:
         pass
-report(27)
+report(36)
