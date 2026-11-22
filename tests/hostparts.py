@@ -32,11 +32,12 @@ PANEL = tree("programs/desktop/system/panel.hibr")
 MOUSE = tree("programs/desktop/control-panel/mouse.hibr")
 DATETIME = tree("programs/desktop/control-panel/datetime.hibr")
 SAID = scratch("hostparts-said")
-# A stall made here is a tenth of a second past the session's DT_HOLDMS on
-# the processor (screen.py: 300 ms, and eight times that for the sanitizer
-# build), in clock ticks; spun for no longer than END microseconds by the
-# clock.
-TICKS = int(os.environ["DT_HOLDMS"]) // 10 + 10
+# A stall made here is four thirds of the session's DT_HOLDMS on the
+# processor (screen.py: 300 ms, and eight times that for the sanitizer
+# build), in clock ticks -- room for the desktop to look at the process
+# between the mark and the stall's end; spun for no longer than END
+# microseconds by the clock.
+TICKS = int(os.environ["DT_HOLDMS"]) * 4 // 30
 END = 4000000 * SLOW
 ROOT = scratch("hostparts-tree")
 for d in ("apps", "control-panel", "menubar"):
@@ -136,8 +137,8 @@ fn tbunb_popkey(key) {
 fn tbunb_popmouse(act, int r, int c) {
 	printf 'popmouse %%s %%s\n' "$$" "$act" >> %s
 	[ "$act" = press ] || return 0
-	# A tenth of a second past DT_HOLDMS on the processor, as a stall is
-	# judged, however loaded the box.
+	# A third past DT_HOLDMS on the processor, as a stall is judged,
+	# however loaded the box.
 	local s t0 end=$((${EPOCHREALTIME/./} + %d))
 	local -a f
 	read -r s < /proc/$$/stat
@@ -149,7 +150,7 @@ fn tbunb_popmouse(act, int r, int c) {
 		[ $((f[11] + f[12] - t0)) -lt %d ] || break
 	done
 }
-''' % (SAID, SAID, END, TICKS, SAID))
+''' % (SAID, SAID, SAID, END, TICKS))
 # A second bundle, which declares the first's shared pane too (as Calendar
 # and Contacts both declare pimset), and that pane.
 APP2 = os.path.join(ROOT, "apps", "tbun2.hibr")
@@ -442,7 +443,9 @@ ok, why = agree(t, u, body, secs=8)
 check("the bundle's rows pane is cell for cell the in-process one, drawn in "
       "the bundle's process, the desktop never defining its functions",
       ok and result(t, 'command -v tbunp_rows tbunp_draw cp_rowsdraw | tr "\\n" " "').split() == ["cp_rowsdraw"]
-      and result(t, 'echo "${DT_RVXP[p$P]-}"') == "tbunp", why)
+      and result(t, 'echo "${DT_RVXP[p$P]-}"') == "tbunp",
+      why or (result(t, 'command -v tbunp_rows tbunp_draw cp_rowsdraw | tr "\\n" " "'),
+              result(t, 'echo "P=$P ${DT_RVXP[p$P]-none} ${!DT_RVXP[*]}"'), log(t)[-800:]))
 pr0, pc0, ph, pw = geom(t, "P")
 sr, sc_ = find(t, "Switch")
 cr = None

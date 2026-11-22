@@ -384,7 +384,7 @@ early = not os.path.exists(SAID + ".keys")
 check("escape behind a key the app is still spinning on: the menu opens before "
       "the app has answered either", opened and early, (round(took, 2), early))
 check("and the revoked key is dropped by the app's process, never run",
-      logwait(t, "before it ran; dropped", 6)
+      logwait(t, "before it ran; dropped", 6 + LATE / 1000)
       and os.path.exists(SAID + ".keys") and open(SAID + ".keys").read().split() == ["h"],
       (said(t, "revoke", "runtime", "hosted:"), open(SAID + ".keys").read() if os.path.exists(SAID + ".keys") else None))
 do(t, "dt_mclose")

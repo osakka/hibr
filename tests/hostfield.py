@@ -36,12 +36,16 @@ TERM = tree("programs/desktop/apps/term.hibr")
 SAID = scratch("hostfield-said")
 # A stall is judged against the session's DT_HOLDMS, which screen.py sets:
 # 300 ms, and eight times that for the sanitizer build. A stall made here
-# lasts twice the mark (a second at least), so the processor time it is
-# judged by reaches it on a loaded box; and a process with no window is
-# looked at every RES seconds, two marks' worth at least, since a spin is
-# named only when one look to the next held the mark on the processor.
+# is counted on the processor, as a stall is judged, so a loaded box cannot
+# make it a mere slow call: STALL clock ticks, a second at least and four
+# thirds of the mark, spun for no longer than GUARD seconds by the clock.
+# A process with no window is looked at every RES seconds, two marks' worth
+# at least, since a spin is named only when one look to the next held the
+# mark on the processor.
 HOLD = int(os.environ["DT_HOLDMS"])
-STALL = max(1.0, 2 * HOLD / 1000.0)
+SLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
+STALL = max(100, HOLD * 4 // 30)
+GUARD = 4 * SLOW
 RES = max(2, -(-2 * HOLD // 1000))
 APPS = {n: scratch("hostfield-%s.hibr" % n) for n in ("fdapp", "mnapp", "keyapp", "bigapp", "cutapp", "spcapp", "spinapp", "calmapp", "blkapp", "idleapp")}
 
@@ -176,12 +180,20 @@ fn spcapp_copy(int id) {
 # returns.
 open(APPS["spinapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app spinapp "Spin" 6 30
 spinapp_tick() {
-	local e
+	local e s t0
+	local -a f
 	echo "$$" > %(s)s.spid
 	if [ -f %(s)s.stall ]; then
 		command rm -f %(s)s.stall
-		e=$((${EPOCHREALTIME/./} + %(stall)d))
-		while [ "${EPOCHREALTIME/./}" -lt "$e" ]; do :; done
+		e=$((${EPOCHREALTIME/./} + %(guard)d))
+		read -r s < /proc/$$/stat
+		f=(${s##*) })
+		t0=$((f[11] + f[12]))
+		while [ "${EPOCHREALTIME/./}" -lt "$e" ]; do
+			read -r s < /proc/$$/stat
+			f=(${s##*) })
+			[ $((f[11] + f[12] - t0)) -lt %(stall)d ] || break
+		done
 		echo done > %(s)s.stalled
 	fi
 	if [ -f %(s)s.spin ]; then
@@ -196,7 +208,7 @@ command -v dt_ticker > /dev/null && dt_ticker spinapp_tick
 fn spinapp_draw(int id, int h, int w, int row, int col) {
 	console put -p "w$id" 1 1 "spin"
 }
-""" % {"s": SAID, "stall": STALL * 1000000, "spin": 4 * RES})
+""" % {"s": SAID, "stall": STALL, "guard": GUARD * 1000000, "spin": 4 * RES})
 # A ticker that, once a file says block, opens a pipe nothing writes to and
 # waits there, using no processor, until the test writes to it.
 open(APPS["blkapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app blkapp "Block" 6 30
@@ -565,7 +577,7 @@ expect(r"held: spinapp_tick held")
 open(SAID + ".stall", "w").close()
 check("an app process's ticker that stalls a second and returns is a held: line, from its own timing, "
       "naming that process and not the desktop",
-      until(t, ".stalled", lambda s: s == "done", 5 + STALL) and
+      until(t, ".stalled", lambda s: s == "done", 5 + GUARD) and
       until(t, "", lambda s: "held: spinapp_tick held spinapp's own process" in log(t), 6),
       log(t)[-800:])
 do(t, "dt_del $S")
