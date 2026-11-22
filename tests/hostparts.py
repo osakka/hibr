@@ -398,7 +398,10 @@ if pr is not None:
     click(t, pr, pc)
 check("a press in it reaches its _popmouse there",
       saidwait("popmouse %s press" % bpid), said())
+# Held by the desktop while it waits, and by the item's own process when
+# its call ends, as the slow pane's click is below.
 expect(r"held: input:tbun has not answered the person's input to pop:tbunb:press")
+expect(r"held: tbunb_popmouse held the desktop")
 deadline = time.time() + 3 * SLOW
 while time.time() < deadline and "input to pop:tbunb:press" not in log(t):
     t.collect(0.1)
