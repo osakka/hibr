@@ -108,7 +108,7 @@ DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_sessio
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt", "archives", "holdrenew", "native",
                                          "traymod", "rtchan", "onset", "stale", "audience", "appseam", "inputlat", "saverload", "superdrag", "hoverwant", "hosted",
-                                         "keepawake", "natscale", "widgetroles", "idlepass")
+                                         "keepawake", "natscale", "widgetroles")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")
 
@@ -271,6 +271,8 @@ def path_suites(path, req, prov, where, desk=None, since=None):
         if n in ("affected.py", "census.py", "asan.py", "diff.py",
                  "corpus.py", "fuzz.py", "covmap.py"):
             return set(), "a tool, not a suite"
+        if n == "idlepass.py":
+            return set(), "a check run alone, after the gate"
     if path == "programs/vw.hibr":
         return {"vw", "vault", "run.sh"}, "the vw command"
     if path == "programs/contacts.hibr":

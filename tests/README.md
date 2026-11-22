@@ -234,7 +234,9 @@ More tools sit around it:
   the passes and ends the desktop at the Nth, and 20 passes subtracted
   from 60 leave one pass with startup and load cancelled. Held under a
   bound that fails a 100 us slowdown put in the loop on purpose. Needs
-  valgrind, and fails without it; under the sanitizers, whose build no
+  valgrind, and fails without it; run alone, never beside other suites
+  (a loaded box adds clock-driven work to a pass: 12.53 M under four
+  spinners against 11.9 M alone); under the sanitizers, whose build no
   count describes, it checks only that the passes run.
 - **`tests/inputlat.py`** -- how long the person's input takes to reach
   the screen, per app (ADR 0050's sensitivity requirement,

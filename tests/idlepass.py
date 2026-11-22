@@ -20,6 +20,13 @@ BOUND sits between today's pass and today's plus a 100 us slowdown made on
 purpose (the busy loop in MUTATE, put in dt_run's own loop), so the code
 that cost 135 us would fail it. It needs valgrind: without it the check
 fails, it never skips.
+
+Run it alone, never beside other suites: the subtraction cancels startup
+and load, but not work the clock sets off, and a slower pass meets more of
+it -- with a spinner on each of the four cores a pass counted 12.53 M,
+over the bound, where alone it counts 11.86 to 11.99 M. So it is not in
+tests/all.py's parallel run; a gate runs it after the others, as the
+sanitizer gate runs alone.
 """
 import glob, os, re, shutil, statistics, subprocess, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
