@@ -480,8 +480,11 @@ check("and saying it has another's pane is refused: the pane stays the "
       log(t)[-1500:])
 
 # A pane that holds its process past a stall: the person's input to it is
-# named held, judged from outside by a window's rule, the same budget.
+# named held, judged from outside by a window's rule, the same budget --
+# by the desktop while it waits, and by the pane's own process when its
+# call ends, as hostfail's hanger is by both.
 expect(r"held: input:\S*slowp\.hibr has not answered the person's input to pane:slowp:click")
+expect(r"held: slowp_click held the desktop")
 do(t, "dt_rthostk pane slowp")
 waitfor(t, '[ -n "${DT_RVPC[slowp]-}" ]')
 do(t, "panel_goto $P slowp")
