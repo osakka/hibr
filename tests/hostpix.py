@@ -493,8 +493,10 @@ open(appb, "w").write(
     "  console pen default default\n"
     "  console put -p v1 0 0 hello\n"
     "  [ -z \"$p\" ] || img draw \"$p\" 1 1 6 12 -m pixels -p v1\n"
+    "  [ -z \"${fsn-}\" ] || frames place \"$fsn\" v1 1 14 6 10\n"
     "  console flush > /dev/null\n"
     "}\n"
+    "fsn=\n"
     "last=\n"
     "while :; do\n"
     "  c=; [ -f %(o)s.cmd ] && read -r c < %(o)s.cmd\n"
@@ -503,6 +505,8 @@ open(appb, "w").write(
     "    read -r n v a b <<< \"$c\"\n"
     "    case $v in\n"
     "    pic) draw \"$a\" ;;\n"
+    "    stream) need frames; x := frames serve; read -r fsn fso fst <<< \"$x\"\n"
+    "      printf '%%s %%s\\n' \"$fso\" \"$fst\" > %(o)s.fsock; draw \"$a\" ;;\n"
     "    none) draw \"\" ;;\n"
     "    regen) console cells view v1 2 8 28; draw \"\" ;;\n"
     "    film) for ((i = 0; i < a; i++)); do draw \"%(p)s$((i %% 2)).png\"; sleep 0.05; done ;;\n"
@@ -593,6 +597,33 @@ check("and the desktop places it on each display's terminal under that id",
 ap = apps(nmb).get(apid)
 check("hold knows the app by its process, one picture, its frame taken",
       ap and ap[0] == 1 and ap[1] >= 1 and ap[2] == 0, apps(nmb))
+
+# A program's frames by dmabuf through the app's own process (the frames
+# module there, as Blit's compositor windows are in the desktop's): its
+# stream placed beside the picture, its frames to hold on the app's own
+# connection, and what the displays say of them back to the program in its
+# own numbers.
+appdo("stream", P[0])
+fs = open(ob + ".fsock").read().split() if os.path.exists(ob + ".fsock") else None
+pb = Bridge(*fs) if fs else None
+f3a, f3b = len(dmaframes(lba)), len(dmaframes(lbb))
+for _ in range(6):
+    if pb:
+        pb.send(42)
+    time.sleep(0.15 * SLOW)
+time.sleep(1.0 * SLOW)
+sa = [x["id"] for x in dmaframes(lba)[f3a:]]
+sb = [x["id"] for x in dmaframes(lbb)[f3b:]]
+check("a program's dmabuf frames, sent to the frames module in an app's own "
+      "process, reach both displays' Blits under an id of the desktop's band",
+      sa and sb and set(sa) == set(sb) and len(set(sa)) == 1 and sa[0] != I
+      and sa[0] >> 14 == I >> 14, (sa, sb, I))
+rel = [a for a in (pb.answers(1.0) if pb else []) if a.startswith("FRAME release")]
+check("and the displays' releases come back to the program as its own id",
+      rel and all(a.split()[2] == "42" for a in rel), rel)
+ap = apps(nmb).get(apid)
+check("hold keeps the app's two pictures apart, each its own slot",
+      ap and ap[0] == 2 and ap[2] == 0, apps(nmb))
 
 p0 = passes()
 f0 = len(memframes(lba, I))
@@ -694,6 +725,114 @@ open(ob + ".stop", "w").close()
 time.sleep(0.5)
 finish(nmb, tb0, tb1, psb)
 
+# C. The real path: a held test desktop, an installed app started in its
+# own process by the desktop (dt_rthost, runtime.hibr), its _draw drawing a
+# picture with img draw, the window shown from its kept cells (dt_rvshow),
+# minimised and back, its app killed with its window kept (Control Panel's
+# default), and the window closed at last (dt_rvletgo).
+oc = os.path.join(D, "c")
+PICAPP = os.path.join(D, "picapp-%d.hibr" % os.getpid())
+open(PICAPP, "w").write(
+    "need img\n"
+    "command -v dt_app > /dev/null && dt_app picapp \"Pic\" 10 30\n"
+    "fn picapp_draw(int id, int h, int w, int row, int col) {\n"
+    "\tconsole put -p \"w$id\" 1 1 \"picture\"\n"
+    "\timg draw %s 2 1 6 12 -m pixels -p \"w$id\"\n"
+    "}\n" % P[2])
+sessc = os.path.join(D, "sessC-%d.hibr" % os.getpid())
+open(sessc, "w").write(
+    "%s. %s\n"
+    "dt_open\n"
+    "DT_NOTEMS=60000\n"
+    "DT_LOADING=%s dt_app picapp \"Pic\" 10 30\n"
+    "DT_LOADING=\n"
+    "tst_go() {\n"
+    "\t[ -f %s.do ] || { dt_want 100; return 0; }\n"
+    "\tlocal c\n"
+    "\tread -r c < %s.do\n"
+    "\tcommand rm -f %s.do\n"
+    "\teval \"$c\"\n"
+    "\tdt_want 30\n"
+    "}\n"
+    "dt_ticker tst_go\n"
+    "dt_run\n"
+    "dt_close\n" % (load(tree("build/mods/console.so")),
+                    tree("programs/desktop/desktop.hibr"), PICAPP, oc, oc, oc))
+nmc, tc0, tc1, lca, lcb, psc = session("c", sessc)
+
+
+def cdo(cmd):
+    open(oc + ".do.tmp", "w").write(cmd + "\n")
+    os.rename(oc + ".do.tmp", oc + ".do")
+    wait(lambda: not os.path.exists(oc + ".do"), 10)
+
+
+def cres(cmd):
+    if os.path.exists(oc + ".pend"):
+        os.unlink(oc + ".pend")
+    cdo(cmd + " > %s.pend" % oc)
+    wait(lambda: os.path.exists(oc + ".pend"), 10)
+    time.sleep(0.05)
+    return open(oc + ".pend").read().strip() if os.path.exists(oc + ".pend") else ""
+
+
+def apppic(lg):
+    return [x["id"] for x in memframes(lg) if x["first"][:2] == [200, 80]]
+
+
+cdo("dt_rthost picapp")
+wait(lambda: cres('echo "${DT_RTHOST[picapp]-}"'), 10 * SLOW)
+c0, c1 = len(tc0.out), len(tc1.out)
+cdo("W := dt_new Pic 10 30 7 4 picapp")
+wait(lambda: apppic(lca) and apppic(lcb), 10 * SLOW)
+time.sleep(1.0 * SLOW)
+pa, pb_ = apppic(lca), apppic(lcb)
+Ic = pa[-1] if pa else 0
+cpid = cres('echo "${DT_RTCPID[${DT_RVC[$W]}]-}"')
+check("through the real runtime: an installed app started in its own process "
+      "draws a picture with img draw, and its frames reach both displays' "
+      "Blits from that process", Ic and Ic in pb_ and cpid.isdigit()
+      and int(cpid) in apps(nmc), (pa, pb_, cpid, apps(nmc)))
+s0, s1 = ctls(tc0, c0), ctls(tc1, c1)
+check("and the desktop places it on both displays' terminals where the "
+      "window shows it", placed(s0, Ic) and placed(s1, Ic), (s0[-6:], s1[-6:]))
+c0 = len(tc0.out)
+cdo("dt_min $W")
+time.sleep(1.5 * SLOW)
+s0 = ctls(tc0, c0)
+c0 = len(tc0.out)
+cdo("dt_min $W")
+time.sleep(1.5 * SLOW)
+s0b = ctls(tc0, c0)
+check("minimised, the window's picture loses its placement and keeps its "
+      "image; shown again, it is placed under the same id",
+      deleted(s0, Ic, "i") and not deleted(s0, Ic, "I") and placed(s0b, Ic),
+      (s0, s0b))
+c0, c1 = len(tc0.out), len(tc1.out)
+cres("kill -9 %s; echo" % cpid)
+wait(lambda: cres('echo "${DT_RVC[$W]-}"') == "-", 10 * SLOW)
+time.sleep(1.0 * SLOW)
+cdo("dt_min $W")
+time.sleep(1.0 * SLOW)
+c0, c1 = len(tc0.out), len(tc1.out)
+cdo("dt_min $W")
+time.sleep(1.5 * SLOW)
+s0, s1 = ctls(tc0, c0), ctls(tc1, c1)
+ac = apps(nmc).get(int(cpid) if cpid.isdigit() else 0)
+check("its app killed, the window keeps its last picture as the Control "
+      "Panel's default says: minimised and shown again, it is placed on "
+      "both displays, hold keeping its frame", cres('echo "${DT_RVC[$W]-}"') == "-"
+      and placed(s0, Ic) and placed(s1, Ic) and ac and ac[0] == 1, (s0, s1, ac))
+c0, c1 = len(tc0.out), len(tc1.out)
+cdo("dt_del $W")
+time.sleep(2.0 * SLOW)
+s0, s1 = ctls(tc0, c0), ctls(tc1, c1)
+check("closed, the kept window lets its picture go for good on every "
+      "display, and hold forgets the app", deleted(s0, Ic, "I")
+      and deleted(s1, Ic, "I") and int(cpid or 0) not in apps(nmc),
+      (s0, s1, apps(nmc)))
+finish(nmc, tc0, tc1, psc)
+
 # Outside hold, an app's pictures are cells.
 lsn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 sock2 = os.path.join(D, "cw2.sock")
@@ -730,4 +869,4 @@ check("outside a held session an app's picture is drawn as cells, and no "
       "picture is said to the desktop",
       any(l.startswith(b"r ") for l in recs) and not any(l.startswith(b"p ") for l in recs),
       recs[:8])
-report(28)
+report(36)
