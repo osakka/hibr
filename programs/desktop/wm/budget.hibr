@@ -218,7 +218,7 @@ fn dt_passmark() {
 # Call one of a window's own input handlers -- its _key, _click, _mouse or
 # _wheel -- timed against its app.
 fn dt_appcall(int id, cb, ...args) {
-	local ap=${DT[$id]["app"]} t0 t st
+	local ap=${DT[$id]["app"]} t0 t st rv
 
 	[ -n "$cb" ] || return 1
 	[ -z "${DT_INANS-}" ] || DT_INWIN=$id
@@ -227,9 +227,17 @@ fn dt_appcall(int id, cb, ...args) {
 	t0=${EPOCHREALTIME/./}
 	"$cb" "$id" "${args[@]}"
 	st=$?
+	rv=$RET
 	t=$((${EPOCHREALTIME/./} - t0))
 	DT_WHO=
-	[ -z "$DT_STATON" ] && [ "$t" -lt 1000 ] || dt_spent "input:${ap:-bare}" "$t" "$ap"
+	# The timing names the slowest call through the result slot, so the
+	# handler's own answer is put back after it: an app's own process
+	# sends that answer as its `took` (ADR 0050), and a slow key's log
+	# line went in its place.
+	if [ -n "$DT_STATON" ] || [ "$t" -ge 1000 ]; then
+		dt_spent "input:${ap:-bare}" "$t" "$ap"
+		RET=$rv
+	fi
 	return "$st"
 }
 
