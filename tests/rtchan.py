@@ -769,10 +769,12 @@ import json as pyjson
 kf, files = hello_from("/elsewhere/apps/files.hibr")
 # What a file reads, and what the shared functions it calls read to the end of
 # their chain (Files names an opener through dt_openertitle, which reads
-# DT_OPENERS), and nothing else: not the apps' table it never reaches, nor
-# the clipboard history or the notes.
+# DT_OPENERS), and nothing else: not the bar's items it never reaches, nor
+# the clipboard history or the notes. (The apps' table it does reach since
+# its process draws its part, the Files pane, whose rows' slider reads it:
+# cp_rowsclick, cp_slide, dt_cellpx, dt_capped.)
 check("a file is sent the registries it reads and those the shared functions it calls read, and no other",
-      "DT_OPENVERBS" in files and "DT_OPENERS" in files and "DT_APPS" not in files
+      "DT_OPENVERBS" in files and "DT_OPENERS" in files and "DT_BARI" not in files
       and "DT_CH" not in files and "DT_NOTEHIST" not in files,
       (files.get("?"), sorted(n for n in files if n.isupper())))
 ku, unknown = hello_from("/elsewhere/apps/nobody-read-this.hibr")
