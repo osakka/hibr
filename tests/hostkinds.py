@@ -251,6 +251,8 @@ r = striprow(t)
 col = "".join(t.screen().g[r]).find("Shadow") if r is not None else -1
 was = result(t, 'echo "$DT_SHADOW"')
 for term in (t, u):
+    if r is None:
+        break
     term.send(screen.press(r, col + 1), settle=0.1, collect=0.1)
     term.send(screen.release(r, col + 1), settle=0.1, collect=0.1)
 check("a click reaches its own _click, whose setting the desktop takes",
@@ -304,7 +306,8 @@ def body(text, secs=5):
 
 
 check("the test's pane is drawn by its own process", body("clicks 0"), t.screen().text())
-bx = int(result(t, 'echo "${DT_RVXARGS[p$P]}"').split()[2] or 0)
+bx = (result(t, 'echo "${DT_RVXARGS[p$P]-}"').split() + ["", "", "0"])[2]
+bx = int(bx) if bx.isdigit() else 0
 br, bc = pr + 2, pc + bx + 2
 t.send(screen.press(br, bc), settle=0.1, collect=0.1)
 t.send(screen.release(br, bc), settle=0.1, collect=0.1)

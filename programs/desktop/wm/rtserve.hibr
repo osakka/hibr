@@ -718,9 +718,11 @@ fn dt_rtmsg(int c, line) {
 		[ "${a[3]-}" = "$who" ] ||
 			dt_log "app runtime: a hello said it was ${a[3]:-nothing}; it is $who, by its launch"
 		if ! dt_rtmay "$who"; then
-			x := dt_rtline refused "$who is not installed"
+			x="an installed app"
+			[[ $who == */* ]] && x="a file an installable was registered from"
+			dt_log "app runtime: refused a hello from $who, which is not $x"
+			x := dt_rtline refused "$who is not $x"
 			dt_rtsay "$c" "$x"
-			dt_log "app runtime: refused a hello from $who, which is not installed"
 			dt_rtdrop "$c"
 			return 1
 		fi
