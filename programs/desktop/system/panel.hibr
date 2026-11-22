@@ -233,6 +233,14 @@ fn panel_goto(int w, pane) {
 	return 1
 }
 
+# Whether pane draws itself -- by its own _draw, or in its own process
+# (wm/rtkinds.hibr), which a pane of rows drawn there does too, and which
+# one whose process is still starting is already: the desktop draws its
+# face and never builds its rows, whose functions it no longer has.
+fn panel_drawn(pane = "") {
+	[ -n "$pane" ] && { [ -n "${DT_RVP["$pane"]+x}" ] || dt_has "${pane}_draw"; }
+}
+
 # The selected pane's name, clamped to what is actually registered -- a
 # pane can vanish between frames if whatever provided it stops (nothing
 # does today, but the window list already assumes apps can close under it).
@@ -432,7 +440,7 @@ fn panel_draw(int id, int h, int w, int row, int col) {
 	# A pane its own process drew here before goes when another is shown
 	# (wm/rtkinds.hibr): one lookup for every other panel.
 	[ -z "${DT_RVX["p$id"]+x}" ] || dt_rvpaneseen "$id" "$pane"
-	if dt_has "${pane}_draw"; then
+	if panel_drawn "$pane"; then
 		dt_prefixfn "$pane" draw "$id" $((h - 1 - srows)) "$bw" "$bx"
 	else
 		cp_rowsdraw "$id" "$pane" $((h - 1 - srows)) "$bw" "$bx"
@@ -507,7 +515,7 @@ fn panel_key(int w, key) {
 	fi
 
 	pane := panel_pane "$w"
-	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
+	if panel_drawn "$pane"; then
 		if dt_has "${pane}_key"; then
 			dt_prefixfn "$pane" key "$w" "$key"
 			return $?
@@ -555,7 +563,7 @@ fn panel_click(int w, int r, int c, btn = "") {
 	pane := panel_pane "$w"
 	[ -z "$pane" ] && return 0
 	PW[$w]["side"]=pane
-	if dt_has "${pane}_draw"; then
+	if panel_drawn "$pane"; then
 		dt_has "${pane}_click" && dt_prefixfn "$pane" click "$w" "$r" "$c"
 		return 0
 	fi
@@ -604,7 +612,7 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 		# this panel built, never of a pane that draws itself, whose rows
 		# here are another pane's from before.
 		pane := panel_pane "$id"
-		if ! panel_inlist "$id" "$c" && ! dt_has "${pane}_draw" &&
+		if ! panel_inlist "$id" "$c" && ! panel_drawn "$pane" &&
 			cp_rowspress "$id" "$r" "$c"; then
 			return 0
 		fi
@@ -635,7 +643,7 @@ fn panel_wheel(int? w = "", dir = "", int? r = "", int? c = "") {
 		return 0
 	fi
 	pane := panel_pane "$w"
-	if [ -n "$pane" ] && dt_has "${pane}_draw"; then
+	if panel_drawn "$pane"; then
 		dt_has "${pane}_wheel" && dt_prefixfn "$pane" wheel "$w" "$dir"
 		return 0
 	fi
