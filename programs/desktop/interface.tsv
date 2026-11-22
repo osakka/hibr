@@ -253,7 +253,7 @@ local	dt_fieldcut	widgets/text.hibr	1	1	asked	-	dt_fieldcut(id)	-	-
 request	dt_notep	wm/notify.hibr	588	86	told	-	dt_notep(prio, text, ...rest)	-	-
 request	dt_set	wm/settings.hibr	381	99	told	-	dt_set(...pairs)	0.99.554	-
 request	dt_del	wm/windows.hibr	220	46	told	-	dt_del(int id)	-	-
-request	dt_launch	wm/apps.hibr	67	36	asked	-	dt_launch(n, arg = "")	-	-
+request	dt_launch	wm/apps.hibr	66	35	asked	-	dt_launch(n, arg = "")	-	-
 request	dt_retitle	wm/windows.hibr	64	25	waited	-	dt_retitle(int id, title)	-	-
 request	dt_new	wm/windows.hibr	64	41	asked	-	dt_new(title, int h, int w, int row, int col, ap = "", arg = "")	-	-
 request	dt_filepick	wm/filepick.hibr	57	24	told	-	dt_filepick(mode, title, types, dir, name, callback, for, oncancel = "")	-	-
@@ -379,6 +379,7 @@ request	dt_clipkeep	wm/clip.hibr	2	2	told	-	dt_clipkeep(text, kind = text)	-	-
 request	dt_noteseen	wm/notify.hibr	2	2	told	-	dt_noteseen()	0.99.555	-
 request	dt_notehist_run	wm/notify.hibr	2	2	waited	-	dt_notehist_run(int hid)	-	-
 request	dt_appunvia	wm/apps.hibr	1	1	told	-	dt_appunvia(via)	-	-
+request	dt_termrun	wm/handlers.hibr	1	1	told	-	dt_termrun(how = "", arg = "", ...cmd)	0.99.558	-
 request	fp_drop	wm/filepick.hibr	1	1	told	-	fp_drop(int id)	0.99.555	-
 request	fp_set	wm/filepick.hibr	1	1	told	-	fp_set(int id, ...pairs)	0.99.555	-
 request	fp_path	wm/filepick.hibr	1	1	asked	-	fp_path(int id, int i)	-	-

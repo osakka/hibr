@@ -640,6 +640,11 @@ fn dt_termhere(dir) {
 	dt_rtsend tell dt_termhere "$dir"
 }
 
+# Told to the desktop, wm/handlers.hibr.
+fn dt_termrun(how = "", arg = "", ...cmd) {
+	dt_rtsend tell dt_termrun "$how" "$arg" "${cmd[@]}"
+}
+
 # Told to the desktop, wm/tile.hibr.
 fn dt_tile(int? n = "") {
 	dt_rtsend tell dt_tile "$n"
