@@ -417,11 +417,6 @@ check("its job's callback runs in it when the job ends, and then it ends by itse
       and "process %s had no window left and had not gone" % jpid not in log(t), log(t)[-600:])
 
 # --- a terminal window's command ------------------------------------------
-# The Terminal's own process names itself through dt_holdsess, which is
-# wm/hold.hibr's, a file the runtime does not source: a hosted Terminal's
-# gap, not this track's (the terminal's ownership is another), said here so
-# it is not taken for one of these.
-expect(r"dt_holdsess: command not found")
 host(t, "term")
 do(t, "DT_OPENCMD=(sh -c 'echo opened-$((6*7)); sleep 30'); DT_OPENSELF=1; "
       "T := dt_new Terminal 8 40 20 70 term")

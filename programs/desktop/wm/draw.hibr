@@ -16,6 +16,14 @@ fn dt_rep(int n, s) {
 	ret "$o"
 }
 
+# This session's own name, from HIBR_HOLD's own socket path -- what hold's
+# subcommands that take an explicit session name (clients, move, drop,
+# primary; detach and kill alone fall back to HIBR_HOLD with none) need,
+# and what names a process. Shared, since a window drawn by its app's own
+# process names its program with it (the Terminal's tw_fit), and HIBR_HOLD
+# is in that process's environment as in the desktop's.
+dt_holdsess() { ret "${HIBR_HOLD##*/}"; }
+
 # A short process name: the kernel keeps 15 usable bytes of it, which is
 # what `top`, htop's default column, `pgrep` and `killall` read, and what
 # every part of a desktop was unreadable in before 0.99.131 (Gitea #168).

@@ -276,12 +276,6 @@ dt_detach() {
 	need hold && hold detach
 }
 
-# This session's own name, from HIBR_HOLD's own socket path -- what hold's
-# subcommands that take an explicit session name (clients, move, drop,
-# primary; detach and kill alone fall back to HIBR_HOLD with none) need.
-# The Control Panel's own Displays pane is the one place that switches a
-# display off; there is no menu-bar equivalent.
-dt_holdsess() { ret "${HIBR_HOLD##*/}"; }
 
 # Flash a display's own name in the middle of its own screen -- called
 # with its row, col, rows and cols (hold clients's own coordinates), not

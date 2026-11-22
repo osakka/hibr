@@ -173,7 +173,7 @@ local	dt_isbundle	wm/openfacts.hibr	4	2	waited	-	dt_isbundle(path)	-	-
 local	dt_band	widgets/band.hibr	4	2	told	-	dt_band(pane, int r0, int c0, int r1, int c1, bg = "")	-	-
 local	dt_openbrowse	wm/openfacts.hibr	4	2	asked	-	dt_openbrowse(path)	-	-
 local	dt_wallimgmode	wm/picmode.hibr	4	2	asked	-	dt_wallimgmode()	-	-
-local	dt_holdsess	wm/hold.hibr	4	4	asked	-	dt_holdsess()	-	-
+local	dt_holdsess	wm/draw.hibr	4	4	asked	-	dt_holdsess()	-	-
 local	dt_vwuntil	wm/vaultfacts.hibr	4	4	asked	-	dt_vwuntil()	-	-
 local	dt_btnlist	wm/orders.hibr	4	4	told	-	dt_btnlist()	-	-
 local	cs_ordered	wm/orders.hibr	4	2	told	-	cs_ordered()	-	-
