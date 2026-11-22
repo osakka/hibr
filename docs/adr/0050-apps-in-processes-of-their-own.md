@@ -1503,11 +1503,14 @@ and every descriptor of the desktop's closed in the child -- and is handed a
 copy of the master by descriptor; it reads and writes the master itself, so
 no byte of the program's passes through the desktop. The desktop waits for
 the program and tells the app how it ended. A program goes when its app
-process closes it (its window's `_close`), or when no process of its app has
-held it for `DT_RTPTYSECS` (10 s) -- an app process that ended with nothing
-taking its programs back -- hung up and waited for, as closing its window
-would have done. A desktop that dies takes its programs with it, as the
-owner accepted for terminals (Why not a desktop service).
+process closes it (its window's `_close`), or once no process holds it and
+no window's record names it (`DT[ID]["prog"]`, which the Terminal tells the
+desktop with `dt_winprog` once it has started one) -- hung up and waited
+for, as closing its window would have done. So a program outlives a crash of
+its app's process for as long as the window kept for it stays: Reopen takes
+it back into the window it opens, and closing the kept window hangs it up
+(the owner, 2026-11-22). A desktop that dies takes its programs with it, as
+the owner accepted for terminals (Why not a desktop service).
 
 All of it is in `mods/pty`, behind `py_api` unchanged, so the Terminal, the
 term module and hold do not know: a process with a channel (`pty via`) asks.
@@ -1546,28 +1549,51 @@ resets the peer before it reads what is queued, and which macOS lacks):
   `K rid signal`, `C rid`; and back `s rid pid` or `a rid pid done status`
   each with the master, `e why`, `x rid status`.
 
-**An update is a Restart Desktop, and every one replaces every app
-process.** Before the exec the desktop asks each window an app process draws
-to keep its state (`call SEQ ID stash DIR`: the app's `_stash`, then each
-map its `dt_keepstate` names, as `rt-ID.json`), never waiting -- the restart
-goes on when the last answers or `DT_RVKEEPMS` passes. It writes which
-windows were hosted and the programs it owns (`pty owned`: fd, pid, app);
-the masters cross the exec as a terminal's do today. The desktop after it
-takes each program back held by nobody (`pty adopt -o`), starts a new zygote
-from disk, forks a fresh process for each app, and once a window's view is
-bound asks it to take the window up (`call SEQ ID resume DIR`: the maps read
-back, then `_resume`), where the Terminal's own `term_resume` asks the
-desktop for its program by pid and is handed the master. The old app
-processes see their socket end and go; the old zygote waits for them and
-goes, and the new desktop waits for it. A crash snapshot has nothing kept:
-its hosted windows open fresh in a fresh process.
+**An update is a Restart Desktop, and it keeps every app process whose code
+is current** (the owner, 2026-11-22: one rule, decided per process). Before
+the exec the desktop asks of each process whether what it runs is what is on
+disk (`dt_rtcurrent`, `dt_rtappcurrent`): hibr itself -- the zygote's
+`/proc/PID/exe` the same file as `$HIBR`, the question `DT_UPNEW` asks of the
+desktop -- and the desktop's own files the zygote read, none newer than the
+zygote's start; then its app's own files, its file and its parts, none newer
+than its launch (a stamp file each, beside the socket).
 
-No protocol move: `stash` and `resume` are a `call` of another callback, as
-the spine's table says of later tracks; the zygote and the pty channel are
-new peers with their own words, not lines on the app socket. An app process
-and the desktop it speaks to are always one version, since a restart
-replaces every app process -- what the protocol number guards against
-(an old process meeting a new desktop) cannot arise.
+- **Current: kept.** It is asked to stay (`call SEQ - carry TOKEN`, answered
+  as any call is), and the restart goes on when it has answered. With any
+  kept, the zygote is kept too: its channel crosses the exec as an
+  inheritable copy, as each kept process's terminals' channel does, and the
+  programs the desktop owns are taken back under their own numbers, held by
+  that channel (`pty owned`: fd, pid, id, channel, size, app; `pty adopt -o`
+  with the id and the channel). Its connection ends with the old desktop; the
+  process listens for the socket again (`dt_rtrejoin`), says hello with the
+  launch the old desktop named, is sent every shared name again, says again
+  what its file said as it was read, and opens a cells channel of its own,
+  over which every view it had is bound again and drawn whole -- every link,
+  translucency and picture told afresh, as that channel has been told
+  nothing (`cw_open`). Its windows, their state and its programs are as they
+  were: nothing is opened or taken up again (a window it draws is restored
+  held, `DT_RVHELD`, with neither `_open` nor `resume` due), and its panes,
+  modules, savers and bar items are marked its process's again.
+- **Not current: replaced, as first built.** Each window it draws keeps its
+  state (`call SEQ ID stash DIR`), the window is restored for a fresh process
+  -- forked from the kept zygote when only the app's own files changed, or
+  from a new zygote read from disk when hibr's did -- which takes it up once
+  its view is bound (`call SEQ ID resume DIR`), the Terminal's `term_resume`
+  asking for its program by pid. The old process sees its socket end and
+  goes.
+
+A terminal's program lives on either way. A crash snapshot has nothing kept:
+its hosted windows open fresh in a fresh process, and a Terminal there takes
+its program back by the pid its window's record names.
+
+No protocol move: `carry`, `stash` and `resume` are each a `call` of another
+callback, as the spine's table says of later tracks; the zygote and the pty
+channel are new peers with their own words, not lines on the app socket. A
+kept process runs the same hibr and the same desktop files as the desktop
+it joins, by the rule that kept it. Not yet asked: the modules it has
+mapped -- one rebuilt or replaced in place leaves it on the old one; the
+`(deleted)` mappings in `/proc/PID/maps`, which the stale-session test in
+`wm/restart.hibr` already reads, asked of the zygote, are the way.
 
 **Measured** (2026-11-22, the shared box, medians). The mechanism alone, on
 this tree's runtime with no desktop (`zygote fork` against a fresh
@@ -1617,17 +1643,20 @@ first, never ran its own ticker (a `dt_want 100`) in 20 s while the harness
 sent it focus reports -- the desktop's hold, outside this track, noted and
 not chased; the Control Panel's row stops at 200.
 
-Not carried: `DT_LIVEMS`. `dt_live` is local -- the app's process knows its
-window plays video and the desktop does not -- so a hosted video window is
-held to `DT_TERMMS` at both ends. Carrying it is `dt_live` told as well as
-kept, the desktop's `dt_holdms` reading it, and the runtime holding a live
-window to `DT_LIVEMS`; left to the track that hosts a live window, since no
-suite has one yet. Nor, yet, the person's own `DT_TERMMS`: the runtime reads
-it, but `mirrors.hibr` sends it only to the files the inventory saw read it
-(the Browser, Boxer, the Desktop pane) -- `tools/appstate.py` does not read
-`runtime.hibr` -- so a Terminal's process holds to the shipped 70 ms
-whatever Frames For Output says. Counting the runtime's top-level reads as
-every process's ("*") and writing `mirrors.hibr` again is the fix.
+**Frames For Video and Frames For Output** (the owner, 2026-11-22). A window
+playing video (`dt_live`) is told to the desktop, whose `dt_holdms` holds its
+frames to `DT_LIVEMS`, and kept in its own process too (`dt_rtsend`), whose
+draw holds a live window to `DT_LIVEMS` in place of `DT_TERMMS` -- one call,
+`dt_live` a told request now. And the person's own `DT_TERMMS` and
+`DT_LIVEMS` reach every app process: `tools/appstate.py` counts what
+`runtime.hibr` reads -- every app process's own loop -- as every process's
+("*"), so `mirrors.hibr` sends them, with the colours the runtime draws in,
+to every process. `tests/zygote.py`: the window written to every 4 ms is
+drawn 31.3 times a second once the desktop's `DT_TERMMS` is set to 30 (13.8
+at 70); the shipped Terminal's process is sent both holds, where before only
+the Browser's, Boxer's and the Desktop pane's were sent `DT_TERMMS`; and a
+window whose app calls `dt_live` is drawn 29.0 times a second in its process
+and the desktop draws 29.0 frames a second (14.0 before it opened).
 
 **An app process whose work has just ended.** An app process with no window
 left is looked at when its time to end comes and left while it is at work
@@ -1651,16 +1680,15 @@ beside `dt_shortname`, still classed local. `dt_termrun` (the told request
 for a terminal running a command, track 1's) was not needed here: a hosted
 Terminal's command reaches its `_open` in the window's record (`cmdn`).
 
-**Owner's choices left open**, built as recommended:
+**The owner's choices** (2026-11-22), built:
 
-1. A program whose app process crashed: hung up after `DT_RTPTYSECS`
-   (built), or kept for a Reopen to take back. Recommended: hang up -- a
-   Reopen opens fresh windows, so nothing would take it back, and today an
-   app crash hangs its programs up at once.
-2. Restart Desktop with no new version: every app process replaced (built,
-   one path), or kept and reconnected when the version is the same (Review
-   8's "survive and reconnect", superseded by this). Recommended: replace --
-   one path, and an edited tree at the same version is caught too.
+1. A crashed app's terminal programs are kept for Reopen, not hung up:
+   Reopen reattaches them, closing the kept window hangs them up.
+2. Restart Desktop keeps each app process whose code is current and
+   replaces the rest, one rule per process; terminals' programs survive
+   either way.
+3. Frames For Output reaches app processes.
+4. Frames For Video is told to the desktop and held at both ends.
 
 ## The first plan (2026-11-01), superseded
 
