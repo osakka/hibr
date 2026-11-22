@@ -599,11 +599,15 @@ under it. Files and the wallpaper picker open this way. `once`
 means one window at most: launching it again brings that window forward,
 shown if it was hidden. The calculator, Control Panel, the clock and the games
 are `once`; the terminal and the file browser are `many`. The icon is what
-the desktop shows for it. `hidden` keeps an app off the hibr menu and out
-of App Shortcuts while `dt_launch` can still open it by name -- Rename and Get
-Info, which only ever open on a particular file. The `command -v` guard is
-what lets the same file run on its own, where there is no desktop to
-register with.
+the desktop shows for it; written `@ID:TEXT` it is Blit's glyph of that id
+under the blit glyph set and TEXT under every other, worked out again
+whenever the set changes -- a glyph named rather than written, so the line
+stays data the desktop reads without running the file, as
+`"@wiretap-1-off:T"` does for Wiretap. `hidden` keeps an app off the hibr
+menu and out of App Shortcuts while `dt_launch` can still open it by name --
+Rename and Get Info, which only ever open on a particular file. The
+`command -v` guard is what lets the same file run on its own, where there is
+no desktop to register with.
 
 There are two window types, and the seventh argument picks between them.
 Leave it off and a window is fully manipulable: it can be moved, resized (by

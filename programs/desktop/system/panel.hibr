@@ -63,7 +63,8 @@ declare -gA CPSRC
 # accepts (return 0) ever sees the drag or the release that follows it.
 fn cp_pane(pane, title, icon, group = "system") {
 	CP_PANES[$pane]["title"]="$title"
-	CP_PANES[$pane]["icon"]="${icon:-◆}"
+	CP_PANES[$pane]["iconsaid"]="${icon:-◆}"
+	CP_PANES[$pane]["icon"] := dt_iconof "${icon:-◆}"
 	CP_PANES[$pane]["group"]=$group
 	CP_PANES[$pane]["src"]="${DT_LOADING-}"
 	CP_PANE_LIST+=("$pane")

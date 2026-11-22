@@ -45,6 +45,13 @@ open(BYFN, "w").write('app byfn "Registers from a function of its own" 1.0\n'
                       'byfn_declare() {\n\tdt_opener byfn "By Function" "byfn" app byfn\n}\n'
                       'command -v dt_opener > /dev/null && byfn_declare\n')
 FILES.append(BYFN)
+# And an app and a pane whose icon names a glyph of Blit's by its id, with
+# the text drawn where that glyph is not (dt_iconof).
+ICONFIX = os.path.join(os.path.dirname(FIXTURE), "icx.hibr")
+open(ICONFIX, "w").write('app icxapp "An icon named by its Blit id" 1.0\n'
+                         'command -v dt_app > /dev/null && dt_app icxapp "Icon" 6 30 once "@wiretap-1-off:T"\n'
+                         'command -v cp_pane > /dev/null && cp_pane icxpane "Icon" "@wiretap-1-off:T" app\n')
+FILES.append(ICONFIX)
 # The registries a registration writes, and whether each is a map.
 REGS = "DT_APPS CP_PANES CS_MODS DT_BARI DT_BARIN DT_OPENERS DT_OVN DT_KEEPSTATE DT_APPACT DT_ATSTART DT_BARHOOKS".split()
 
@@ -207,5 +214,43 @@ check("and once unzip is on the PATH, a rescan offers Show Contents and Extract 
 check("and a rescan that finds Archives gone takes every opener and verb of it away, and one that finds it "
       "back puts them back as they were",
       len(arc) > 3 and arc[2] == "|hvi|" and arc[3] == arc[1] and "|archives hvi|" in arc[3], (arc, p.stderr[-400:]))
+
+# An icon written @ID:TEXT, read: the text under every glyph set but blit,
+# Blit's glyph of that id under it, again whenever the set moves -- through
+# the setting, and through the settings a desktop starts with, which load
+# after the files have registered.
+ICONPROBE = r'''
+. %(desk)s/desktop.hibr
+. %(desk)s/system/panel.hibr
+dt_regread %(icx)s 2> /dev/null
+said() { printf '%%s|%%s\n' "${DT_APPS[icxapp]["icon"]-}" "${CP_PANES[icxpane]["icon"]-}"; }
+if [ "$1" = start ]; then
+	said
+	dt_load
+	said
+else
+	said
+	dt_set DT_GLYPHSET blit
+	said
+	dt_set DT_GLYPHSET unicode
+	said
+	dt_set DT_GLYPHSET blit
+fi
+'''
+d = tempfile.mkdtemp(prefix="regread-icon-")
+env = dict(os.environ, HIBR_MODPATH=MODS, HOME=d, XDG_CONFIG_HOME=d + "/config", XDG_STATE_HOME=d + "/state",
+           DT_BLITCAT=d + "/no-catalogue.json")
+icon = []
+for how in ("set", "start"):
+    p = subprocess.run([HIBR, "-c", ICONPROBE % {"desk": DESK, "icx": ICONFIX}, "x", how],
+                       capture_output=True, text=True, cwd=d, timeout=60, env=env)
+    icon += p.stdout.split("\n")[:-1]
+shutil.rmtree(d, ignore_errors=True)
+G = chr(0x1012CC)
+check("an icon written @ID:TEXT is its text under the unicode set, for an app and a pane alike, "
+      "Blit's glyph once the set is blit, and its text again after",
+      icon[:3] == ["T|T", G + "|" + G, "T|T"], (icon, p.stderr[-400:]))
+check("and a desktop whose settings say blit draws the glyph, though its files registered before they loaded",
+      icon[3:] == ["T|T", G + "|" + G], (icon, p.stderr[-400:]))
 shutil.rmtree(os.path.dirname(FIXTURE), ignore_errors=True)
-report(7)
+report(9)

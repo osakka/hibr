@@ -619,8 +619,10 @@ DT_KEEP=(DT_WALL DT_DOT DT_BAR DT_ACTIVE DT_IDLE DT_FACE DT_INK DT_GLYPH
 	DT_BARGAP DT_BELLICON DT_BARORDER DT_BARHIDE DT_MENUMARK DT_BTNSHADOW DT_SHADOWSHAPE DT_DLGBTN DT_TERMKEEP DT_TERMCTRL DT_GLYPHSET DT_PLACE DT_WSN DT_TILEMAIN DT_STANDBYAUTO DT_ZOOMFILL
 	DT_SNDKIND DT_SNDBAR DT_SNDLEVEL DT_SNDSTEP DT_MENUBOLD DT_MENUMAX DT_SCROLLWHEEL DT_NETKIND DT_NETBAR DT_NETRULE DT_PWBAR DT_PWLEVEL DT_PWLOW DT_PWCRIT DT_PWCRITDO DT_HOVER DT_FOCUSHOVER DT_TIPS DT_TIPMS DT_NRSHOW DT_NRPTRMS DT_NRMARKMS DT_SWITCHER DT_SWMS DT_SWSKIP DT_BAND DT_BANDPCT DT_BTKIND DT_BTBAR)
 # The glyph set is declared in every process (wm/glyphs.hibr) and redone by
-# dt_derive; the desktop's menus are built from its glyphs.
+# dt_derive; the desktop's menus are built from its glyphs, and an icon
+# written @ID:TEXT is worked out again for it (dt_iconsagain).
 dt_onset DT_GLYPHSET dt_setmenus
+dt_onset DT_GLYPHSET dt_iconsagain
 
 # Where the desktop's stderr goes while it holds the screen, so an app's
 # error message cannot scribble over the display, and the reason for a
@@ -715,6 +717,7 @@ dt_load() {
 	done
 	dt_keydups
 	dt_derive
+	dt_iconsagain
 	return 0
 }
 

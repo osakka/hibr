@@ -35,6 +35,31 @@ dt_runatstart() {
 	DT_ATSTART=()
 }
 
+# Every app's and pane's icon written @ID:TEXT (dt_iconof) again, for the
+# glyph set in force when it has moved since they were last worked out: a
+# setting changed, or the settings loaded after the files registered.
+# What each said is kept ("iconsaid"); "icon" is what draws.
+DT_ICONSET=
+dt_iconsagain() {
+	local n
+
+	[ "$DT_ICONSET" != "$DT_GLYPHSET" ] || return 0
+	DT_ICONSET=$DT_GLYPHSET
+	for n in "${!DT_APPS[@]}"; do
+		[[ ${DT_APPS[$n]["iconsaid"]-} == @* ]] || continue
+		DT_APPS[$n]["icon"] := dt_iconof "${DT_APPS[$n]["iconsaid"]}"
+	done
+	if dt_has cp_pane; then
+		for n in "${!CP_PANES[@]}"; do
+			[[ ${CP_PANES[$n]["iconsaid"]-} == @* ]] || continue
+			CP_PANES[$n]["icon"] := dt_iconof "${CP_PANES[$n]["iconsaid"]}"
+		done
+	fi
+	DT_APPPLANK=
+	DT_MENUIN=
+	return 0
+}
+
 # Register an app the hibr menu can open: name, title, height, width.
 fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = "", bare = "") {
 	# The plan and the built menus both describe the app list, so both go
@@ -48,7 +73,8 @@ fn dt_app(name, title, int h, int w, once = "", icon = "", fixed = "", hidden = 
 	DT_APPS[$name]["w"]="$w"
 	DT_APPS[$name]["once"]=
 	[ "$once" = once ] && DT_APPS[$name]["once"]=1
-	DT_APPS[$name]["icon"]="${icon:-◆}"
+	DT_APPS[$name]["iconsaid"]="${icon:-◆}"
+	DT_APPS[$name]["icon"] := dt_iconof "${icon:-◆}"
 	DT_APPS[$name]["fixed"]=
 	[ "$fixed" = fixed ] && DT_APPS[$name]["fixed"]=1
 	# hidden is for an app dt_launch has to find by name -- About This
@@ -87,6 +113,7 @@ fn dt_appvia(name, title, via, arg = "", dir = "") {
 	DT_APPS[$name]["h"]=${DT_APPS[$via]["h"]}
 	DT_APPS[$name]["w"]=${DT_APPS[$via]["w"]}
 	DT_APPS[$name]["once"]=
+	DT_APPS[$name]["iconsaid"]=${DT_APPS[$via]["iconsaid"]}
 	DT_APPS[$name]["icon"]=${DT_APPS[$via]["icon"]}
 	DT_APPS[$name]["fixed"]=${DT_APPS[$via]["fixed"]}
 	DT_APPS[$name]["hidden"]=

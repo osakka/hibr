@@ -480,6 +480,30 @@ fn dt_bg(name, ...ids) {
 	GL["$name"]=$g
 }
 
+# An icon as it draws now (ADR 0050): one written @ID:TEXT -- so a
+# registration read as data can name a glyph -- is Blit's glyph of that id
+# under the blit glyph set, where this Blit has it, and TEXT everywhere
+# else; any other icon is itself.
+fn dt_iconof(said) {
+	local id c
+
+	[[ $said == @?*:* ]] || ret "$said"
+	id=${said#@}
+	id=${id%%:*}
+	if [ "${DT_GLYPHSET-}" = blit ]; then
+		dt_blitread
+		c=${BG["$id"]-}
+		case $c in
+		"" | *[!0-9A-Fa-f]*) ;;
+		*)
+			printf -v c "\U00$c"
+			ret "$c"
+			;;
+		esac
+	fi
+	ret "${said#*:}"
+}
+
 # What a display that is not Blit gets for one of Blit's window parts (Gitea
 # #476): the unicode set's own glyph for the same name where it has one,
 # and otherwise this. An icon named nowhere is left to hold's hollow square.

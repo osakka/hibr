@@ -557,7 +557,9 @@ files, home, disks, the trash, ticks, stars and flags become the font's own
 icons, and everything it has no icon for stays unicode. No terminal can be
 asked what font it uses, so this one is chosen, never guessed; with an
 ordinary font its icons draw as empty boxes. The icon each app and pane
-chooses for itself stays as its own `dt_app` or `cp_pane` line writes it.
+chooses for itself stays as its own `dt_app` or `cp_pane` line writes it,
+unless it is written `@ID:TEXT`: then it is Blit's glyph of that id under
+the blit set and the text under every other, as the set changes.
 
 A player has its own names since 0.99.548 -- `play`, `pause`, `stop`,
 `prev`, `next`, `rewind`, `ffwd`, `eject`, `record`, `repeat`, `repeat1`
