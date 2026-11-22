@@ -112,7 +112,7 @@ struct cw_view {
 
 typedef struct cw_vp {
 	unsigned slot, sid, gid;
-	int r, c, h, w, said;
+	int r, c, h, w, said, seen;
 } cw_vp;
 
 /* The desktop's own numbers for the apps' pictures, apart from any stream
@@ -1230,13 +1230,20 @@ void cw_dmg(cw_view *v, int r, int c0, int c1)
 void cw_apply(cw_conn *k, cw_view *v, cw_op *ops, size_t n, const char *base)
 {
 	size_t i, at, ln;
-	int c, w, l;
+	int c, w, l, whole = 0;
 	unsigned cp;
 	cn_cell *x, *last;
 	cw_op *o;
 
 	for (i = 0; i < n; i++) {
 		o = &ops[i];
+		if (o->kind == 's') {
+			size_t j;
+
+			whole = 1;
+			for (j = 0; j < v->nvp; j++)
+				v->vp[j].seen = 0;
+		}
 		if (o->kind == 'p' || o->kind == 'x') {
 			size_t j;
 
@@ -1261,6 +1268,7 @@ void cw_apply(cw_conn *k, cw_view *v, cw_op *ops, size_t n, const char *base)
 			v->vp[j].c = o->col;
 			v->vp[j].h = o->n;
 			v->vp[j].w = o->pw;
+			v->vp[j].seen = 1;
 			v->chg = 1;
 			continue;
 		}
@@ -1345,6 +1353,19 @@ void cw_apply(cw_conn *k, cw_view *v, cw_op *ops, size_t n, const char *base)
 		if (c > o->col)
 			cw_dmg(v, o->row, o->col,
 			       (c > v->g.cols ? v->g.cols : c) - 1);
+	}
+	/* A frame that starts the view again says every picture it has: one
+	   it does not say was let go in a frame the desktop never applied --
+	   another generation's, skipped -- and goes now, as an x would have
+	   taken it. */
+	if (whole) {
+		i = v->nvp;
+		while (i--)
+			if (!v->vp[i].seen) {
+				cw_vpdrop(v, i);
+				v->unc = 1;
+				v->chg = 1;
+			}
 	}
 }
 
