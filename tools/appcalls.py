@@ -960,7 +960,9 @@ def main():
                 users[n].add(f)
     # A pane of rows calls what the panel's rows call for it.
     rowsfiles = [f for f in installables() if ROWSDEF.search(open(f, errors="replace").read())]
-    for n in rowsreach() | set(ROWSTOLD):
+    # In name order: a new key's place in `use` is its place among rows of
+    # the same count, which a set's order would make differ run to run.
+    for n in sorted(rowsreach() | set(ROWSTOLD)):
         if n in where and classify(n, where[n]) == "request":
             for f in rowsfiles:
                 use[n] += 1
