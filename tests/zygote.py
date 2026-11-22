@@ -227,9 +227,11 @@ while time.time() < deadline:
         break
 # Consecutive: what the program wrote while its window changed processes is
 # on the screen, none of it read by the old process and lost with it; and
-# the screen goes on from what the old one showed, or scrolled past it.
+# the screen goes on from what the old one showed, or scrolled past it: a
+# full screen, 11 lines in the window's 12 rows, the last the cursor's --
+# what a fresh process reading the backlog at once shows.
 check("its output goes on in the window, nothing between lost from the screen",
-      after and max(after) > last + 5 and (min(after) <= last + 1 or len(after) >= 12) and
+      after and max(after) > last + 5 and (min(after) <= last + 1 or len(after) >= 11) and
       sorted(after) == list(range(min(after), max(after) + 1)),
       (last, after, t.screen().text()))
 
@@ -278,7 +280,156 @@ check("and no app process or zygote is left a zombie",
       [(x, stat(x)) for x in (apid, zpid, apid2)])
 
 t.close()
-for f in (p, MARK, SAID, SAID + ".pend", WRITER, PIDF):
+
+# --- the hold: an app's process draws as often as the desktop shows -------
+# A window dirty only by what it watches -- a program writing -- is drawn at
+# most DT_TERMMS apart in its app's own process, as the desktop holds a
+# frame such output asks for; the answer to the person's input (a terminal's
+# echo) is never held. Two apps of the suite's own, each counting in its own
+# process: one whose program writes every 4 ms, and one that echoes each key
+# it is given through a program, as a terminal does, and times each echo
+# from its key to the draw that shows it.
+PULSE = scratch("zygote-pulse.hibr")
+COUNT = scratch("zygote-pulse.n")
+ECHO = scratch("zygote-echo.hibr")
+ELAT = scratch("zygote-echo.ms")
+FIFO = scratch("zygote-echo.fifo")
+open(PULSE, "w").write(r"""command -v dt_app > /dev/null && dt_app pulse "Pulse" 6 30
+declare -gA PU_FD PU_D
+PU_N=0
+fn pulse_open(int id, arg = "") {
+	local fd
+	exec {fd}< <(exec perl -e '$|=1; while (1) { print "x\n"; select(undef, undef, undef, 0.004) }')
+	PU_FD[$id]=$fd
+	console watch "$fd"
+	return 0
+}
+fn pulse_idle(int id) {
+	local l fd=${PU_FD[$id]-}
+	[ -n "$fd" ] || return 0
+	while read -t 0 -u "$fd"; do
+		read -r -u "$fd" l || break
+		PU_D[$id]=1
+	done
+	return 0
+}
+fn pulse_dirty(int id) {
+	[ -n "${PU_D[$id]-}" ]
+}
+fn pulse_draw(int id, int h, int w, int row, int col) {
+	PU_D[$id]=
+	PU_N=$((PU_N + 1))
+	echo "$PU_N" > %s
+	console put -p "w$id" 1 1 "draws $PU_N"
+}
+fn pulse_close(int id) {
+	local fd=${PU_FD[$id]-}
+	[ -z "$fd" ] || { console unwatch "$fd"; exec {fd}<&-; }
+	return 0
+}
+""" % COUNT)
+open(ECHO, "w").write(r"""command -v dt_app > /dev/null && dt_app echoer "Echoer" 6 30
+declare -gA EC_R EC_W EC_T
+fn echoer_open(int id, arg = "") {
+	local r w
+	command rm -f %(f)s
+	mkfifo %(f)s
+	exec {r}< <(exec perl -e '$|=1; open(F, "<", $ARGV[0]) or die; while (<F>) { print }' %(f)s)
+	exec {w}> %(f)s
+	EC_R[$id]=$r
+	EC_W[$id]=$w
+	console watch "$r"
+	return 0
+}
+fn echoer_key(int id, key) {
+	printf '%%s\n' "${EPOCHREALTIME/./}" >&"${EC_W[$id]}"
+	return 0
+}
+fn echoer_idle(int id) {
+	local l fd=${EC_R[$id]-}
+	[ -n "$fd" ] || return 0
+	while read -t 0 -u "$fd"; do
+		read -r -u "$fd" l || break
+		[ -n "${EC_T[$id]-}" ] || EC_T[$id]=$l
+	done
+	return 0
+}
+fn echoer_dirty(int id) {
+	[ -n "${EC_T[$id]-}" ]
+}
+fn echoer_draw(int id, int h, int w, int row, int col) {
+	if [ -n "${EC_T[$id]-}" ]; then
+		echo "$(((${EPOCHREALTIME/./} - EC_T[$id]) / 1000))" >> %(l)s
+	fi
+	EC_T[$id]=
+	console put -p "w$id" 1 1 "echo"
+}
+fn echoer_close(int id) {
+	local fd=${EC_R[$id]-}
+	[ -z "$fd" ] || { console unwatch "$fd"; exec {fd}<&-; }
+	fd=${EC_W[$id]-}
+	[ -z "$fd" ] || exec {fd}>&-
+	return 0
+}
+""" % {"f": FIFO, "l": ELAT})
+for f in (COUNT, ELAT):
     if os.path.exists(f):
         os.unlink(f)
-report(18)
+p2 = scratch("zygote-hold.hibr")
+open(p2, "w").write(SESSION.replace(
+    'DT_LOADING=\ndt_open',
+    'DT_LOADING=%s dt_app pulse "Pulse" 6 30\nDT_LOADING=%s dt_app echoer "Echoer" 6 30\n'
+    'DT_LOADING=\ndt_open' % (PULSE, ECHO))
+    % (load(MOD), WM, TERM, MARK, MARK, MARK))
+# DT_TERMMS as shipped: a longer one holds the desktop's own frames, which
+# its tickers -- this suite's hands -- wait behind.
+t = Term(p2, rows=30, cols=110, settle=0.6, env={"DT_BARTIME": "12:00"})
+
+
+def drawn():
+    try:
+        return int(open(COUNT).read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return -1
+
+
+do("dt_rthost pulse; dt_rthost echoer")
+waitfor('[ -n "${DT_RTHOST[pulse]-}" ] && [ -n "${DT_RTHOST[echoer]-}" ]')
+do("dt_new Pulse 6 30 3 70 pulse")
+deadline = time.time() + 10
+while time.time() < deadline and drawn() < 1:
+    t.collect(0.1)
+t.collect(1.0)
+n0 = drawn()
+t.collect(4.0)
+n1 = drawn()
+rate = (n1 - n0) / 4.0
+print("a window written to every 4 ms: drawn %.1f times a second in its process" % rate)
+check("a window its program writes to constantly is drawn in its own process "
+      "at most once each DT_TERMMS",
+      n0 > 0 and 1.0 <= rate <= 1000.0 / 70 + 3, (n0, n1, rate, log()[-600:]))
+
+do("dt_new Echoer 6 30 12 3 echoer")
+deadline = time.time() + 10
+while time.time() < deadline and result('echo "$DT_FOCUS ${DT[$DT_FOCUS]["app"]-}"').split()[-1:] != ["echoer"]:
+    t.collect(0.1)
+t.collect(1.0)
+for ch in "abcdefghijklmnopqrstuvwxyz":
+    os.write(t.fd, ch.encode())
+    t.sent += 1
+    t.collect(0.03)
+t.collect(1.0)
+try:
+    lat = sorted(int(x) for x in open(ELAT).read().split())
+except (OSError, ValueError):
+    lat = []
+med = lat[len(lat) // 2] if lat else None
+print("an echo, keys 30 ms apart, from the key to its draw in the app's process: "
+      "%d drawn, median %s ms, worst %s ms" % (len(lat), med, lat[-1] if lat else None))
+check("the echo of a key, the answer to it, is drawn at once, not held to DT_TERMMS",
+      len(lat) >= 18 and med is not None and med < 15, (lat, log()[-600:]))
+t.close()
+for f in (p, p2, MARK, SAID, SAID + ".pend", WRITER, PIDF, PULSE, COUNT, ECHO, ELAT, FIFO):
+    if os.path.exists(f):
+        os.unlink(f)
+report(20)

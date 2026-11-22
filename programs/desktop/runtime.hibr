@@ -430,7 +430,7 @@ fn dt_rtcalled(line) {
 		name=${a[0]-}
 		[ -n "${DT_RTV["$name"]+x}" ] || return 0
 		console cells forget "$name"
-		unset DT_RTV["$name"] DT_RTVNEW["$name"] DT_RTVDUE["$name"] DT_RTVH["$name"] DT_RTVW["$name"] DT_RTWAITOPEN["$name"]
+		unset DT_RTV["$name"] DT_RTVNEW["$name"] DT_RTVDUE["$name"] DT_RTVH["$name"] DT_RTVW["$name"] DT_RTWAITOPEN["$name"] DT_RTINAT["$name"]
 		[ "${DT_RTFTOLD%%:*}" != "${name#w}" ] || DT_RTFTOLD=
 		;;
 	revoke)
@@ -523,6 +523,9 @@ fn dt_rtcall(seq, target, name, ...args) {
 			dt_appcall "$target" "$fn" "${args[@]}"
 			st=$?
 			DT_RTVNEW["w$target"]=1
+			case $name in
+			key | click | mouse | wheel | drop) DT_RTINAT["w$target"]=${EPOCHREALTIME/./} ;;
+			esac
 			[ "$name" != open ] || unset DT_RTWAITOPEN["w$target"]
 		fi
 		v=$RET
@@ -674,6 +677,7 @@ fn dt_rtedit(int seq, int id, op, clip = "", clipop = "") {
 	if [ -z "$n" ]; then
 		dt_editwin "$id" "$op" "$clip" "$clipop"
 		DT_RTVNEW["w$id"]=1
+		DT_RTINAT["w$id"]=${EPOCHREALTIME/./}
 		# The Select All key, sent as an edit with the key beside it: with
 		# no field and no _selall, it is the window's own key, as the
 		# desktop gives it to a window of its own.
@@ -835,7 +839,7 @@ fn dt_rtview(name, gen, h, w, kind = "", ...args) {
 # the desktop times a window's draw. A pane, a strip module and a saver are
 # drawn as the desktop draws them (dt_rtkind).
 dt_rtdraw() {
-	local v kind id dh dw or oc ap drew= t0 t now held= dirty=
+	local v kind id dh dw or oc ap drew= t0 t now held= dirty= ia
 
 	now=${EPOCHREALTIME/./}
 	for v in "${!DT_RTV[@]}"; do
@@ -853,9 +857,14 @@ dt_rtdraw() {
 		# Dirty only by what it watches -- a terminal's program writing --
 		# and drawn less than DT_TERMMS ago: held, as the desktop holds a
 		# frame its terminals' output asks for. What the desktop told it
-		# (a key, a click, a view bound) is never held.
+		# (a key, a click, a view bound) is never held, and neither is the
+		# answer to it: a window's output within DT_ANSWERMS of the input
+		# it was given (a terminal's echo), as the desktop draws the
+		# focused window's at once (dt_answer).
 		if [ -z "${DT_RTVNEW["$v"]+x}" ]; then
-			if [ $((now - DT_RTDRAWN)) -lt $((${DT_TERMMS:-70} * 1000)) ]; then
+			ia=${DT_RTINAT["$v"]:-0}
+			if [ $((now - DT_RTDRAWN)) -lt $((${DT_TERMMS:-70} * 1000)) ] &&
+			   [ $((now - ia)) -ge $((${DT_ANSWERMS:-300} * 1000)) ]; then
 				held=1
 				continue
 			fi
@@ -897,6 +906,9 @@ dt_rtdraw() {
 # and whether the next wait is a held frame's, quiet to what it watches.
 DT_RTDRAWN=0
 DT_RTQUIET=
+# When each window this process draws was last given input, in
+# microseconds: its output is not held for DT_ANSWERMS after.
+declare -gA DT_RTINAT
 
 # Draw one view of another kind than a window, as the desktop draws it in
 # its own process, timed the same way; status 1 when nothing was due. A
