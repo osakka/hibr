@@ -118,7 +118,7 @@ fn dt_rthostf(f) {
 	fi
 	dt_rtlisten || return 1
 	dt_rvpendfile "$f"
-	t := dt_rtspawn "$f" "$f" "$DT_HERE/runtime.hibr" "$f" "$f"
+	t := dt_rtspawn "$f" "$f"
 	ret "$t"
 }
 

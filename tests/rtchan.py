@@ -161,7 +161,7 @@ before = t.screen()
 check("an idle desktop is not listening for app processes until one is started",
       "app runtime: listening" not in log(), log()[-300:])
 
-do('dt_rtlisten; dt_rtspawn demo %s' % GOOD)
+do('dt_rtlisten; dt_rtspawn demo %s %s' % (GOOD, GOOD))
 sc = t.until("second note", tries=80, step=0.1)
 said = open(SAID).read() if os.path.exists(SAID) else ""
 check("an app process sourcing only the runtime says hello and is answered",
@@ -172,7 +172,7 @@ check("and the next one after it, in order", sc.find("second note") is not None,
 check("a name that is no told request is refused by name, and the desktop runs on",
       "dt_quit, which is not a told request" in log() and sc.find("second note") is not None, log()[-600:])
 
-do('dt_rtspawn olddemo %s' % BAD)
+do('dt_rtspawn olddemo %s %s' % (BAD, BAD))
 sc = t.until("hibr was updated", tries=80, step=0.1)
 bad = ""
 deadline = time.time() + 5
@@ -465,7 +465,7 @@ for x in (SAID + ".pid", SAID + ".pings", SAID + ".end"):
 if os.path.exists(FIFO):
     os.unlink(FIFO)
 os.mkfifo(FIFO)
-do('LT := dt_rtspawn loopdemo %s' % LOOP)
+do('LT := dt_rtspawn loopdemo %s %s' % (LOOP, LOOP))
 deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".pid"):
     time.sleep(0.05)
@@ -850,7 +850,7 @@ do('DT_RTLAUNCHSECS=15')
 # person, never left as a window that silently never came.
 QUIT = scratch("rtchan-quitter.hibr")
 open(QUIT, "w").write("exit 3\n")
-do('dt_rtspawn quitter %s' % QUIT)
+do('dt_rtspawn quitter %s %s' % (QUIT, QUIT))
 deadline = time.time() + 10
 while time.time() < deadline and "quitter started from" not in log():
     time.sleep(0.1)
@@ -1027,7 +1027,7 @@ check("an app killed with a child of its own running is let go: the child holds 
 for x in (SAID + ".pid", SAID + ".end"):
     if os.path.exists(x):
         os.unlink(x)
-do('LT := dt_rtspawn loopdemo %s' % LOOP)
+do('LT := dt_rtspawn loopdemo %s %s' % (LOOP, LOOP))
 deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".pid"):
     time.sleep(0.05)
@@ -1072,7 +1072,7 @@ for x in (SAID + ".pid", SAID + ".end"):
 # was sent is kept on every save while the desktop listens.
 do('dt_rtlisten')
 result('DT_GLYPHSET=ascii; dt_glyphs ascii; dt_save; echo x > %s.pend' % SAID)
-do('LT := dt_rtspawn loopdemo %s' % LOOP)
+do('LT := dt_rtspawn loopdemo %s %s' % (LOOP, LOOP))
 deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".pid"):
     time.sleep(0.05)

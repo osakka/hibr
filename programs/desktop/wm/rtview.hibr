@@ -52,10 +52,20 @@ DT_RVCTXT=
 # for and pushed at the round trip's own speed for as long as it is shown.
 DT_RVQUIETM=
 DT_RVQUIETC=
+# A window carried to a fresh process across a Restart Desktop (ADR 0050):
+# its app process asked to keep the window's state before the exec (stash),
+# and the fresh one asked to take it up once its view is bound (resume),
+# each an ask by number, "KIND ID DEADLINE"; the folder a restored window
+# is to be taken up from, until its view is bound; and whether a restart is
+# waiting for its app processes, and has had what it waited for.
+declare -gA DT_RVKEEP DT_RVRESUME
+DT_RVKEEPMS="${DT_RVKEEPMS-2000}"
+DT_RSKEEPING=
+DT_RSKEPT=
 
-# Start an installed app in a process of its own: the runtime, run with the
-# app and its file (runtime.hibr, run rather than sourced). A test session's
-# only; the launch is answered with ret, as dt_rtspawn answers.
+# Start an installed app in a process of its own: forked from the zygote,
+# which runs it from its file (runtime.hibr). A test session's only; the
+# launch is answered with ret, as dt_rtspawn answers.
 fn dt_rthost(app) {
 	local src=${DT_APPS["$app"]["src"]-} t
 
@@ -64,7 +74,7 @@ fn dt_rthost(app) {
 	# Its file's and its parts' panes, modules, savers and bar items are its
 	# process's too (wm/rtkinds.hibr).
 	dt_rvpendapp "$app"
-	t := dt_rtspawn "$app" "$src" "$DT_HERE/runtime.hibr" "$app" "$src"
+	t := dt_rtspawn "$app" "$src"
 	ret "$t"
 }
 
@@ -165,10 +175,78 @@ fn dt_rvbind(int id) {
 	dt_rtpass force
 	x := dt_rtline view "w$id" "${DT_RVGEN[$id]}" "$h" "$w" win "$id" "$dh" "$dw" "$or" "$oc"
 	dt_rtsay "$c" "$x"
-	if [ -n "${DT_RVOPEN[$id]+x}" ]; then
+	if [ -n "${DT_RVRESUME[$id]+x}" ]; then
+		DT_RVSEQ=$((DT_RVSEQ + 1))
+		DT_RVKEEP[$DT_RVSEQ]="resume $id $((${EPOCHREALTIME/./} / 1000 + DT_RTPTYSECS * 1000))"
+		dt_rvsend "$id" "$DT_RVSEQ" resume "${DT_RVRESUME[$id]}"
+		unset DT_RVRESUME[$id] DT_RVOPEN[$id]
+		dt_want 100
+	elif [ -n "${DT_RVOPEN[$id]+x}" ]; then
 		[ -z "${DT[$id]["open"]-}" ] || dt_rvsend "$id" 0 open "${DT_RVOPEN[$id]}"
 		unset DT_RVOPEN[$id]
 	fi
+	return 0
+}
+
+# Ask every window drawn by an app process that is there to keep its state
+# in dir, for a restart: the app's _stash and the maps it keeps (runtime.hibr,
+# dt_rtstash). Status 0 when something was asked, and the restart waits for
+# the answers (dt_rvkept) or DT_RVKEEPMS, never longer; 1 when nothing was.
+fn dt_rvstashall(dir) {
+	local id c n=0
+
+	for id in "${!DT_RVC[@]}"; do
+		c=${DT_RVC[$id]}
+		[ -n "$c" ] && [ "$c" != - ] && [ -n "${DT_RTC["$c"]+x}" ] || continue
+		DT_RVSEQ=$((DT_RVSEQ + 1))
+		DT_RVKEEP[$DT_RVSEQ]="stash $id $((${EPOCHREALTIME/./} / 1000 + DT_RVKEEPMS))"
+		dt_rvsend "$id" "$DT_RVSEQ" stash "$dir"
+		n=$((n + 1))
+	done
+	[ "$n" -gt 0 ] || return 1
+	DT_RSKEEPING=1
+	dt_rslog "restart: waits for $n windows drawn by their apps' processes to keep their state"
+	dt_want 100
+	return 0
+}
+
+# An answer to a stash or a resume, or its time up (st empty). The last
+# stash answered lets the restart go on; the last resume, the files the
+# windows were carried in go.
+fn dt_rvkept(seq, st = "") {
+	local kind id k
+
+	read -r kind id _ <<< "${DT_RVKEEP["$seq"]}"
+	unset DT_RVKEEP["$seq"]
+	if [ -z "$st" ]; then
+		dt_rslog "window $id ($kind): its app's process did not answer in time"
+	elif [ "$st" != 0 ]; then
+		dt_rslog "window $id ($kind): its app's process answered $st"
+	fi
+	for k in "${DT_RVKEEP[@]}"; do
+		[ "${k%% *}" = "$kind" ] && return 0
+	done
+	if [ "$kind" = stash ] && [ -n "$DT_RSKEEPING" ]; then
+		DT_RSKEEPING=
+		DT_RSKEPT=1
+		dt_restart
+	elif [ "$kind" = resume ]; then
+		rm -f "$DT_RSDIR"/term-*.save "$DT_RSDIR"/rt-*.json 2> /dev/null
+	fi
+	return 0
+}
+
+# Every pass while a carried window waits: one past its time counts as
+# answered, with nothing.
+dt_rvkeeptick() {
+	local s now end
+
+	now=$((${EPOCHREALTIME/./} / 1000))
+	for s in "${!DT_RVKEEP[@]}"; do
+		read -r _ _ end <<< "${DT_RVKEEP["$s"]}"
+		[ "$now" -ge "$end" ] && dt_rvkept "$s"
+	done
+	[ "${#DT_RVKEEP[@]}" = 0 ] || dt_want 100
 	return 0
 }
 
@@ -368,6 +446,10 @@ fn dt_rvtook(int c, seq, st = "", t = "", v = "") {
 	local kind id end x
 	local -a w
 
+	if [ -n "${DT_RVKEEP["$seq"]+x}" ]; then
+		dt_rvkept "$seq" "${st:-1}"
+		return 0
+	fi
 	[ -z "${DT_RVEDIT["$seq"]+x}" ] || dt_rvedited "$c" "$seq" "$st" "$t" "$v"
 	if [ -n "${DT_RVTHENQ["$seq"]+x}" ] && [ "${DT_RVTHENC["$seq"]-}" = "$c" ]; then
 		kind=handed
@@ -599,16 +681,14 @@ dt_rvtick() {
 		dt_del "$id"
 	done
 	for p in "${!DT_RTENDPID[@]}"; do
-		if ! kill -0 "$p" 2> /dev/null; then
-			# Gone and reaped: what it ended with is its job's kept
-			# status, read without waiting, and said once for an app
-			# that went with windows open.
-			if [ -n "${DT_RTENDOWE["$p"]-}" ]; then
-				wait "$p" 2> /dev/null
-				dt_rvended "$p" "$?"
-			fi
+		if ! dt_rtpidup "$p"; then
+			# Gone: what it ended with is what its parent, the zygote,
+			# said, and said once for an app that went with windows
+			# open; its zygote gone too, not known.
+			[ -z "${DT_RTENDOWE["$p"]-}" ] || dt_rvended "$p" "${DT_RTEXIT["$p"]-}"
 			unset DT_RTENDPID["$p"] DT_RTENDAPP["$p"] DT_RTENDWHY["$p"] DT_RTENDOWE["$p"] DT_RTENDHIT["$p"]
 			unset DT_RVRESON["$p"] DT_RVRESAT["$p"] DT_RVRESHELD["$p"] DT_RVRESWAIT["$p"]
+			unset DT_RTEXIT["$p"]
 		elif [ "$now" -ge "${DT_RTENDPID["$p"]}" ]; then
 			# Still running a program of its own with no window: left.
 			dt_rvbusy "$p" "$now" && continue
@@ -620,11 +700,11 @@ dt_rvtick() {
 				else
 					dt_log "app runtime: process $p had no window left and had not gone in $DT_RTENDSECS s; ended"
 				fi
-				kill "$p" 2> /dev/null
+				dt_rtpidsig "$p" 15
 				DT_RTENDHIT["$p"]=1
 			else
 				dt_log "app runtime: process $p did not end when asked; killed"
-				kill -9 "$p" 2> /dev/null
+				dt_rtpidsig "$p" 9
 			fi
 			DT_RTENDPID["$p"]=$((now + DT_RTENDSECS * 1000))
 		fi

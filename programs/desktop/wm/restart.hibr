@@ -59,12 +59,22 @@ declare -gA DT_RS
 # same as closing its window, rather than left running unseen.
 DT_RSCARRY=()
 DT_RSCLAIMED=()
+# Set when a restart hands windows to their apps' fresh processes, which
+# take up what was kept for them after the restore has ended (ADR 0050).
+DT_RSHOSTED=
 
+# A program an app's own process asks to carry or claims back is the
+# desktop's child already (ADR 0050, mods/pty), carried by the desktop
+# itself (`pty owned`) and claimed by the process asking for it by its pid,
+# and the descriptor that process names is its own number, not the
+# desktop's: from an app's process both are nothing to do.
 fn dt_rscarry(int fd, int pid) {
+	[ -z "${DT_RTFROM-}" ] || return 0
 	DT_RSCARRY+=("$fd:$pid")
 }
 
 fn dt_rsclaim(int fd) {
+	[ -z "${DT_RTFROM-}" ] || return 0
 	DT_RSCLAIMED+=("$fd")
 }
 
@@ -102,6 +112,14 @@ dt_restart() {
 		dt_notep high "Cannot restart: %s cannot be made" "$DT_RSDIR"
 		return 1
 	}
+	# A window drawn by its app's own process keeps its state there first
+	# (ADR 0050): asked, never waited on -- the restart goes on when the
+	# last answer comes, or DT_RVKEEPMS has passed (dt_rvkept).
+	[ -z "$DT_RSKEEPING" ] || return 0
+	if [ -z "$DT_RSKEPT" ] && dt_rvstashall "$DT_RSDIR"; then
+		return 0
+	fi
+	DT_RSKEPT=
 	# Full-screen windows go back to their own places first, so the state
 	# keeps where they were and not the whole display.
 	dt_fullendall
@@ -185,10 +203,17 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	# comes back counted from somewhere else.
 	json set DT_RS .shift "${DT_SHIFTWAS:-}" -s
 	json set DT_RS .why "$why" -s
+	json parse DT_RS["hosted"] "{}"
 	dt_wins
 	for id in "${DT_WINS[@]}"; do
 		ap=${DT[$id]["app"]}
-		if [ "$carry" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
+		# Drawn by its app's own process: what it holds was kept by that
+		# process (dt_rvstashall), and the window is said to be its, so
+		# the desktop after the exec starts the app's process again and
+		# hands the window to it to take up.
+		if [ -n "${DT_RVC[$id]+x}" ]; then
+			json set DT_RS ".hosted.$id" "$ap" -s
+		elif [ "$carry" = 1 ] && [ -n "$ap" ] && dt_has "${ap}_stash"; then
 			dt_appfn "$ap" "${ap}_stash" "$id" "$DT_RSDIR"
 		fi
 		j := json get DT ".$id"
@@ -203,7 +228,7 @@ fn dt_rswrite(f, int carry, why = "restart") {
 			json set DT_RS ".win.$id.chrome" "${DT[$id]["fschrome"]}" -s
 			json set DT_RS ".win.$id.noshadow" "${DT[$id]["fsshadow"]}" -s
 		fi
-		[ -n "$ap" ] || continue
+		[ -n "$ap" ] && [ -z "${DT_RVC[$id]+x}" ] || continue
 		read -ra ms <<< "${DT_KEEPSTATE["$ap"]}"
 		for m in "${ms[@]}"; do
 			j := json get "$m" ".$id" 2> /dev/null || continue
@@ -217,6 +242,14 @@ fn dt_rswrite(f, int carry, why = "restart") {
 	if [ "$carry" = 1 ]; then
 		j := dt_rvpids
 		json set DT_RS .hosts "$j" -s
+		# And every terminal's program the desktop owns for an app's
+		# process, "fd pid app" a line: its master crosses the exec, and
+		# the desktop after it holds it until that app's fresh process
+		# asks for it by its pid.
+		if [ -n "$DT_RTZPID" ] && command -v pty > /dev/null; then
+			j := pty owned
+			json set DT_RS .ptys "$j" -s
+		fi
 	fi
 	# Through a file of this process's own, then renamed: a desktop and
 	# its supervisor stopped by one signal both write, and with one
@@ -278,6 +311,18 @@ dt_restore() {
 	[ -n "$j" ] && [ "$j" != '""' ] && json parse DT_TORD "$j"
 	j := json get DT_RS .tiled 2> /dev/null
 	[ -n "$j" ] && [ "$j" != '""' ] && json parse DT_TILED "$j"
+	# The terminals' programs the desktop owned for app processes (ADR
+	# 0050): each held, by no process yet, until its app's fresh process
+	# asks for it.
+	if [ -n "${DT_RS["ptys"]-}" ] && need pty 2> /dev/null; then
+		while read -r m p e; do
+			[ -n "$e" ] || continue
+			pty adopt -o "$e" "$m" "$p" > /dev/null 2>&1 && DT_RTPTYN=1
+		done <<< "${DT_RS["ptys"]}"
+		# Listening is what serves and hangs them up, whether or not a
+		# window of theirs comes back.
+		[ -z "$DT_RTPTYN" ] || dt_rtlisten
+	fi
 	for id in "${!DT_RS["win"][@]}"; do
 		ap=${DT_RS["win"][$id]["app"]}
 		if [ -n "$ap" ] && [ -z "${DT_APPS[$ap]["title"]}" ]; then
@@ -291,6 +336,30 @@ dt_restore() {
 		if ! dt_iswin "$id"; then
 			dt_rslog "window $id: saved with no size, not a window, left out"
 			unset "DT[$id]"
+			continue
+		fi
+		# Drawn by its app's own process before (ADR 0050): that app is
+		# started again in a fresh process, from this desktop's zygote,
+		# and the window handed to it to take up once its view is bound --
+		# or opened fresh, after a crash, when nothing was kept.
+		if [ -n "${DT_RS["hosted"]["$id"]-}" ]; then
+			if ! dt_rvhosted "$ap" && ! dt_rthost "$ap" > /dev/null; then
+				dt_rslog "window $id ($ap): its app's process could not be started, left closed"
+				unset "DT[$id]"
+				continue
+			fi
+			dt_rvnew "$id" "$ap"
+			dt_hooks "$id" "$ap"
+			DT[$id]["autoclose"]=
+			if [ "${DT_RS["fresh"]}" = 1 ]; then
+				DT_RVOPEN[$id]=
+			else
+				DT_RVRESUME[$id]=$DT_RSDIR
+				DT_RSHOSTED=1
+			fi
+			dt_away "$id" || dt_hidden "$id" ||
+				console pane "w$id" "${DT[$id]["row"]}" "${DT[$id]["col"]}" \
+					"${DT[$id]["h"]}" "${DT[$id]["w"]}"
 			continue
 		fi
 		dt_hooks "$id" "$ap"
@@ -349,7 +418,10 @@ dt_restore() {
 	dt_rsorphans
 	read -ra ps <<< "${DT_RS["hosts"]-}"
 	[ "${#ps[@]}" = 0 ] || dt_rvcarried "${ps[@]}"
-	rm -f "$f" "$f.err" "$DT_RSDIR"/term-*.save 2> /dev/null
+	rm -f "$f" "$f.err" 2> /dev/null
+	# What windows were carried in goes once each has been taken up
+	# (dt_rvkept), when an app's process is to take one up.
+	[ -n "$DT_RSHOSTED" ] || rm -f "$DT_RSDIR"/term-*.save 2> /dev/null
 	DT_RESTORED=1
 	dt_rslog "restored ${#DT[@]} windows from $f"
 	case ${DT_RS["why"]} in

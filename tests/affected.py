@@ -90,7 +90,7 @@ SUITE_MODS = {
     "native": ["frames", "console", "hold", "pty", "blitfr"],
     "holdlock": ["console", "hold", "pty", "term"],
     "holdseam": ["frames", "console", "img", "hold", "pty", "term", "blitfr"],
-    "hostpix": ["frames", "console", "img", "hold", "pty", "term", "blitfr"],
+    "hostpix": ["frames", "console", "img", "hold", "pty", "term", "blitfr", "zygote", "fdmsg"],
     # inflate.c is not a module of its own: it is shared source, the prompt
     # module's own, which the archive module compiles in as well. Naming it
     # here is what makes a change to it reach this suite.
@@ -103,14 +103,26 @@ SUITE_MODS = {
     "keepawake": ["frames", "dbus", "console", "hold", "pty", "blitfr"],
     "natscale": ["frames", "console", "hold", "pty", "term", "blitfr"],
     "widgetroles": ["console"],
-    "hostkinds": ["console"],
-    "hostparts": ["console"],
+    "hostkinds": ["zygote", "pty", "fdmsg", "console"],
+    "hostparts": ["zygote", "pty", "fdmsg", "console"],
+    # Every app process is forked from the zygote and asks the desktop for
+    # its terminals' programs (ADR 0050); fdmsg.c is shared source, compiled
+    # into pty and zygote.
+    "zygote": ["zygote", "pty", "fdmsg", "term", "console"],
+    "hosted": ["zygote", "pty", "fdmsg", "console"],
+    "hostfail": ["zygote", "pty", "fdmsg", "console"],
+    "rtchan": ["zygote", "pty", "fdmsg", "console"],
+    "onset": ["zygote", "pty", "fdmsg", "console"],
+    "hostmenus": ["zygote", "pty", "fdmsg", "console"],
+    "hostedit": ["zygote", "pty", "fdmsg", "term", "console"],
+    "hostconv": ["zygote", "pty", "fdmsg", "console"],
+    "hostfield": ["zygote", "pty", "fdmsg", "console"],
 }
 APPS = ("apps_panel", "apps_reach", "apps_office", "apps_write", "apps_core", "apps_more")
 DESK = ("desktop_basics", "desktop_windows", "desktop_pictures", "desktop_session")
 DESKTOP = DESK + ("vault",) + APPS + ("uifuzz", "strictvars", "mailapp", "contacts", "calapp",
                                          "sound", "net", "bt", "archives", "holdrenew", "native",
-                                         "traymod", "rtchan", "onset", "stale", "audience", "appseam", "inputlat", "saverload", "superdrag", "hoverwant", "hosted", "hostfail", "hostmenus", "hostkinds", "hostparts", "hostedit", "hostconv", "hostfield", "regread",
+                                         "traymod", "rtchan", "onset", "stale", "audience", "appseam", "inputlat", "saverload", "superdrag", "hoverwant", "hosted", "hostfail", "hostmenus", "hostkinds", "hostparts", "hostedit", "hostconv", "hostfield", "regread", "zygote",
                                          "keepawake", "natscale", "widgetroles", "hostpix")
 EVERYTHING = ("src/", "include/", "Makefile", "tests/screen.py",
               "tests/all.py", "deploy.sh")

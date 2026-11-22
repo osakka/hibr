@@ -940,6 +940,9 @@ fn term_resume(int id) {
 		return 0
 	fi
 	TW[$id]["t"]=$t
+	# The master's number here: the same after an exec, and whatever it
+	# arrived at in a fresh process the desktop handed it to (ADR 0050).
+	fd := term fd "$t"
 	TW[$id]["fd"]=$fd
 	dt_rsclaim "$fd"
 	[ -n "$DT_CURSOR" ] && term cursor "$t" "$DT_CURSOR"

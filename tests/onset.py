@@ -105,7 +105,7 @@ ed = result('dt_set DT_IMGEDITS off; a=$DT_IMGEDIT; dt_set DT_IMGEDITS auto; '
 check("Partial Updates through dt_set reaches the console, off and back (dt_imgapply)",
       ed == "off auto", ed)
 
-do('dt_rtlisten; OT := dt_rtspawn onapp %s' % APP)
+do('dt_rtlisten; OT := dt_rtspawn onapp %s %s' % (APP, APP))
 deadline = time.time() + 10
 while time.time() < deadline and not os.path.exists(SAID + ".pid"):
     t.collect(0.05)

@@ -53,6 +53,24 @@ DT_RTWATCH=
 # The file each connection's launch named, as the kind folder sees it: who
 # it is sent what (dt_rtwants).
 declare -gA DT_RTCFILE
+# The zygote (ADR 0050): the one prepared host every app process is forked
+# from, its process and the desktop's end of its channel, and whether it has
+# said it speaks this desktop's protocol and version. App processes are its
+# children, not the desktop's, so how each ended is what it says (exit), kept
+# by pid until read; and each launch's channel for its terminals' programs,
+# which the desktop owns and serves (mods/pty), by descriptor, naming the app.
+DT_RTZPID=
+DT_RTZFD=
+DT_RTZOK=
+declare -gA DT_RTEXIT DT_RTPTYC
+# How long a terminal's program no app process holds is kept for one to take
+# it back -- a window carried to a fresh process across a Restart Desktop
+# asks for its program by its pid -- before it is hung up, as a program whose
+# window has gone is.
+DT_RTPTYSECS="${DT_RTPTYSECS-10}"
+# Set while the desktop owns any terminal's program, so a pass with none
+# asks the pty module nothing.
+DT_RTPTYN=
 # The told requests interface.tsv names, which alone are carried; those
 # whose first word is a window; and, per app, the requests its own file
 # makes, read once from the file (never run) and kept by its path. And the
@@ -350,13 +368,23 @@ dt_rttick() {
 	done
 	[ "${#DT_RVASK[@]}${#DT_RTENDPID[@]}${#DT_RVLATE[@]}" = 000 ] || dt_rvtick
 	[ "${#DT_RTCELLC[@]}" = 0 ] || dt_rvtakes
+	[ -z "$DT_RTPTYN" ] || dt_rtptytick
+	[ "${#DT_RVKEEP[@]}" = 0 ] || dt_rvkeeptick
 	if command -v console > /dev/null; then
-		w := console woke "$DT_RTLFD" "${!DT_RTC[@]}"
+		w := console woke "$DT_RTLFD" "${!DT_RTC[@]}" ${DT_RTZFD:+"$DT_RTZFD"} "${!DT_RTPTYC[@]}"
 		read -ra ready <<< "$w"
 	else
-		ready=("$DT_RTLFD" "${!DT_RTC[@]}")
+		ready=("$DT_RTLFD" "${!DT_RTC[@]}" ${DT_RTZFD:+"$DT_RTZFD"} "${!DT_RTPTYC[@]}")
 	fi
 	for c in "${ready[@]}" "${!DT_RTMORE[@]}"; do
+		if [ "$c" = "$DT_RTZFD" ]; then
+			dt_rtzread
+			continue
+		fi
+		if [ -n "${DT_RTPTYC["$c"]+x}" ]; then
+			dt_rtptyserve "$c"
+			continue
+		fi
 		if [ "$c" = "$DT_RTLFD" ]; then
 			while accept -t 0 "$DT_RTLFD" x 2> /dev/null; do
 				if [ "$REMOTE" != "uid:$UID" ]; then
@@ -447,7 +475,7 @@ dt_rtlaunches() {
 	for t in "${!DT_RTLAUNCH[@]}"; do
 		p=${DT_RTLPID["$t"]-}
 		why=
-		if [ -n "$p" ] && ! kill -0 "$p" 2> /dev/null; then
+		if [ -n "$p" ] && ! dt_rtpidup "$p"; then
 			why="exited before it said hello"
 		elif [ $((EPOCHSECONDS - ${DT_RTLTIME["$t"]:-0})) -ge "$DT_RTLAUNCHSECS" ]; then
 			why="did not say hello within $DT_RTLAUNCHSECS seconds"
@@ -466,36 +494,202 @@ dt_rtlaunches() {
 	return 0
 }
 
-# Start an app's own process from its file with three descriptors and no
-# more: standard input and output /dev/null, never the desktop's terminal,
-# so it can neither read the person's keys nor write over the screen;
-# standard error the desktop's own, its log. Everything else the desktop
-# holds -- the terminal under another number, its listening socket, other
-# apps' connections -- is closed in the child before the program starts,
-# since an app holding them would keep them open past the desktop's own
-# close. What runs is the file, or the words given after it -- the runtime
-# with an installed app's name and file (dt_rthost) -- the launch being the
-# file's either way, which is what the app is sent by (dt_rtwants).
-fn dt_rtspawn(app, file, ...run) {
-	local f t
+# Start the zygote, once a desktop (ADR 0050): the runtime run as the one
+# prepared host its app processes are forked from, with three descriptors
+# and its channel and no more -- standard input and output /dev/null, never
+# the desktop's terminal, so nothing it starts can read the person's keys or
+# write over the screen; standard error the desktop's own, its log. Every
+# other descriptor the desktop holds -- the terminal under another number,
+# its listening socket, other apps' connections -- is closed before it
+# starts, so no app process holds them past the desktop's own close. Read
+# from disk when the first app process is asked for; a zygote of another
+# version says so in its first message and is refused, as an app's hello is.
+dt_rtzstart() {
+	local f x d z
 
-	t := dt_rtissue "$app" "$file"
-
+	[ -n "$DT_RTZFD" ] && return 0
+	need zygote 2> /dev/null || { dt_log "app runtime: no zygote module, so no app process can start"; return 1; }
+	need pty 2> /dev/null || dt_log "app runtime: no pty module, so no terminal's program is the desktop's"
+	x := zygote pair || { dt_log "app runtime: no channel for the zygote"; return 1; }
+	read -r d z <<< "$x"
 	# /dev/fd is this process's own descriptors on Linux and macOS alike,
 	# where /proc/self/fd is Linux's alone; a name that is not a number is
-	# the pattern left unexpanded, and skipped.
+	# the pattern left unexpanded, and skipped. The channel crosses the exec
+	# as descriptor 3, a copy made after the others are gone, since the pair
+	# is made close-on-exec.
 	(
 		for f in /dev/fd/*; do
 			f=${f##*/}
 			case $f in "" | *[!0-9]*) continue ;; esac
-			[ "$f" -gt 2 ] && [ -e "/dev/fd/$f" ] && exec {f}>&-
+			[ "$f" -gt 2 ] && [ "$f" != "$z" ] && [ -e "/dev/fd/$f" ] && exec {f}>&-
 		done
-		[ "${#run[@]}" -gt 0 ] || run=("$file")
-		DT_RTTOKEN=$t exec "$HIBR" "${run[@]}" < /dev/null > /dev/null
+		# A copy onto itself would keep it close-on-exec.
+		if [ "$z" = 3 ]; then
+			exec {f}<&3
+			z=$f
+		fi
+		exec 3<&"$z"
+		exec {z}>&-
+		exec "$HIBR" "$DT_HERE/runtime.hibr" --zygote 3 < /dev/null > /dev/null
 	) &
-	DT_RTLPID["$t"]=$!
-	dt_log "app runtime: started $app from $file as $!"
+	DT_RTZPID=$!
+	exec {z}>&-
+	DT_RTZFD=$d
+	DT_RTZOK=
+	command -v console > /dev/null && console watch -i "$d" 2> /dev/null
+	dt_log "app runtime: started the zygote as $DT_RTZPID"
+	return 0
+}
+
+# Start an app's own process: forked by the zygote, its launch's token given
+# with the request, never in any environment the desktop's own children
+# see. Handed with it, its end of a channel for its terminals' programs,
+# which the desktop starts and owns (mods/pty), so a program outlives the
+# process showing it however often that process is replaced. With no words
+# the fresh process runs the app from its file; with words, it execs hibr on
+# them, for a file that is its own runtime (a test's). The launch is the
+# file's either way, which is what the app is sent by (dt_rtwants); its
+# process's pid comes when the zygote says it has forked it.
+fn dt_rtspawn(app, file, ...run) {
+	local t x d a l
+
+	dt_rtzstart || return 1
+	t := dt_rtissue "$app" "$file"
+	x := zygote pair || { dt_log "app runtime: no channel for $app's terminals"; return 1; }
+	read -r d a <<< "$x"
+	l := dt_rtline fork "$t" "$app" "$file" "${run[@]}"
+	if ! zygote send "$DT_RTZFD" "$l" "$a"; then
+		exec {a}>&-
+		exec {d}>&-
+		dt_log "app runtime: the zygote took no request to start $app"
+		return 1
+	fi
+	exec {a}>&-
+	DT_RTPTYC["$d"]=$app
+	command -v console > /dev/null && console watch -i "$d" 2> /dev/null
+	dt_log "app runtime: asked the zygote to start $app from $file"
 	ret "$t"
+}
+
+# What the zygote said: that it speaks this desktop's protocol, that it has
+# forked a launch's process, that one has ended. Read whenever its channel
+# wakes the desktop, never waiting; one that has gone is said once, and its
+# app processes, no longer anyone's to report, end as unknown.
+dt_rtzread() {
+	local l st t p x
+	local -a w
+
+	while :; do
+		l := zygote recv "$DT_RTZFD" -t 0
+		st=$?
+		[ "$st" = 0 ] || break
+		read -ra w <<< "$l"
+		for x in "${!w[@]}"; do
+			w[$x] := dt_rtdec "${w[$x]}"
+		done
+		case ${w[0]-} in
+		zygote)
+			if [ "${w[1]-}" != "$DT_RTPROTO" ] || [ "${w[2]-}" != "$HIBR_VERSION" ]; then
+				dt_log "app runtime: the zygote is hibr ${w[2]-?} protocol ${w[1]-?}, this desktop $HIBR_VERSION protocol $DT_RTPROTO; ended"
+				# Nothing runs half old and half new: each app waiting
+				# for it is said once, as a refused hello is, and void.
+				for t in "${!DT_RTLAUNCH[@]}"; do
+					x := dt_tr "hibr was updated: click to restart the desktop and open %s" "${DT_RTLAUNCH["$t"]}"
+					dt_notifyp high "$x" dt_restart
+					unset DT_RTLAUNCH["$t"] DT_RTLFILE["$t"] DT_RTLTIME["$t"] DT_RTLPID["$t"]
+				done
+				kill "$DT_RTZPID" 2> /dev/null
+				st=1
+				break
+			fi
+			DT_RTZOK=1
+			;;
+		forked)
+			t=${w[1]-}
+			p=${w[2]-}
+			[[ $p =~ ^[0-9]+$ ]] || continue
+			if [ -n "${DT_RTLAUNCH["$t"]+x}" ]; then
+				DT_RTLPID["$t"]=$p
+			elif [ -n "${DT_RTTOKC["$t"]-}" ]; then
+				DT_RTCPID["${DT_RTTOKC["$t"]}"]=$p
+			fi
+			dt_log "app runtime: the zygote started a process as $p"
+			;;
+		exit)
+			p=${w[1]-}
+			[[ $p =~ ^[0-9]+$ ]] || continue
+			DT_RTEXIT["$p"]=${w[2]-}
+			dt_log "app runtime: process $p ended with status ${w[2]-?}, its zygote says"
+			dt_want 0
+			;;
+		*) dt_log "app runtime: the zygote said ${w[0]:-nothing}, which the desktop does not know" ;;
+		esac
+	done
+	[ "$st" = 1 ] || return 0
+	dt_log "app runtime: the zygote's channel has ended"
+	command -v console > /dev/null && console unwatch "$DT_RTZFD" 2> /dev/null
+	zygote close "$DT_RTZFD"
+	DT_RTZFD=
+	DT_RTZOK=
+	return 0
+}
+
+# Whether an app process the zygote started is still there: not said to
+# have ended -- or, its zygote gone, still a process at all.
+fn dt_rtpidup(int p) {
+	[ -z "${DT_RTEXIT["$p"]+x}" ] || return 1
+	[ -n "$DT_RTZFD" ] && return 0
+	kill -0 "$p" 2> /dev/null
+}
+
+# Signal an app process: through the zygote, its parent, which signals only
+# a child it has not yet seen end; with no zygote, directly.
+fn dt_rtpidsig(int p, int sig) {
+	local l
+
+	if [ -n "$DT_RTZFD" ]; then
+		l := dt_rtline end "$p" "$sig"
+		zygote send "$DT_RTZFD" "$l"
+		return
+	fi
+	kill -"$sig" "$p" 2> /dev/null
+}
+
+# An app process's channel for its terminals' programs: what it asks is
+# done -- a program started, as the desktop's child; one taken back by its
+# pid; a signal; a close -- and once it has ended, what it held is held by no
+# process, and hung up DT_RTPTYSECS later unless a process of that app asks
+# for it. Timed and blamed as a request is.
+fn dt_rtptyserve(int fd) {
+	local ap=${DT_RTPTYC["$fd"]-} l st t0
+
+	t0=${EPOCHREALTIME/./}
+	l := pty serve "$fd" "$ap"
+	st=$?
+	dt_spent "pty serve" "$((${EPOCHREALTIME/./} - t0))" "$ap"
+	[ -z "$l" ] || dt_log "app runtime: $ap's terminals: ${l//$'\n'/; }"
+	[[ $l == *spawned* || $l == *adopted* ]] && DT_RTPTYN=1
+	[ "$st" = 1 ] || return 0
+	command -v console > /dev/null && console unwatch "$fd" 2> /dev/null
+	unset DT_RTPTYC["$fd"]
+	return 0
+}
+
+# Every pass while the desktop owns a terminal's program: those that have
+# ended are waited for and their app told, and those no app process has held
+# for DT_RTPTYSECS are hung up -- never while an app process is starting or
+# a window is being taken up, either of which may be about to ask for one.
+# A pass with none left stops asking.
+dt_rtptytick() {
+	local l
+
+	if [ "${#DT_RTLAUNCH[@]}${#DT_RVKEEP[@]}" = 00 ]; then
+		l := pty reap $((DT_RTPTYSECS * 1000)) || DT_RTPTYN=
+	else
+		l := pty reap || DT_RTPTYN=
+	fi
+	[ -z "$l" ] || dt_log "app runtime: terminals' programs: ${l//$'\n'/; }"
+	return 0
 }
 
 # Tell the process of one launch to run one of its own functions, by name

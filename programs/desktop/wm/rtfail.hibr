@@ -384,17 +384,13 @@ fn dt_rvcellsgo(int fd) {
 	return 0
 }
 
-# Every app process this desktop started and has not seen end, by pid, one
-# line: what a Restart Desktop writes down (wm/restart.hibr), since each is
-# still this process's child across the exec. Answered with ret.
+# The processes this desktop started for its app processes and has not seen
+# end, by pid, one line: what a Restart Desktop writes down (wm/restart.hibr),
+# since each is still this process's child across the exec. That is the
+# zygote alone: the app processes are its children (ADR 0050), and it waits
+# for them once the desktop has gone. Answered with ret.
 dt_rvpids() {
-	local x out=" "
-
-	for x in "${DT_RTCPID[@]}" "${DT_RTLPID[@]}" "${!DT_RTENDPID[@]}"; do
-		[ -n "$x" ] && [[ $out != *" $x "* ]] && out+="$x "
-	done
-	out=${out# }
-	ret "${out% }"
+	ret "${DT_RTZPID-}"
 }
 
 # The app processes a Restart Desktop carried across its exec (ADR 0050,

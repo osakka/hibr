@@ -412,15 +412,17 @@ check("input typed behind a held key waits for its answer and goes where the "
 do(t, "dt_mclose")
 
 # -- Restart Desktop: the app's process ends with the socket it spoke on,
-# and the desktop after the exec finds it by its pid and sees it end.
+# waited for by its zygote, and the desktop after the exec finds the zygote
+# -- its own child, the app processes' parent -- by its pid and sees it end.
 before = log(t).count("quit unexpectedly")
 hp = readpid(".hpid", secs=1)
+zp = result(t, 'echo "$DT_RTZPID"')
 do(t, "dt_restart")
-check("after Restart Desktop the app's process, carried across the exec, is "
-      "seen to end and is not left a zombie",
-      (logwait(t, "process %s, carried across the restart, ended with status" % hp, 10)
-       or logwait(t, "process %s, carried across the restart, had ended before it" % hp, 1))
-      and gone(hp), (hp, zombie(hp), said(t, "carried")))
+check("after Restart Desktop the app's process ends and is not left a zombie, "
+      "and its zygote, carried across the exec, is seen to end",
+      (logwait(t, "process %s, carried across the restart, ended with status" % zp, 10)
+       or logwait(t, "process %s, carried across the restart, had ended before it" % zp, 1))
+      and gone(hp) and gone(zp), (hp, zombie(hp), zp, zombie(zp), said(t, "carried")))
 check("and a restart is no app quitting: no note, nothing reopened",
       log(t).count("quit unexpectedly") == before and "reopened" not in log(t)[log(t).find("restarting into"):],
       log(t)[-600:])

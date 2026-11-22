@@ -124,6 +124,25 @@ declare -gA DT_RTREVOKED DT_RTDROPPED
 # no, as the desktop keeps them around a callback.
 DT_NOTEWIN=
 DT_WHY=
+# The maps each app of this process keeps a window's state in (its
+# dt_keepstate line), by app; and this process's channel to the desktop for
+# its terminals' programs, which the desktop owns (mods/pty, ADR 0050).
+declare -gA DT_RTKEEP
+DT_RTPTYFD=
+# The token of this process's launch, from its environment or, forked from
+# the zygote, from the request that made it; and the descriptors the
+# zygote's last message carried (zygote recv).
+DT_RTTOKEN=${DT_RTTOKEN-}
+ZG_FDS=
+# The app a fresh process forked from the zygote runs, and its file.
+DT_RTZAPP=
+DT_RTZFILE=
+# Set once this process has kept a window's state for a fresh one (a
+# Restart Desktop): it holds still until its socket ends (dt_rtfreeze).
+DT_RTFROZEN=
+# When the zygote forked this process, in microseconds, so how long it took
+# to be ready is said once (the app read, and a window taken up).
+DT_RTFORKT=
 
 # Open the connection and say hello: the protocol, the hibr version and
 # the app's name. A desktop that refuses says why, which is kept in
@@ -243,6 +262,12 @@ fn dt_rtsend(verb, name, ...args) {
 	# A pop-up's own functions, said before the desktop opens it, so it
 	# calls and draws them here.
 	[ "$name" = dt_baripop ] && dt_rtpophas "${args[1]-}"
+	# The maps an app keeps a window's state in are this process's own, so
+	# a window carried to a fresh process (dt_rtstash) takes them with it.
+	if [ "$verb" = declare ] && [ "$name" = dt_keepstate ]; then
+		DT_RTKEEP["${args[0]-}"]="${args[*]:1}"
+		return 0
+	fi
 	[ -n "$DT_RTFD" ] || { dt_log "app runtime: $name with no desktop connected"; return 1; }
 	case $verb in
 	tell)
@@ -450,6 +475,11 @@ fn dt_rtcall(seq, target, name, ...args) {
 			search | hover) fn=dt_rtrows${name##*_}; rows=1 ;;
 			esac
 		fi
+	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ] &&
+		{ [ "$name" = stash ] || [ "$name" = resume ]; }; then
+		# A window carried to a fresh process: the runtime's own, around
+		# the app's _stash and _resume.
+		fn=dt_rt$name
 	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ]; then
 		# Its menus or its context menu: built here and pushed when
 		# different from the last, never answered as a call. An edit is
@@ -470,7 +500,8 @@ fn dt_rtcall(seq, target, name, ...args) {
 	else
 		dt_log "app runtime: the desktop called $name of window $target, which this process does not draw; refused"
 	fi
-	if [ -n "$fn" ] && [ -z "$rows" ] && { [ -n "${DT_RTIFACE["$fn"]+x}" ] || ! dt_has "$fn"; }; then
+	if [ -n "$fn" ] && [ -z "$rows" ] && [[ $fn != dt_rt@(stash|resume) ]] &&
+		{ [ -n "${DT_RTIFACE["$fn"]+x}" ] || ! dt_has "$fn"; }; then
 		dt_log "app runtime: the desktop told $fn, which is not this app's own; refused"
 		fn=
 	fi
@@ -482,6 +513,12 @@ fn dt_rtcall(seq, target, name, ...args) {
 			"$fn" "${args[@]}"
 			st=$?
 			dt_spent "$fn" "$((${EPOCHREALTIME/./} - t0))" "${DT_RTPFX[0]-}"
+		elif [[ $fn == dt_rt@(stash|resume) ]]; then
+			"$fn" "$target" "${args[@]}"
+			st=$?
+			DT_RTVNEW["w$target"]=1
+			# Taken up in place of its _open, which is never told for it.
+			[ "$name" != resume ] || unset DT_RTWAITOPEN["w$target"]
 		else
 			dt_appcall "$target" "$fn" "${args[@]}"
 			st=$?
@@ -1107,6 +1144,72 @@ dt_rtcells() {
 	return 0
 }
 
+# A window being carried to a fresh process (a Restart Desktop, ADR 0050):
+# the app's own _stash, then each map it keeps the window's state in,
+# written beside what _stash saved as rt-ID.json, which the fresh process
+# reads back before the app's _resume. What a terminal's _stash hands over
+# by descriptor needs nothing here: its program is the desktop's child, and
+# the desktop hands its master to whichever process asks for it by its pid.
+fn dt_rtstash(int id, dir = "") {
+	local ap=${DT[$id]["app"]-} m j out="{}"
+	local -A kept
+
+	[ -n "$dir" ] && [ -d "$dir" ] || { dt_log "app runtime: window $id asked to keep its state in ${dir:-nothing}"; return 1; }
+	dt_has "${ap}_stash" && dt_appcall "$id" "${ap}_stash" "$dir"
+	json parse kept "{}"
+	for m in ${DT_RTKEEP["$ap"]-}; do
+		j := json get "$m" ".$id" 2> /dev/null || continue
+		json parse kept["$m"] "$j"
+	done
+	out := json emit kept
+	printf '%s\n' "$out" > "$dir/rt-$id.json.$$" && mv -f "$dir/rt-$id.json.$$" "$dir/rt-$id.json"
+	dt_rtfreeze
+}
+
+# Once a window's state is kept for a fresh process, this one holds still
+# until it goes: nothing more read from what it watches -- a terminal's
+# master above all, whose output read now would be in neither the saved
+# screen nor the fresh process -- nothing drawn, no ticker run; only the
+# desktop's socket, whose end is this process's.
+dt_rtfreeze() {
+	local x
+	local -a watched
+
+	[ -z "$DT_RTFROZEN" ] || return 0
+	DT_RTFROZEN=1
+	x := console watching
+	read -ra watched <<< "$x"
+	for x in "${watched[@]}"; do
+		x=${x%%:*}
+		[ "$x" = "$DT_RTFD" ] || console unwatch "$x"
+	done
+	DT_RTPTYFD=
+	return 0
+}
+
+# A window carried from another process, taken up: its maps read back, then
+# the app's _resume, or its _open when it has neither, as a restart does
+# in-process (dt_restore).
+fn dt_rtresume(int id, dir = "") {
+	local ap=${DT[$id]["app"]-} m j f="$dir/rt-$id.json" got=
+	local -A kept
+
+	if [ -r "$f" ] && json parse kept < "$f" 2> /dev/null; then
+		for m in "${!kept[@]}"; do
+			j := json get kept ".$m" 2> /dev/null || continue
+			json parse "$m[$id]" "$j" && got=1
+		done
+	fi
+	if dt_has "${ap}_resume"; then
+		dt_appcall "$id" "${ap}_resume"
+	elif [ -z "$got" ] && dt_has "${ap}_open"; then
+		dt_appcall "$id" "${ap}_open" ""
+	fi
+	[ -z "$DT_RTFORKT" ] ||
+		dt_log "app runtime: window $id taken up $(((${EPOCHREALTIME/./} - DT_RTFORKT) / 1000)) ms after its process's fork"
+	return 0
+}
+
 # What the desktop shares, arriving: `json NAME KIND TEXT` the whole of a
 # name, declared as the desktop has it (KIND A a map declared -A, a a list,
 # s a scalar) and from then on guarded; `jsonk NAME KEY JSON` one entry of a
@@ -1175,7 +1278,7 @@ dt_rtrun() {
 		done
 		# What this pass made due is drawn before the wait, so a key's
 		# echo goes out with the call that caused it.
-		dt_rtdraw
+		[ -n "$DT_RTFROZEN" ] || dt_rtdraw
 		if [ -n "$DT_RTHADV" ] && [ "${#DT_RTV[@]}" = 0 ]; then
 			if [ -z "$DT_RTBARS" ] && ! dt_rtworking; then
 				console unwatch "$DT_RTFD"
@@ -1194,6 +1297,9 @@ dt_rtrun() {
 			l=$(((60 - EPOCHSECONDS % 60) * 1000))
 			[ -n "$DT_WANT" ] && [ "$DT_WANT" -le "$l" ] || DT_WANT=$l
 		fi
+		if [ -n "$DT_RTFROZEN" ]; then
+			DT_WANT=
+		fi
 		if [ -n "$DT_RTQUIET" ]; then
 			DT_RTQUIET=
 			console key -q ${DT_WANT:+"$DT_WANT"}
@@ -1201,8 +1307,17 @@ dt_rtrun() {
 			console key ${DT_WANT:+"$DT_WANT"}
 		fi
 		DT_WANT=
-		dt_rtidle
-		dt_tickers
+		[ -n "$DT_RTFROZEN" ] || dt_rtidle
+		# The desktop saying a terminal's program ended: taken up now, so
+		# the window asks `term alive` of what is true.
+		if [ -n "$DT_RTPTYFD" ]; then
+			w := console woke "$DT_RTPTYFD"
+			if [ -n "$w" ] && ! pty pump; then
+				console unwatch "$DT_RTPTYFD"
+				DT_RTPTYFD=
+			fi
+		fi
+		[ -n "$DT_RTFROZEN" ] || dt_tickers
 		# Tells an ask kept for after it run first, in order.
 		while [ "${#DT_RTQ[@]}" -gt 0 ]; do
 			l=${DT_RTQ[0]}
@@ -1240,20 +1355,135 @@ dt_rtrun() {
 	done
 }
 
-# Run as an installed app's process: the hello, so the desktop's state is
-# here before the app's file reads it, as it is in the desktop; the app's
-# file, read with no arguments of this process's (an app run directly acts
-# on its own), and each part its bundle declares (`# part:`), since a
-# bundle is one process; its cells channel; its loop.
-if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "$#" = 2 ]; then
-	DT_HOLDWHAT=${1##*/}
+
+# The zygote (ADR 0050): the one prepared host of a desktop's app processes.
+# It has read this file -- the app interface, the requests, the modules every
+# app process needs -- once, and forks a fresh process for each app the
+# desktop asks for on its channel (zfd), so none parses it again and every
+# one shares its pages. The channel carries messages with descriptors
+# (mods/zygote.c), a line of words each, as the socket's lines are written:
+#   desktop to zygote: fork TOKEN APP FILE [WORD...]   with the new process's
+#                      channel for its terminals' programs riding on it;
+#                      end PID SIGNAL
+#   zygote to desktop: zygote PROTOCOL VERSION   forked TOKEN PID
+#                      exit PID STATUS
+# With no words the fresh process returns from here, status 0, with the app
+# and its file in DT_RTZAPP and DT_RTZFILE, and runs it at the top of this
+# file -- never inside a function, where the app's file would see this one's
+# locals; with words, it execs hibr on them, for a file that is its own
+# runtime (a test's). The zygote is every app process's parent, so it waits
+# for each and says how it ended; whatever forked a child is entitled to its
+# status. When the desktop goes it waits for its processes, which see their
+# own sockets end, a little, then ends those left and itself: status 1.
+fn dt_rtzygote(int zfd) {
+	local l pid st tok app file x n
+	local -a w fds run
+
+	need zygote || { dt_log "app runtime: no zygote module"; return 1; }
+	need pty 2> /dev/null || dt_log "app runtime: no pty module, so no terminal's program is the desktop's"
+	title -s zygote "hibr zygote of the desktop's app processes"
+	l := dt_rtline zygote "$DT_RTPROTO" "$HIBR_VERSION"
+	zygote send "$zfd" "$l" || return 1
+	console watch "$zfd"
+	while :; do
+		l := zygote reaped
+		while read -r pid st; do
+			[ -n "$pid" ] || continue
+			x := dt_rtline exit "$pid" "$st"
+			zygote send "$zfd" "$x"
+		done <<< "$l"
+		while :; do
+			l := zygote recv "$zfd" -t 0 ZG_FDS
+			st=$?
+			[ "$st" = 0 ] || break
+			read -ra w <<< "$l"
+			fds=()
+			read -ra fds <<< "$ZG_FDS"
+			for x in "${!w[@]}"; do
+				w[$x] := dt_rtdec "${w[$x]}"
+			done
+			case ${w[0]-} in
+			fork)
+				tok=${w[1]-}
+				app=${w[2]-}
+				file=${w[3]-}
+				run=("${w[@]:4}")
+				x=${fds[0]-}
+				DT_RTFORKT=${EPOCHREALTIME/./}
+				if [ -n "$x" ]; then
+					pid := zygote fork -k "$x"
+				else
+					pid := zygote fork
+				fi
+				if [ "$pid" = 0 ]; then
+					console unwatch "$zfd" 2> /dev/null
+					title -s "app:$app" "hibr app $app"
+					if [ "${#run[@]}" -gt 0 ]; then
+						DT_RTTOKEN=$tok exec "$HIBR" "${run[@]}"
+						exit 127
+					fi
+					DT_RTTOKEN=$tok
+					if [ -n "$x" ]; then
+						pty via "$x" && DT_RTPTYFD=$x && console watch "$DT_RTPTYFD"
+					fi
+					DT_RTZAPP=$app
+					DT_RTZFILE=$file
+					return 0
+				fi
+				[ -z "$x" ] || exec {x}>&-
+				for x in "${fds[@]:1}"; do
+					exec {x}>&-
+				done
+				l := dt_rtline forked "$tok" "$pid"
+				zygote send "$zfd" "$l"
+				;;
+			end) zygote end "${w[1]-}" "${w[2]-15}" ;;
+			*)
+				for x in "${fds[@]}"; do
+					exec {x}>&-
+				done
+				dt_log "app runtime: the zygote was told ${w[0]:-nothing}, which it does not know"
+				;;
+			esac
+		done
+		[ "$st" = 1 ] && break
+		console key > /dev/null
+	done
+	console unwatch "$zfd"
+	zygote close "$zfd"
+	n=$((${EPOCHREALTIME/./} / 1000 + ${DT_RTENDSECS:-5} * 1000))
+	while :; do
+		l := zygote reaped
+		x := zygote kids
+		[ -n "$x" ] || break
+		if [ "$((${EPOCHREALTIME/./} / 1000))" -ge "$n" ]; then
+			read -ra w <<< "$x"
+			for pid in "${w[@]}"; do
+				zygote end "$pid" 9
+			done
+		fi
+		console key 100 > /dev/null
+	done
+	return 1
+}
+
+# Run as the zygote, by the desktop (dt_rtzstart), on the channel given;
+# what returns from it is a fresh app process, which is that app's whole
+# process: the hello, so the desktop's state is here before the app's file
+# reads it, as it is in the desktop; the app's file, read with no arguments
+# of this process's (an app run directly acts on its own), and each part its
+# bundle declares (`# part:`), since a bundle is one process; its cells
+# channel; its loop.
+if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "${1-}" = --zygote ] && [ "$#" = 2 ]; then
+	dt_rtzygote "$2" || exit 0
+	DT_HOLDWHAT=${DT_RTZFILE##*/}
 	DT_HOLDWHAT="${DT_HOLDWHAT%.hibr}'s own process"
-	dt_rtopen "$1" || { dt_log "app runtime: $1: $DT_RTSAID"; exit 1; }
+	dt_rtopen "$DT_RTZAPP" || { dt_log "app runtime: $DT_RTZAPP: $DT_RTSAID"; exit 1; }
 	for f in "${DT_TICKERS[@]}"; do
 		DT_RTBASETICK["$f"]=1
 	done
 	unset f
-	DT_LOADING=$2
+	DT_LOADING=$DT_RTZFILE
 	set --
 	. "$DT_LOADING"
 	if DT_RTPARTS := dt_rtpartfiles "$DT_LOADING"; then
@@ -1263,6 +1493,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "$#" = 2 ]; then
 		done
 	fi
 	DT_LOADING=
+	dt_log "app runtime: $DT_RTZAPP read $(((${EPOCHREALTIME/./} - DT_RTFORKT) / 1000)) ms after its fork"
 	dt_rtcells || exit 1
 	dt_rtrun
 	[ -z "$DT_RTMARK" ] || command rm -f -- "$DT_RTMARK"

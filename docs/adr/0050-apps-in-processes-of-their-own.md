@@ -125,6 +125,9 @@ carry over; its route does not.
    fresh one and is handed the old one's descriptors; both are measured --
    memory, time to the first frame, what a terminal's programs see -- and
    the cheaper that keeps a terminal's programs running is taken.
+   Settled (owner, 2026-11-22): the fresh fork, with the desktop the parent
+   of every terminal window's program -- "Updates: the zygote, and a
+   terminal's program the desktop owns", below.
 
 ## Requirement: we stay as sensitive to a slow app as we are now (owner, 2026-11-18)
 
@@ -342,8 +345,9 @@ What it holds, each a check there:
   desktop's process group, so a desktop dying outright hung it up before it
   read that its socket had ended -- the runtime handles SIGHUP (never
   ignores it, which programs it starts would inherit) and goes in order on
-  the socket's end. The zygote, which starts app processes from C, will give
-  each a session of its own, which no portable shell command can.
+  the socket's end. The zygote, which starts app processes from C, gives
+  each a session of its own (2026-11-22), which no portable shell command
+  can.
 - **Whose a process is comes from its launch** (2026-11-19, protocol 2):
   `dt_rtspawn` issues a token for the app it starts, hands it to the
   process in its environment (never in `ps`), and records whose it is; the
@@ -448,10 +452,10 @@ What it holds, each a check there:
     `DT_POPCURNEXT`). The platform functions that write a shared name are
     found the same way.
 - **Quit and Restart Desktop close it**: the socket goes and every app
-  process's connection ends. That is not yet what Requirement 8 says --
-  app processes surviving a restart -- which needs the connection kept
-  across the restart's exec or made again; it is built with the zygote,
-  and until then an app process ends with its desktop.
+  process's connection ends. A restart then replaces every app process
+  with a fresh one forked from the new desktop's zygote, its windows
+  carried to it ("Updates", below), rather than keeping the old process
+  and connecting it again as Review 8 first said.
 
 ### Who is sent what (2026-11-20)
 
@@ -1479,6 +1483,116 @@ The later tracks -- a Control Panel pane, a strip module, a bar item, a
 saver, menus and the words a list shows -- need no new verb: each is a
 `view` of another KIND (`pane`, `strip`, `bar`, `saver`) or a `call` of
 another callback, so they add code and not protocol.
+
+## Updates: the zygote, and a terminal's program the desktop owns (2026-11-22, route A)
+
+The owner chose route A before the flip (2026-11-22): a fresh process forked
+from a zygote, handed what the old one held, rather than each app process
+re-executing itself. Route A was measured cheaper by track 4 and broke the
+Terminal as the spine stood -- a program whose parent is the app process is
+reparented to init when that process goes, `pty alive` then answers 0 at
+once and its status reads 0 -- so it comes with the ownership rule that
+makes it honest.
+
+**The ownership rule.** A terminal window's program is the **desktop's**
+child for its whole life, whichever process shows the window. The app's
+process asks the desktop to start it -- in the app process's own directory
+and with its own environment, every `tt_spawn` rule kept (the size on the
+master before the fork, a session and a controlling terminal, signals reset)
+and every descriptor of the desktop's closed in the child -- and is handed a
+copy of the master by descriptor; it reads and writes the master itself, so
+no byte of the program's passes through the desktop. The desktop waits for
+the program and tells the app how it ended. A program goes when its app
+process closes it (its window's `_close`), or when no process of its app has
+held it for `DT_RTPTYSECS` (10 s) -- an app process that ended with nothing
+taking its programs back -- hung up and waited for, as closing its window
+would have done. A desktop that dies takes its programs with it, as the
+owner accepted for terminals (Why not a desktop service).
+
+All of it is in `mods/pty`, behind `py_api` unchanged, so the Terminal, the
+term module and hold do not know: a process with a channel (`pty via`) asks.
+
+| `py_api` / verb | in an app's process (`pty via` set) |
+|---|---|
+| read, write, resize, resizepx, fd, pid, release | local, on the master it holds |
+| spawn, adopt | asked of the desktop; adopt by pid, the descriptor word ignored |
+| alive, status, wait | what the desktop last said (a message), never `waitpid` |
+| signal (`pty signal`), drop/close | asked of the desktop, which alone knows the pid is still its child's |
+| `pty spawn -x` | local: "ends with me" is this process's child by meaning |
+
+**The zygote.** One process per desktop, the runtime run as
+`runtime.hibr --zygote 3`, started by the desktop when the first app process
+is asked for (only a test session, until the flip) and reading the runtime
+once. Every app process is forked from it (`zygote fork`, C: its own `$$`, a
+session of its own, its own random numbers, and no descriptor but the
+standard three and its own channel), so app processes are the **zygote's**
+children: it waits for each and says how it ended, and the desktop signals
+one only through it.
+
+**The wire**, two channels of messages with descriptors (`mods/fdmsg.c`, a
+Unix stream pair -- not `SOCK_SEQPACKET`, whose close with unread data
+resets the peer before it reads what is queued, and which macOS lacks):
+
+- desktop and zygote, a line of words each as the socket's lines are written:
+  `fork TOKEN APP FILE [WORD...]` with the new process's pty channel riding
+  on it, `end PID SIGNAL`; and back `zygote PROTOCOL VERSION` (one of
+  another version is refused, its waiting launches said once as a refused
+  hello is), `forked TOKEN PID`, `exit PID STATUS`. No words: the fresh
+  process runs the app from FILE in itself; words: it execs hibr on them (a
+  test's file that is its own runtime).
+- an app process and the desktop, made by the desktop at launch and handed
+  over with the fork request, so no token and no new line on the socket:
+  `S rows cols xpix ypix cwd argc argv... env...`, `A pid rows cols`,
+  `K rid signal`, `C rid`; and back `s rid pid` or `a rid pid done status`
+  each with the master, `e why`, `x rid status`.
+
+**An update is a Restart Desktop, and every one replaces every app
+process.** Before the exec the desktop asks each window an app process draws
+to keep its state (`call SEQ ID stash DIR`: the app's `_stash`, then each
+map its `dt_keepstate` names, as `rt-ID.json`), never waiting -- the restart
+goes on when the last answers or `DT_RVKEEPMS` passes. It writes which
+windows were hosted and the programs it owns (`pty owned`: fd, pid, app);
+the masters cross the exec as a terminal's do today. The desktop after it
+takes each program back held by nobody (`pty adopt -o`), starts a new zygote
+from disk, forks a fresh process for each app, and once a window's view is
+bound asks it to take the window up (`call SEQ ID resume DIR`: the maps read
+back, then `_resume`), where the Terminal's own `term_resume` asks the
+desktop for its program by pid and is handed the master. The old app
+processes see their socket end and go; the old zygote waits for them and
+goes, and the new desktop waits for it. A crash snapshot has nothing kept:
+its hosted windows open fresh in a fresh process.
+
+No protocol move: `stash` and `resume` are a `call` of another callback, as
+the spine's table says of later tracks; the zygote and the pty channel are
+new peers with their own words, not lines on the app socket. An app process
+and the desktop it speaks to are always one version, since a restart
+replaces every app process -- what the protocol number guards against
+(an old process meeting a new desktop) cannot arise.
+
+**Measured** (2026-11-22, the shared box, medians). The mechanism alone, on
+this tree's runtime with no desktop (`zygote fork` against a fresh
+`hibr`, five each, ready meaning the runtime and the app read): the
+Terminal ready in 9-11 ms forked against 40-49 ms re-executed, 2.7-3.6 MB
+PSS (0.9 MB private) against 6.0 MB (5.6 MB private) -- track 4's 8-11 ms
+and 2.1 MB against 41-50 ms and 6.3 MB, reproduced on the product code.
+Inside a test desktop (five sessions): PSS of the Terminal's process
+2.5 MB (1.2 private), the Calculator's 2.0 (0.7), the Clock's 1.9 (0.6),
+the zygote 1.8 (0.4); fork to app read **including the hello**, 211, 139
+and 116 ms -- the hello's sending of the desktop's shared state, not the
+fork, which neither route avoids and track 4 did not measure. An idle
+pass of `dt_run` is unchanged (11.65M instructions against its 12.2M
+bound): nothing here runs unless the desktop listens.
+
+**Owner's choices left open**, built as recommended:
+
+1. A program whose app process crashed: hung up after `DT_RTPTYSECS`
+   (built), or kept for a Reopen to take back. Recommended: hang up -- a
+   Reopen opens fresh windows, so nothing would take it back, and today an
+   app crash hangs its programs up at once.
+2. Restart Desktop with no new version: every app process replaced (built,
+   one path), or kept and reconnected when the version is the same (Review
+   8's "survive and reconnect", superseded by this). Recommended: replace --
+   one path, and an edited tree at the same version is caught too.
 
 ## The first plan (2026-11-01), superseded
 
