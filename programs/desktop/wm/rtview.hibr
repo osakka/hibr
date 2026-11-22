@@ -61,6 +61,9 @@ fn dt_rthost(app) {
 
 	[ -n "$src" ] || { dt_log "app runtime: $app has no file to start"; return 1; }
 	dt_rtlisten || return 1
+	# Its file's and its parts' panes, modules, savers and bar items are its
+	# process's too (wm/rtkinds.hibr).
+	dt_rvpendapp "$app"
 	t := dt_rtspawn "$app" "$src" "$DT_HERE/runtime.hibr" "$app" "$src"
 	ret "$t"
 }
@@ -346,10 +349,10 @@ fn dt_rvforget(int id) {
 	for i in "${!DT_RVC[@]}"; do
 		[ "${DT_RVC[$i]}" = "$c" ] && return 0
 	done
-	# Nor while it still draws a pane, a module, a saver or a bar item
-	# (wm/rtkinds.hibr).
-	for i in "${!DT_RVX[@]}"; do
-		[ "${DT_RVX["$i"]}" = "$c" ] && return 0
+	# Nor while it still draws a pane, a module, a saver or a bar item, or
+	# has an item on the bar, which keeps it for the session (wm/rtkinds.hibr).
+	for i in "${!DT_RVX[@]}" "${!DT_RVB[@]}"; do
+		[ "${DT_RVX["$i"]-}" = "$c" ] || [ "${DT_RVB["$i"]-}" = "$c" ] && return 0
 	done
 	p=${DT_RTCPID["$c"]-}
 	[ -z "$p" ] || DT_RTENDPID["$p"]=$((${EPOCHREALTIME/./} / 1000 + DT_RTENDSECS * 1000))
@@ -418,7 +421,7 @@ fn dt_rvhas_in(int c, ap = "", ...kinds) {
 	# A pane, a strip module or a saver of its file: drawn in a view of its
 	# own kind (wm/rtkinds.hibr). One prefix is never both in one file.
 	if [ -n "$ap" ] && [ -n "$src" ] && [ "${DT_APPS["$ap"]["src"]-}" != "$src" ]; then
-		dt_rvkinds_in "$c" "$src" "$ap" "${kinds[@]}" && return 0
+		dt_rvkinds_in "$c" "$who" "$ap" "${kinds[@]}" && return 0
 	fi
 	if [ -z "$ap" ] || [ -z "${DT_APPS["$ap"]["src"]-}" ] ||
 		[ "${DT_APPS["$ap"]["src"]}" != "$src" ]; then

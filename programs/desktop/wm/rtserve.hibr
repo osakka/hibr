@@ -600,33 +600,8 @@ dt_rtclose() {
 # when an app's process asks; the desktop's own calls always are. What a
 # request that names another installable's thing checks before acting.
 fn dt_rtmine(f) {
-	local m p
-
 	[ -n "${DT_RTFROM-}" ] || return 0
-	m := dt_rvsrc "$DT_CALLER"
-	[ -n "$f" ] && [ -n "$m" ] || return 1
-	[ "$f" = "$m" ] && return 0
-	p := dt_rtpartfiles "$m" || return 1
-	[[ $'\n'$p$'\n' == *$'\n'"$f"$'\n'* ]]
-}
-
-# The files of every part a file declares (`# part: KIND/NAME`), one a
-# line: found under the folder that holds the file's own kind folder, and
-# only those that are there. The one place a part is resolved.
-fn dt_rtpartfiles(src) {
-	local l k root= p out=
-
-	for k in apps system control-panel control-strip menubar savers; do
-		[[ $src == */$k/* ]] && { root=${src%%/$k/*}; break; }
-	done
-	[ -n "$root" ] || return 1
-	while IFS= read -r l; do
-		[[ $l == "# part:"* ]] || continue
-		p=${l#"# part:"}
-		p=${p# }
-		[ -r "$root/$p" ] && out+="$root/$p"$'\n'
-	done < "$src"
-	ret "${out%$'\n'}"
+	dt_rvmine "$DT_CALLER" "$f"
 }
 
 # The text of every part a file declares, joined, for dt_rtmay.

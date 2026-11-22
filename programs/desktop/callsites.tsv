@@ -2,30 +2,29 @@
 local	savers/saver.hibr	63	sv_call	"${name}_$what" "${rest[@]}"
 local	widgets/bidi.hibr	113	bd_put	"$pen" "$y"
 local	widgets/omnibox.hibr	78	dt_omniask	out := "$cb" "$id" "$text" || out=
-desktop	wm/apps.hibr	386	dt_regread	DT_LOADING=$file "$n" "${w[@]}" ||
 local	wm/budget.hibr	228	dt_appcall	"$cb" "$id" "${args[@]}"
 local	wm/budget.hibr	255	dt_appget	"$cb" "$id" "${args[@]}"
-desktop	wm/handlers.hibr	114	dt_runhandler	( "${DT_OPENCMD[@]}" "$path" >> "$DT_LOG" 2>&1 & )
+desktop	wm/handlers.hibr	77	dt_runhandler	( "${DT_OPENCMD[@]}" "$path" >> "$DT_LOG" 2>&1 & )
 desktop	wm/hold.hibr	254	dt_autohold	"${HIBR:-hibr}" "$DT_HERE/lib/ctl.hibr" -s "$base" \
-local	wm/jobs.hibr	91	dt_job	"${cmd[@]}" > "$d/$n.out" 2> "$d/$n.err"
-local	wm/jobs.hibr	104	dt_jobmerge	"${cmd[@]}" 2>&1
-local	wm/jobs.hibr	125	dt_jobvarsrun	"$f" > /dev/null 2>&1
-local	wm/jobs.hibr	136	dt_jobvarsdone	[ -n "$then" ] && "$then" "$n" "$st"
-local	wm/jobs.hibr	207	dt_ptyjobtick	[ -n "${DTJ[$n]["prompt"]}" ] && { "${DTJ[$n]["prompt"]}" "$n" "$t" && r=0; }
-local	wm/jobs.hibr	284	dt_jobtick	"${DTJ[$n]["then"]}" "$n" "$st"
+local	wm/jobs.hibr	83	dt_job	"${cmd[@]}" > "$d/$n.out" 2> "$d/$n.err"
+local	wm/jobs.hibr	96	dt_jobmerge	"${cmd[@]}" 2>&1
+local	wm/jobs.hibr	117	dt_jobvarsrun	"$f" > /dev/null 2>&1
+local	wm/jobs.hibr	128	dt_jobvarsdone	[ -n "$then" ] && "$then" "$n" "$st"
+local	wm/jobs.hibr	199	dt_ptyjobtick	[ -n "${DTJ[$n]["prompt"]}" ] && { "${DTJ[$n]["prompt"]}" "$n" "$t" && r=0; }
+local	wm/jobs.hibr	276	dt_jobtick	"${DTJ[$n]["then"]}" "$n" "$st"
 local	wm/loop.hibr	155	dt_tickers	"$f"
 desktop	wm/native.hibr	294	dt_natver	v := "$b" --version 2> /dev/null
 local	wm/powerlist.hibr	44	dt_pwlocal	o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
 desktop	wm/recover.hibr	79	dt_supervise	"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
-desktop	wm/restart.hibr	579	dt_updcheck	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
-desktop	wm/rtkinds.hibr	482	dt_rvbfn	DT_RTFROM=$c "$@"
-desktop	wm/rtserve.hibr	788	dt_rtmsg	DT_CALLER=$who DT_RTFROM=$c "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
-desktop	wm/rtserve.hibr	848	dt_rtanswer	x := "$name" "${args[@]}"
-desktop	wm/rtserve.hibr	851	dt_rtanswer	"$name" "${args[@]}"
-desktop	wm/rtview.hibr	384	dt_rvtook	"${w[@]}"
-desktop	wm/rtview.hibr	657	dt_rvappfn	"$f" "${args[@]}" && ret -k
+desktop	wm/restart.hibr	578	dt_updcheck	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
+desktop	wm/rtkinds.hibr	634	dt_rvbfn	DT_RTFROM=$c "$@"
+desktop	wm/rtserve.hibr	745	dt_rtmsg	DT_CALLER=$who DT_RTFROM=$c "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
+desktop	wm/rtserve.hibr	805	dt_rtanswer	x := "$name" "${args[@]}"
+desktop	wm/rtserve.hibr	808	dt_rtanswer	"$name" "${args[@]}"
+desktop	wm/rtview.hibr	377	dt_rvtook	"${w[@]}"
+desktop	wm/rtview.hibr	637	dt_rvappfn	"$f" "${args[@]}" && ret -k
 window	wm/seam.hibr	50	dt_appfn	dt_appfn() { local DT_CALLER=$1; ${DT_RTHOST[$1]+dt_rvappfn} "${@:2}" && ret -k; }
-desktop	wm/settings.hibr	767	dt_set	"$f"
+desktop	wm/settings.hibr	761	dt_set	"$f"
 desktop	wm/vault.hibr	108	dt_vw	DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")
 desktop	wm/vault.hibr	110	dt_vw	DT_VWOUT=$(VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef" < /dev/null)
 desktop	wm/vault.hibr	151	dt_vwjobrun	"$f" > /dev/null 2>&1

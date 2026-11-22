@@ -488,6 +488,8 @@ fn dt_baristep(int dir) {
 
 fn dt_popclose() {
 	[ -n "$DT_POP" ] || return 0
+	# One its item's own process drew goes with it (wm/rtkinds.hibr).
+	[ -z "${DT_RVX["o$DT_POPITEM"]+x}" ] || dt_rvxforget "o$DT_POPITEM"
 	DT_POP=
 	DT_POPITEM=
 	DT_POPHELD=
@@ -503,7 +505,8 @@ fn dt_pophit(int r, int c) {
 
 # Tell the owner about the mouse, at screen row r, column c.
 fn dt_popmouse(act, int r, int c) {
-	dt_appfn "$DT_POPOWN" "${DT_POP}_popmouse" "$act" $((r - DT_POPR)) $((c - DT_POPC))
+	dt_appfn "$DT_POPOWN" ${DT_RVB[$DT_POPITEM]+dt_rvbfn popmouse "$DT_POPITEM"} \
+		"${DT_POP}_popmouse" "$act" $((r - DT_POPR)) $((c - DT_POPC))
 	dt_want 10
 }
 
@@ -519,7 +522,8 @@ dt_popdraw() {
 		dt_castshadow "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
 	console pen "$DT_INK" "$DT_FACE"
 	console fill "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW" " "
-	dt_appfn "$DT_POPOWN" "${DT_POP}_popdraw" "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
+	dt_appfn "$DT_POPOWN" ${DT_RVB[$DT_POPITEM]+dt_rvbfn popdraw "$DT_POPITEM"} \
+		"${DT_POP}_popdraw" "$DT_POPR" "$DT_POPC" "$DT_POPH" "$DT_POPW"
 }
 
 # Which item is at column c on the bar, if any. A bare `return 1` on a

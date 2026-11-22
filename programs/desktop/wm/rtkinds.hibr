@@ -47,6 +47,19 @@ fn dt_rvsrc(who = "") {
 	fi
 }
 
+# Whether file f is who's own -- an app's or a file's process -- its file
+# or one of its parts (a bundle is one process, ADR 0050): the one answer
+# every guard on another installable's thing asks.
+fn dt_rvmine(who = "", f = "") {
+	local m p
+
+	m := dt_rvsrc "$who"
+	[ -n "$f" ] && [ -n "$m" ] || return 1
+	[ "$f" = "$m" ] && return 0
+	p := dt_rtpartfiles "$m" || return 1
+	[[ $'\n'$p$'\n' == *$'\n'"$f"$'\n'* ]]
+}
+
 # Whether app is who's own: who itself, or an app its file registers.
 fn dt_rvappof(who, app = "") {
 	[ -n "$app" ] || return 1
@@ -89,7 +102,45 @@ fn dt_rthostk(kind, name) {
 	saver) dt_saverload && f=${SV["$name"]["src"]-} ;;
 	esac
 	[ -n "$f" ] || { dt_log "app runtime: no $kind $name with a file to start"; return 1; }
+	dt_rthostf "$f" && ret -k
+}
+
+# Start the process of file f, or of the app whose bundle has f as a part
+# (a bundle is one process): every pane, module, saver and bar item of it
+# hosted from now on. Answered with the launch.
+fn dt_rthostf(f) {
+	local a t
+
+	if a := dt_rvpartof "$f"; then
+		t := dt_rthost "$a" || return 1
+		ret "$t"
+		return 0
+	fi
 	dt_rtlisten || return 1
+	dt_rvpendfile "$f"
+	t := dt_rtspawn "$f" "$f" "$DT_HERE/runtime.hibr" "$f" "$f"
+	ret "$t"
+}
+
+# The app whose bundle declares file f a part, answered with ret; status 1
+# when none does.
+fn dt_rvpartof(f) {
+	local a s p
+
+	for a in "${!DT_APPS[@]}"; do
+		s=${DT_APPS[$a]["src"]-}
+		[ -n "$s" ] && [ "$s" != "$f" ] || continue
+		p := dt_rtpartfiles "$s" || continue
+		[[ $'\n'$p$'\n' == *$'\n'"$f"$'\n'* ]] && { ret "$a"; return 0; }
+	done
+	return 1
+}
+
+# Every pane, strip module, saver and bar item file f registers, hosted by
+# a process being started: never drawn here from now.
+fn dt_rvpendfile(f) {
+	local p
+
 	dt_has cp_pane && for p in "${!CP_PANES[@]}"; do
 		[ "${CP_PANES[$p]["src"]-}" = "$f" ] && dt_rvxpend "$p" pane "$f"
 	done
@@ -99,8 +150,68 @@ fn dt_rthostk(kind, name) {
 	dt_has sv_saver && for p in "${!SV[@]}"; do
 		[ "${SV[$p]["src"]-}" = "$f" ] && dt_rvxpend "$p" saver "$f"
 	done
-	t := dt_rtspawn "$f" "$f" "$DT_HERE/runtime.hibr" "$f" "$f"
-	ret "$t"
+	for p in "${DT_BARIN[@]}"; do
+		[ "${DT_BARI["$p"]["src"]-}" = "$f" ] && DT_RVB["$p"]=
+	done
+	dt_rvhookoff "$f"
+	return 0
+}
+
+# The bar hooks a hosted file registered here run in its own process from
+# now (the runtime runs them each pass), never as a call a frame: taken off
+# the desktop's list, by file, and put back when that process goes.
+declare -gA DT_RVHOOKS
+fn dt_rvhookoff(f) {
+	local h
+	local -a keep=()
+
+	for h in "${DT_BARHOOKS[@]}"; do
+		if [ "${DT_BARHOOKSRC["$h"]-}" = "$f" ]; then
+			DT_RVHOOKS["$h"]=$f
+		else
+			keep+=("$h")
+		fi
+	done
+	DT_BARHOOKS=("${keep[@]}")
+}
+fn dt_rvhookback(f = "") {
+	local h
+
+	[ -n "$f" ] || return 0
+	for h in "${!DT_RVHOOKS[@]}"; do
+		[ "${DT_RVHOOKS["$h"]}" = "$f" ] || continue
+		unset DT_RVHOOKS["$h"]
+		DT_BARHOOKS+=("$h")
+	done
+	return 0
+}
+
+# The pop-up prefixes a process said it has (`has PREFIX popdraw ...`, sent
+# as it opens one), by prefix: its connection.
+declare -gA DT_RVPOP
+
+# A hosted item's pop-up, where dt_popdraw would have run its own: the
+# screen at the pop-up's rectangle (NAME o$NAME, ARGS NAME FN), shown whole
+# over the face just painted.
+fn dt_rvbpop(nm, fn, int r, int col, int h, int w) {
+	dt_rvxbind "o$nm" "b:$nm" "${DT_RVB["$nm"]}" - "$r" "$col" "$h" "$w" pop "$nm" "$fn" || return 0
+	dt_rvxshow "o$nm" -a
+}
+
+# An app's own file and every part of its bundle, hosted by its process
+# being started (dt_rthost).
+fn dt_rvpendapp(app) {
+	local s=${DT_APPS["$app"]["src"]-} p
+	local -a fs
+
+	[ -n "$s" ] || return 0
+	dt_rvpendfile "$s"
+	p := dt_rtpartfiles "$s" || return 0
+	mapfile -t fs <<< "$p"
+	for p in "${fs[@]}"; do
+		[ -z "$p" ] || dt_rvpendfile "$p"
+	done
+	return 0
 }
 
 # A prefix hosted by a process being started: never drawn here from now.
@@ -116,33 +227,61 @@ fn dt_rvxpend(p, kind, f) {
 fn dt_rvxvoid(f = "") {
 	local p
 	for p in "${!DT_RVB[@]}"; do
-		[ -z "${DT_RVB["$p"]}" ] && [ "${DT_BARI["$p"]["src"]-}" = "$f" ] || continue
+		[ -z "${DT_RVB["$p"]}" ] && dt_rvmine "$f" "${DT_BARI["$p"]["src"]-}" || continue
 		dt_log "app runtime: bar item $p was to be drawn by $f's process, which did not start"
 		unset DT_RVB["$p"]
 	done
 
 	for p in "${!DT_RVP[@]}"; do
-		[ "${DT_RVPF["$p"]-}" = "$f" ] && [ -z "${DT_RVPC["$p"]-}" ] || continue
+		[ -z "${DT_RVPC["$p"]-}" ] && dt_rvmine "$f" "${DT_RVPF["$p"]-}" || continue
 		dt_log "app runtime: $p was to be drawn by $f's process, which did not start"
 		unset DT_RVP["$p"] DT_RVPC["$p"] DT_RVPF["$p"] DT_RVPK["$p"]
+	done
+	for p in "${!DT_RVHOOKS[@]}"; do
+		dt_rvmine "$f" "${DT_RVHOOKS["$p"]}" || continue
+		unset DT_RVHOOKS["$p"]
+		DT_BARHOOKS+=("$p")
 	done
 	return 0
 }
 
 # `has PREFIX KIND...` from connection c for a pane, a strip module or a
-# saver its file src registers: carried from now on, and drawn at the next
-# frame. Status 1 when p is none of the three of src's.
-fn dt_rvkinds_in(int c, src, p, ...kinds) {
-	local k= f h=" "
+# saver of who's own (its file, or a part of its bundle): carried from now
+# on, and drawn at the next frame. Status 1 when p is none of the three of
+# who's. One drawn by another process already stays that one's: a part two
+# bundles carry (pimset, Calendar's and Contacts') is drawn by the first to
+# say it has it, said once for the other.
+fn dt_rvkinds_in(int c, who, p, ...kinds) {
+	local k= f h=" " src
 
-	if dt_has cp_pane && [ "${CP_PANES["$p"]["src"]-}" = "$src" ]; then
+	if dt_has cp_pane && dt_rvmine "$who" "${CP_PANES["$p"]["src"]-}"; then
 		k=pane
-	elif dt_has cs_module && [ "${CS_MODS["$p"]["src"]-}" = "$src" ]; then
+		src=${CP_PANES["$p"]["src"]}
+	elif dt_has cs_module && dt_rvmine "$who" "${CS_MODS["$p"]["src"]-}"; then
 		k=strip
-	elif dt_has sv_saver && [ "${SV["$p"]["src"]-}" = "$src" ]; then
+		src=${CS_MODS["$p"]["src"]}
+	elif dt_has sv_saver && dt_rvmine "$who" "${SV["$p"]["src"]-}"; then
 		k=saver
+		src=${SV["$p"]["src"]}
 	fi
-	[ -n "$k" ] || return 1
+	if [ -z "$k" ]; then
+		# A pop-up's prefix (dt_baripop), from a process that has an item
+		# on the bar: what it has of the three is carried.
+		[[ " ${kinds[*]} " == *" popdraw "* ]] || return 1
+		for f in "${!DT_RVB[@]}"; do
+			[ "${DT_RVB["$f"]}" = "$c" ] && k=pop
+		done
+		[ -n "$k" ] || return 1
+		for f in popdraw popmouse popkey; do
+			[[ " ${kinds[*]} " != *" $f "* ]] || DT_RVFN["${p}_$f"]=1
+		done
+		DT_RVPOP["$p"]=$c
+		return 0
+	fi
+	if [ -n "${DT_RVPC["$p"]-}" ] && [ "${DT_RVPC["$p"]}" != "$c" ] && [ -n "${DT_RTC["${DT_RVPC["$p"]}"]+x}" ]; then
+		dt_rvonce "two:$p:$c" "app runtime: $who's process has $k $p too, which ${DT_RTC["${DT_RVPC["$p"]}"]}'s draws; it stays there"
+		return 0
+	fi
 	for f in "${kinds[@]}"; do
 		if [[ ${DT_RVCARRY["$k"]} == *" $f "* ]]; then
 			DT_RVFN["${p}_$f"]=1
@@ -369,8 +508,8 @@ fn dt_rvxforget(name) {
 		x := dt_rtline forget "$name"
 		dt_rtsay "$c" "$x"
 	fi
-	for i in "${!DT_RVC[@]}" "${!DT_RVX[@]}"; do
-		[ "${DT_RVC[$i]-}" = "$c" ] || [ "${DT_RVX["$i"]-}" = "$c" ] && return 0
+	for i in "${!DT_RVC[@]}" "${!DT_RVX[@]}" "${!DT_RVB[@]}"; do
+		[ "${DT_RVC[$i]-}" = "$c" ] || [ "${DT_RVX["$i"]-}" = "$c" ] || [ "${DT_RVB["$i"]-}" = "$c" ] && return 0
 	done
 	p=${DT_RTCPID["$c"]-}
 	[ -z "$p" ] || DT_RTENDPID["$p"]=$((${EPOCHREALTIME/./} / 1000 + DT_RTENDSECS * 1000))
@@ -403,12 +542,19 @@ fn dt_rvxdrop(int c) {
 		[ -z "${DT_RTCELLS["$c"]-}" ] || console cells drop "${DT_RTCELLS["$c"]}" "$n"
 		unset DT_RVX["$n"] DT_RVXGEN["$n"] DT_RVXARGS["$n"] DT_RVXDIRTY["$n"] DT_RVXP["$n"]
 	done
-	# Its bar items go off the bar, as an ended app's windows close.
+	# Its bar items go off the bar, as an ended app's windows close, an
+	# open pop-up of one with it; its bar hooks are this desktop's again.
 	for n in "${!DT_RVB[@]}"; do
 		[ "${DT_RVB["$n"]}" = "$c" ] || continue
 		unset DT_RVB["$n"]
 		dt_log "app runtime: the process of bar item $n has gone; the item goes"
+		[ "$DT_POPITEM" != "$n" ] || dt_popclose
+		dt_rvhookback "${DT_BARI["$n"]["src"]-}"
 		dt_baritem "$n" ""
+	done
+	for p in "${!DT_RVPOP[@]}"; do
+		[ "${DT_RVPOP["$p"]}" = "$c" ] || continue
+		unset DT_RVPOP["$p"] DT_RVFN["${p}_popdraw"] DT_RVFN["${p}_popmouse"] DT_RVFN["${p}_popkey"]
 	done
 	dt_want 0
 	return 0
@@ -439,12 +585,11 @@ declare -gA DT_RVB
 # process: one it put there, or one its file registered. A new one becomes
 # that process's from now. Refused and said otherwise, and the item stays.
 fn dt_rvbmine(name, what) {
-	local o=${DT_BARI["$name"]["owner"]-} me
+	local o=${DT_BARI["$name"]["owner"]-}
 
-	me := dt_rvsrc "$DT_CALLER"
 	if [ -n "$o" ]; then
 		o := dt_rvsrc "$o"
-		if [ "$o" != "$me" ]; then
+		if ! dt_rvmine "$DT_CALLER" "$o"; then
 			dt_log "refused: $what: ${DT_CALLER:-an app} named the bar item $name, which is not its own"
 			return 1
 		fi
@@ -471,6 +616,13 @@ dt_rvbfn() {
 	fi
 	case $role in
 	draw) dt_rvbdraw "$nm" "$@" ;;
+	popdraw) dt_rvbpop "$nm" "$@" ;;
+	popkey)
+		# Taken at once, as a pane's key is: the pop-up is up and the key
+		# was its; Escape closed it before it was offered.
+		[ -z "${DT_RVX["o$nm"]-}" ] || console cells input "o$nm"
+		dt_rvxsend "$c" 0 "$@"
+		;;
 	press)
 		DT_RVSEQ=$((DT_RVSEQ + 1))
 		DT_RVASK[$DT_RVSEQ]="bpress $nm:${2-left} $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
@@ -512,13 +664,8 @@ fn dt_rvbdraw(nm, fn, int c, hv = 0) {
 # Start the process of the file that put a bar item there -- a test
 # session's, as dt_rthostk is -- and host every item of that file from now.
 fn dt_rthostb(name) {
-	local f=${DT_BARI["$name"]["src"]-} n t
+	local f=${DT_BARI["$name"]["src"]-}
 
 	[ -n "$f" ] || { dt_log "app runtime: no bar item $name with a file to start"; return 1; }
-	dt_rtlisten || return 1
-	for n in "${DT_BARIN[@]}"; do
-		[ "${DT_BARI["$n"]["src"]-}" = "$f" ] && DT_RVB["$n"]=
-	done
-	t := dt_rtspawn "$f" "$f" "$DT_HERE/runtime.hibr" "$f" "$f"
-	ret "$t"
+	dt_rthostf "$f" && ret -k
 }
