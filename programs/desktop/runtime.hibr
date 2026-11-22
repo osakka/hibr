@@ -798,8 +798,9 @@ fn dt_rtview(name, gen, h, w, kind = "", ...args) {
 # the desktop times a window's draw. A pane, a strip module and a saver are
 # drawn as the desktop draws them (dt_rtkind).
 dt_rtdraw() {
-	local v kind id dh dw or oc ap drew= t0 t
+	local v kind id dh dw or oc ap drew= t0 t now held= dirty=
 
+	now=${EPOCHREALTIME/./}
 	for v in "${!DT_RTV[@]}"; do
 		read -r kind id dh dw or oc <<< "${DT_RTV["$v"]}"
 		if [ "$kind" != win ]; then
@@ -811,6 +812,17 @@ dt_rtdraw() {
 		[ -z "${DT_RTWAITOPEN["$v"]+x}" ] || continue
 		if [ -z "${DT_RTVNEW["$v"]+x}" ] && dt_has "${ap}_dirty" && ! "${ap}_dirty" "$id"; then
 			continue
+		fi
+		# Dirty only by what it watches -- a terminal's program writing --
+		# and drawn less than DT_TERMMS ago: held, as the desktop holds a
+		# frame its terminals' output asks for. What the desktop told it
+		# (a key, a click, a view bound) is never held.
+		if [ -z "${DT_RTVNEW["$v"]+x}" ]; then
+			if [ $((now - DT_RTDRAWN)) -lt $((${DT_TERMMS:-70} * 1000)) ]; then
+				held=1
+				continue
+			fi
+			dirty=1
 		fi
 		unset DT_RTVNEW["$v"]
 		console cells clear "$v"
@@ -834,8 +846,20 @@ dt_rtdraw() {
 		dt_rtfieldtell "$id"
 	done
 	[ -z "$drew" ] || console flush > /dev/null
+	[ -z "$dirty" ] || DT_RTDRAWN=$now
+	# The rest of a held frame is waited out quietly: what the app watches
+	# keeps in its own buffer meanwhile, and the desktop's socket, input,
+	# still ends the wait at once.
+	if [ -n "$held" ]; then
+		DT_RTQUIET=1
+		dt_want $(((DT_RTDRAWN + ${DT_TERMMS:-70} * 1000 - now) / 1000 + 1))
+	fi
 	return 0
 }
+# When a view dirty only by what it watches was last drawn, in microseconds;
+# and whether the next wait is a held frame's, quiet to what it watches.
+DT_RTDRAWN=0
+DT_RTQUIET=
 
 # Draw one view of another kind than a window, as the desktop draws it in
 # its own process, timed the same way; status 1 when nothing was due. A
@@ -1139,7 +1163,9 @@ dt_rtrun() {
 	local w l st
 	local -a got
 
-	console watch "$DT_RTFD" || return 1
+	# As input: a quiet wait (a held frame's) still ends on what the
+	# desktop says.
+	console watch -i "$DT_RTFD" || return 1
 	while :; do
 		# Its bar hooks, each pass, as the desktop runs them each frame:
 		# after what the desktop said, so a setting it pushed is read, and
@@ -1168,7 +1194,12 @@ dt_rtrun() {
 			l=$(((60 - EPOCHSECONDS % 60) * 1000))
 			[ -n "$DT_WANT" ] && [ "$DT_WANT" -le "$l" ] || DT_WANT=$l
 		fi
-		console key ${DT_WANT:+"$DT_WANT"}
+		if [ -n "$DT_RTQUIET" ]; then
+			DT_RTQUIET=
+			console key -q ${DT_WANT:+"$DT_WANT"}
+		else
+			console key ${DT_WANT:+"$DT_WANT"}
+		fi
 		DT_WANT=
 		dt_rtidle
 		dt_tickers
