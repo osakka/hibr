@@ -126,7 +126,9 @@ fn tbunb_popmouse(act, int r, int c) {
 }
 ''' % (SAID, SAID, SAID))
 # Another's: a pane and an item no bundle declares, and a pane that holds
-# its process a quarter of a second each time it draws.
+# its process a quarter of a second each time it draws, and 400 ms of its
+# processor time on a click -- counted on the processor, since that is how
+# a stall is judged, so a loaded box cannot make it a mere slow call.
 open(OPANE, "w").write(r'''command -v cp_pane > /dev/null && cp_pane opane "Other Pane" "+"
 fn opane_draw(int id, int h, int w, int bx) {
 	console put -p "w$id" 1 "$bx" "other"
@@ -140,8 +142,16 @@ fn slowp_draw(int id, int h, int w, int bx) {
 	console put -p "w$id" 1 "$bx" "slow"
 }
 fn slowp_click(int id, int r, int c) {
-	local t=$((${EPOCHREALTIME/./} + 400000))
-	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
+	local s t0 end=$((${EPOCHREALTIME/./} + 4000000))
+	local -a f
+	read -r s < /proc/$$/stat
+	f=(${s##*) })
+	t0=$((f[11] + f[12]))
+	while [ "${EPOCHREALTIME/./}" -lt "$end" ]; do
+		read -r s < /proc/$$/stat
+		f=(${s##*) })
+		[ $((f[11] + f[12] - t0)) -lt 40 ] || break
+	done
 }
 ''')
 
