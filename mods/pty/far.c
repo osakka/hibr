@@ -463,7 +463,6 @@ void tt_request(tt_ch *c, str *m, str *log)
 			goto out;
 		}
 		p->chan = c->c->fd;
-		p->lone = 0;
 		if (atoi((char *)f.p[2]) > 0 && atoi((char *)f.p[3]) > 0)
 			tt_resize(p, atoi((char *)f.p[2]), atoi((char *)f.p[3]));
 		tt_alive(p);
@@ -527,10 +526,8 @@ void tt_unserve(int fd)
 
 	for (i = 0; i < tt_list.n; i++) {
 		p = (tt_p *)tt_list.p[i];
-		if (p->far == 1 && p->chan == fd) {
+		if (p->far == 1 && p->chan == fd)
 			p->chan = -1;
-			p->lone = tt_ms();
-		}
 	}
 	for (i = 0; i < tt_chans.n; i++) {
 		c = (tt_ch *)tt_chans.p[i];
@@ -583,26 +580,25 @@ int tt_reap(str *log)
 	return any;
 }
 
-/* Close every program no app's process has held for ms. */
-void tt_orphans(long ms, str *log)
+/* Every program owned for an app that no app's process holds and that is
+   still running, "id pid owner" a line: what the desktop asks whether any
+   window still names (ADR 0050), hanging up those none does. */
+void tt_lone(str *out)
 {
-	size_t i = 0;
+	size_t i;
 	tt_p *p;
-	long now = tt_ms();
 
-	while (i < tt_list.n) {
+	for (i = 0; i < tt_list.n; i++) {
 		p = (tt_p *)tt_list.p[i];
-		if (p->far == 1 && p->chan < 0 && p->lone && now - p->lone >= ms) {
-			s_fmt(log, "%d %ld %s\n", p->id, p->pid, p->owner ? p->owner : "?");
-			tt_drop(p);
-			continue;
-		}
-		i++;
+		if (p->far == 1 && p->chan < 0 && !p->done && tt_alive(p))
+			s_fmt(out, "%d %ld %s\n", p->id, p->pid, p->owner ? p->owner : "");
 	}
 }
 
 /* What a restart carries: every program owned for an app and still running,
-   "fd pid owner" a line. */
+   "fd pid id chan rows cols owner" a line -- its number and the channel
+   holding it (-1 none) kept, so a process kept across the restart goes on
+   naming it as before. */
 void tt_owned(str *out)
 {
 	size_t i;
@@ -613,13 +609,16 @@ void tt_owned(str *out)
 		if (p->far == 1 && (p->done || !tt_alive(p)))
 			continue;
 		if (p->far == 1)
-			s_fmt(out, "%d %ld %s\n", p->fd, p->pid, p->owner ? p->owner : "");
+			s_fmt(out, "%d %ld %d %d %d %d %s\n", p->fd, p->pid, p->id, p->chan,
+			      p->rows, p->cols, p->owner ? p->owner : "");
 	}
 }
 
-/* Take back across an exec a program owned for an app: lone until that
-   app's process asks for it. */
-tt_p *tt_adoptown(int fd, long pid, int rows, int cols, const char *owner)
+/* Take back across an exec a program owned for an app: under its own number
+   when one is given and free, held by channel chan when that is one (a
+   process kept across the restart, its channel carried too), or lone until
+   that app's process asks for it. */
+tt_p *tt_adoptown(int fd, long pid, int rows, int cols, const char *owner, int id, int chan)
 {
 	tt_p *p;
 
@@ -627,19 +626,26 @@ tt_p *tt_adoptown(int fd, long pid, int rows, int cols, const char *owner)
 		lg(HIBR_LERR, "pty adopt: %d is not an open terminal", fd);
 		return 0;
 	}
+	if (id > 0 && tt_find(id))
+		id = 0;
 	fcntl(fd, F_SETFL, O_NONBLOCK);
 	p = xm(sizeof *p);
 	memset(p, 0, sizeof *p);
-	p->id = tt_next++;
+	if (id > 0) {
+		p->id = id;
+		if (tt_next <= id)
+			tt_next = id + 1;
+	} else {
+		p->id = tt_next++;
+	}
 	p->fd = fd;
 	p->pid = pid;
 	p->rows = rows;
 	p->cols = cols;
 	p->far = 1;
-	p->chan = -1;
+	p->chan = chan >= 0 ? chan : -1;
 	p->owner = xs(owner);
-	p->lone = tt_ms();
 	v_add(&tt_list, p);
-	lg(HIBR_LINF, "pty %d adopted for %s: pid %ld on fd %d", p->id, owner, pid, fd);
+	lg(HIBR_LINF, "pty %d adopted for %s: pid %ld on fd %d, channel %d", p->id, owner, pid, fd, p->chan);
 	return p;
 }

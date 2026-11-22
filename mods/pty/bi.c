@@ -231,14 +231,15 @@ int m_pty(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "adopt") && ac > 3 && !strcmp(av[2], "-o")) {
 		if (ac < 6) {
-			lg(HIBR_LERR, "usage: pty adopt -o owner fd pid [rows cols]");
+			lg(HIBR_LERR, "usage: pty adopt -o owner fd pid [rows cols [id [chan]]]");
 			return 2;
 		}
 		if (ac > 7) {
 			rows = atoi(av[6]);
 			cols = atoi(av[7]);
 		}
-		p = tt_adoptown(atoi(av[4]), atol(av[5]), rows, cols, av[3]);
+		p = tt_adoptown(atoi(av[4]), atol(av[5]), rows, cols, av[3],
+				ac > 8 ? atoi(av[8]) : 0, ac > 9 ? atoi(av[9]) : -1);
 		if (!p)
 			return HIBR_FAIL;
 		s_init(&o);
@@ -298,7 +299,8 @@ int m_pty(sh *s, int ac, char **av)
 	}
 	if (!strcmp(sub, "pump"))
 		return tt_pump() ? HIBR_OK : HIBR_FAIL;
-	if (!strcmp(sub, "serve") || !strcmp(sub, "reap") || !strcmp(sub, "owned")) {
+	if (!strcmp(sub, "serve") || !strcmp(sub, "reap") || !strcmp(sub, "owned") ||
+	    !strcmp(sub, "lone")) {
 		s_init(&o);
 		r = HIBR_OK;
 		if (!strcmp(sub, "serve")) {
@@ -310,8 +312,8 @@ int m_pty(sh *s, int ac, char **av)
 			r = tt_serve(atoi(av[2]), av[3], &o);
 		} else if (!strcmp(sub, "reap")) {
 			r = !tt_reap(&o);
-			if (ac > 2)
-				tt_orphans(atol(av[2]), &o);
+		} else if (!strcmp(sub, "lone")) {
+			tt_lone(&o);
 		} else {
 			tt_owned(&o);
 		}

@@ -10,7 +10,11 @@ a program its client let go of runs on, held by nobody
 a fresh client takes it back by its pid, running
 and reads the status its parent read: 143
 the second fork ended: 0
-one held by nobody for its time is hung up
+held by nobody, it is lone and runs on
+owned, with its number and no channel holding it
+closed, it is hung up
+owned, held by its channel
+across the server's exec, its program under its own number, held by the copy: ended by TERM: 143
 spawned sh
 ended 3
 spawned sh
@@ -25,4 +29,3 @@ adopted
 ended 143
 closed
 spawned sleep
-hung up: demo

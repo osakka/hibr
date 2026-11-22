@@ -20,15 +20,14 @@ struct tt_p {
 	int eof;
 	/* Whose child the program is (ADR 0050, a terminal's program the
 	   desktop owns): 0 this process's own; 1 this process's, served for
-	   an app's process on channel chan for the app named owner, and lone
-	   since that many milliseconds when no channel holds it; 2 another
-	   process's -- the desktop's -- reached through this process's own
-	   channel, rid being its number there. */
+	   an app's process on channel chan for the app named owner, chan -1
+	   when no process holds it; 2 another process's -- the desktop's --
+	   reached through this process's own channel, rid being its number
+	   there. */
 	int far;
 	int rid;
 	int chan;
 	char *owner;
-	long lone;
 	int eofwait;
 };
 
@@ -63,9 +62,9 @@ int tt_serve(int fd, const char *owner, str *log);
 void tt_unserve(int fd);
 void tt_unserveall(void);
 int tt_reap(str *log);
-void tt_orphans(long ms, str *log);
+void tt_lone(str *out);
 void tt_owned(str *out);
-tt_p *tt_adoptown(int fd, long pid, int rows, int cols, const char *owner);
+tt_p *tt_adoptown(int fd, long pid, int rows, int cols, const char *owner, int id, int chan);
 long tt_ms(void);
 
 #endif

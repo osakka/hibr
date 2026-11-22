@@ -144,11 +144,14 @@ int fm_send(int fd, const char *t, size_t n, const int *fds, int nf, int ms)
 	return ok;
 }
 
-/* A reader for a channel. */
+/* A reader for a channel, the channel made close-on-exec: one a restart
+   carried across its exec as an inheritable copy is this process's alone
+   again from the first read, never held by what it starts after. */
 fm_ch *fm_open(int fd)
 {
 	fm_ch *c = xm(sizeof *c);
 
+	fm_cloexec(fd);
 	memset(c, 0, sizeof *c);
 	c->fd = fd;
 	s_init(&c->in);
