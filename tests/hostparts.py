@@ -140,7 +140,8 @@ fn slowp_draw(int id, int h, int w, int bx) {
 	console put -p "w$id" 1 "$bx" "slow"
 }
 fn slowp_click(int id, int r, int c) {
-	:
+	local t=$((${EPOCHREALTIME/./} + 400000))
+	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
 }
 ''')
 
