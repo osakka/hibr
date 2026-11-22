@@ -419,10 +419,16 @@ ok, why = agree(t, u, body, secs=6)
 check("and the stepped value is drawn as in-process", ok, why)
 
 # The Mouse pane, a real one that is no bundle's part: started by its file,
-# drawn and stepped in its own process, its setting the desktop's.
-do(t, "dt_rthostk pane mouse")
-waitfor(t, '[ -n "${DT_RVPC[mouse]-}" ]')
-do(t, "panel_goto $P mouse")
+# drawn and stepped in its own process, its setting the desktop's. Shown
+# in the same pass that starts its process, so the panel draws it while
+# that process has said nothing yet: its face, and never its rows built
+# here, whose functions the desktop no longer has.
+do(t, "dt_rthostk pane mouse; panel_goto $P mouse")
+started = waitfor(t, '[ -n "${DT_RVPC[mouse]-}" ]', 20)
+check("a rows pane shown while its process starts is its face until that "
+      "process has it, nothing of it built in the desktop",
+      started and "pane mouse was given draw before its process said what it has" in log(t)
+      and "mouse_rows" not in log(t), log(t)[-1500:])
 do(u, "panel_goto $P mouse")
 ok, why = agree(t, u, body, secs=8)
 check("the Mouse pane drawn by its own process is cell for cell the "
@@ -541,4 +547,4 @@ for d in ("apps", "control-panel", "menubar", ""):
         os.rmdir(os.path.join(ROOT, d))
     except OSError:
         pass
-report(26)
+report(27)
