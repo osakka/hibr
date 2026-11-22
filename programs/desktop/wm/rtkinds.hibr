@@ -482,6 +482,10 @@ fn dt_rvxpane(p, int id, int h, int w, int bx) {
 		dt_rvonce "pend:$n" "app runtime: pane $p waits for its process's cells; its face meanwhile"
 		return 0
 	}
+	# The window it is drawn in is that process's to read (DT's rtpane),
+	# so a dialog its pane opens is placed over it (dt_dlgat), as in-process.
+	[ "${DT[$id]["rtpane"]-}" = "${DT_RTC["${DT_RVPC["$p"]}"]-}" ] ||
+		DT[$id]["rtpane"]=${DT_RTC["${DT_RVPC["$p"]}"]-}
 	dt_rvxshow "$n" -a
 }
 
@@ -513,6 +517,7 @@ fn dt_rvxforget(name) {
 	local c=${DT_RVX["$name"]-} fd i p x
 
 	unset DT_RVX["$name"] DT_RVXGEN["$name"] DT_RVXARGS["$name"] DT_RVXDIRTY["$name"] DT_RVXP["$name"]
+	[[ $name != p* ]] || ! dt_iswin "${name#p}" || unset DT["${name#p}"]["rtpane"]
 	[ -n "$c" ] || return 0
 	fd=${DT_RTCELLS["$c"]-}
 	[ -z "$fd" ] || console cells drop "$fd" "$name"

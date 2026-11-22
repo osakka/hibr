@@ -646,8 +646,10 @@ dt_keep() {
 dt_share "${DT_KEEP[@]}"
 # The window table, each window to the app it belongs to and to the app
 # whose own process asked for it (rtown, set by dt_new): a dialog a pane's
-# process opens is that process's to read, whoever's app draws it.
-dt_share -o app -o rtown DT
+# process opens is that process's to read, whoever's app draws it; and a
+# window a process draws a pane in to that process (rtpane, wm/rtkinds.hibr),
+# so a dialog it opens is placed over it, as in-process.
+dt_share -o app -o rtown -o rtpane DT
 # The settings file as it was read, for an app that asks whether a setting
 # was ever saved (a role a release added, an old name taken over): read
 # only, and only by the files that read it.
