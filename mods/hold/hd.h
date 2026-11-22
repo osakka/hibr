@@ -247,7 +247,24 @@ enum {
 	/* To such a client, after `hold upgrade`: give the terminal back as it
 	   is, keep the connection, and come back on the modules now on disk.
 	   An older client ignores it. */
-	HD_RENEW = 'R'
+	HD_RENEW = 'R',
+	/* Pictures from an app in a process of its own (ADR 0050). Every
+	   letter is taken, so these are digits. HD_APPOPEN opens an app's own
+	   connection for its frames, its own uid only: who it is comes from
+	   the connection's pid, and on it go HD_FRAME and HD_FRM3 under the
+	   app's own slot numbers, and back "PIC CW CH" -- whether every
+	   display can take frames, and what a cell measures -- and what the
+	   displays' Blits say of its frames, by slot. */
+	HD_APPOPEN = '1',
+	/* From the desktop on its frames connection: "grant PID SLOT ID",
+	   "ungrant PID SLOT" or "revoke PID" -- the session's image id the
+	   desktop took for an app's slot, which the server writes into that
+	   slot's frames; no other sender may write that id. */
+	HD_APPCTL = '2',
+	/* Every app's pictures, `pid slots frames refused bytes early` a
+	   line, for `hold apps`. Its own request for the reason HD_GFXLIST
+	   is. */
+	HD_APPLIST = '3'
 };
 
 /* What one pass reads of the program's output: a pty hands over about 4 kB
@@ -514,6 +531,21 @@ void hd_innat(unsigned id, int nat);
 int hd_inview(unsigned id, int *v);
 int hd_inputans(vec *cls, int cfd, const char *line);
 void hd_f3sweep(int tid);
+void hd_f3gone(unsigned id);
+int hd_f3count(int prod);
+int hd_appis(int fd);
+int hd_appowned(unsigned id);
+struct hd_frm *hd_appfrm(unsigned id);
+int hd_appwait(unsigned id);
+void hd_apppic(vec *cls);
+int hd_appopen(int c, vec *cls);
+void hd_appsay(int prod, const char *line, size_t n);
+int hd_appmsg(vec *cls, int tid, int fd, int t, const char *p, size_t n,
+	      int *fds, int nf);
+int hd_appctl(vec *cls, int tid, int fd, const char *p, size_t n);
+void hd_appgone(int fd);
+void hd_applist(int c);
+void hd_appclear(void);
 unsigned hd_hash(const char *p, size_t n);
 unsigned hd_imgid(const char *p, size_t n);
 size_t hd_imgbase(const char *p, size_t n);

@@ -559,8 +559,64 @@ int hd_input(int fd, const char *line)
 	return fd >= 0 && hd_send(fd, HD_INPUT, line, strlen(line));
 }
 
+/* A connection of an app's own for its pictures (ADR 0050), or -1. */
+int hd_appconn(sh *s)
+{
+	const char *hp = getenv("HIBR_HOLD");
+	int fd;
+
+	(void)s;
+	if (!hp || !*hp)
+		return -1;
+	fd = hd_dial(hp);
+	if (fd < 0)
+		return -1;
+	if (!hd_send(fd, HD_APPOPEN, "", 0)) {
+		close(fd);
+		return -1;
+	}
+	return fd;
+}
+
+/* One memfd frame on an app's own connection. */
+int hd_appframe(int fd, const unsigned char *h, int mfd)
+{
+	return fd >= 0 && hd_sendfd(fd, HD_FRAME, (const char *)h, BF_HDR, mfd);
+}
+
+/* The desktop's line about its apps' pictures, on its frames connection. */
+int hd_appline(int fd, const char *line)
+{
+	return fd >= 0 && hd_send(fd, HD_APPCTL, line, strlen(line));
+}
+
 static const hf_api hd_hfapi = { hd_frame, hd_status, hd_hudq, hd_open3,
-				 hd_frame3, hd_answer, hd_dmabuf, hd_input };
+				 hd_frame3, hd_answer, hd_dmabuf, hd_input,
+				 hd_appconn, hd_appframe, hd_appline };
+
+/* Every app's pictures in a session, `pid slots frames refused bytes
+   early` a line: hold apps [name]. */
+int hd_appsv(sh *s, int ac, char **av)
+{
+	str path, r;
+	int ok;
+
+	s_init(&path);
+	if (!hd_which(ac > 2 ? av[2] : 0, &path)) {
+		s_free(&path);
+		return 2;
+	}
+	s_init(&r);
+	ok = hd_ask(path.p, HD_APPLIST, &r);
+	s_free(&path);
+	if (!ok) {
+		s_free(&r);
+		return HIBR_FAIL;
+	}
+	hd_ret(s, r.p ? r.p : "");
+	s_free(&r);
+	return HIBR_OK;
+}
 
 /* Whether a session's server keeps an edit of a whole picture in place of
    the edits before it, "yes": hold frames [name]. Fails against a server
@@ -900,6 +956,8 @@ int m_hold(sh *s, int ac, char **av)
 		return hd_frames(s, ac, av);
 	if (!strcmp(sub, "descriptors"))
 		return hd_fdlist(s, ac, av);
+	if (!strcmp(sub, "apps"))
+		return hd_appsv(s, ac, av);
 	if (!strcmp(sub, "stats"))
 		return hd_statlist(s, ac, av);
 	if (!strcmp(sub, "colours"))
@@ -1013,7 +1071,7 @@ int m_hold(sh *s, int ac, char **av)
 	}
 	s_free(&path);
 	lg(HIBR_LERR,
-	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|locks|edits|frames|descriptors|stats|colours|shift|move|slot|drop|primary|upgrade ...");
+	   "usage: hold new|attach|detach|list|kill|clients|gfx|pixels|pointers|locks|edits|frames|descriptors|apps|stats|colours|shift|move|slot|drop|primary|upgrade ...");
 	return 2;
 }
 

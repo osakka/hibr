@@ -103,7 +103,7 @@ struct hd_frm *hd_frmget(unsigned id)
 	for (i = 0; i < hd_nfrm; i++)
 		if (hd_frms[i].id == id)
 			return &hd_frms[i];
-	return 0;
+	return hd_appfrm(id);
 }
 
 /* Let go of every frame whose image the emulator had and no longer has. */
@@ -331,7 +331,7 @@ static void hd_f3done(size_t i)
 	s_ch(&o, ' ');
 	s_num(&o, (long)f->seq);
 	if (f->prod >= 0)
-		hd_send(f->prod, HD_FRMANS, o.p, o.n);
+		hd_appsay(f->prod, o.p, o.n);
 	s_free(&o);
 	hd_f3shut(f);
 	free(f->views);
@@ -360,6 +360,32 @@ int hd_f3has(unsigned id)
 	return 0;
 }
 
+/* An image's frames by dmabuf let go of: its producer has them back as the
+   displays say so, and the newest is kept no longer. */
+void hd_f3gone(unsigned id)
+{
+	size_t i;
+
+	for (i = hd_nf3; i--;)
+		if (hd_f3s[i]->id == id && !hd_f3s[i]->old) {
+			hd_f3s[i]->old = 1;
+			hd_f3shut(hd_f3s[i]);
+			hd_f3tidy(i);
+		}
+}
+
+/* How many frames by dmabuf a producer has not been given back yet. */
+int hd_f3count(int prod)
+{
+	size_t i;
+	int n = 0;
+
+	for (i = 0; i < hd_nf3; i++)
+		if (hd_f3s[i]->prod == prod)
+			n++;
+	return n;
+}
+
 /* Keep a frame a producer sent, the descriptors the store's from here, and
    pass it to the displays that show its image. What it replaces is let go
    as the displays say so. */
@@ -377,7 +403,7 @@ void hd_f3put(vec *cls, int tid, int prod, const unsigned char *h,
 	    (unsigned)n < planes || (unsigned)n > planes + 1) {
 		for (k = 0; k < n; k++)
 			close(fds[k]);
-		hd_send(prod, HD_FRMANS, "FRAME error 0 EINVAL", 20);
+		hd_appsay(prod, "FRAME error 0 EINVAL", 20);
 		return;
 	}
 	for (i = hd_nf3; i--;)
@@ -430,7 +456,7 @@ void hd_f3send(struct hd_cli *cn, unsigned id)
 		s_num(&o, (long)id);
 		s_cat(&o, " ENOTSUP");
 		if (f->prod >= 0)
-			hd_send(f->prod, HD_FRMANS, o.p, o.n);
+			hd_appsay(f->prod, o.p, o.n);
 		s_free(&o);
 		return;
 	}
@@ -488,7 +514,7 @@ void hd_f3ans(int cfd, const char *line)
 	for (i = hd_nf3; i--;)
 		if (hd_f3s[i]->id == id) {
 			if (hd_f3s[i]->prod >= 0)
-				hd_send(hd_f3s[i]->prod, HD_FRMANS, line, strlen(line));
+				hd_appsay(hd_f3s[i]->prod, line, strlen(line));
 			break;
 		}
 	for (i = hd_nf3; i--;)

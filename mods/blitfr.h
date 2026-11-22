@@ -34,7 +34,7 @@
    server one frame, which it keeps and passes to each display's client.
    1 when it went. */
 #ifndef HF_API_VER
-#define HF_API_VER 4
+#define HF_API_VER 5
 #endif
 /* The header of a frame by dmabuf (Blit ADR 0223, version 3), and how many
    descriptors one may carry: four planes and an acquire fence. */
@@ -66,6 +66,18 @@ typedef struct hf_api {
 	   same connection, to every display's Blit; its answer comes back by
 	   answer, the primary display's alone. */
 	int (*input)(int fd, const char *line);
+	/* Version 5 (ADR 0050): an app in a process of its own sends its
+	   pictures to the session's server itself, never through the
+	   desktop. appopen is its connection, or -1, read with answer for
+	   "PIC CW CH" -- whether it may send pictures now, and what a cell
+	   measures -- and for what the displays' Blits say of its frames;
+	   appframe one memfd frame on it, under the app's own slot number in
+	   the header's id; and appctl, on the desktop's own connection from
+	   open3, the desktop's "grant PID SLOT ID", "ungrant PID SLOT" or
+	   "revoke PID": which session image id each app's slot is written as. */
+	int (*appopen)(sh *s);
+	int (*appframe)(int fd, const unsigned char *h, int mfd);
+	int (*appctl)(int fd, const char *line);
 } hf_api;
 
 /* The performance panel's status (Blit ADR 0203): at most this many lines

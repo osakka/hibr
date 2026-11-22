@@ -1045,7 +1045,12 @@ void hd_render(int tid, struct hd_cli *cn, str *out)
 			   on another workspace (Gitea #499): kept by the
 			   emulator covering no cells, so it loses its placement
 			   on every display and keeps its image there. */
-			if (irows < 1 || icols < 1 || !hd_onclient(cn, g)) {
+			/* And an app's picture with no frame yet (ADR 0050)
+			   waits for one: a placement Blit is handed before
+			   its first frame counts against the eight its
+			   session may have waiting. */
+			if (irows < 1 || icols < 1 || !hd_onclient(cn, g) ||
+			    hd_appwait(id)) {
 				hd_unshow(cn, id, out, nid, nhash, nlen, nbase,
 					  &nn, n);
 				continue;

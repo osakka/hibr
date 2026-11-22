@@ -959,6 +959,19 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 			return;
 		}
 		break;
+	case HD_APPOPEN:
+		/* An app's own connection for its pictures (ADR 0050): kept,
+		   as a producer's is, and known by its pid. */
+		if (hd_frmpeer(c) && hd_appopen(c, cls)) {
+			hd_prods = xr(hd_prods, (hd_nprod + 1) * sizeof *hd_prods);
+			hd_prods[hd_nprod++] = c;
+			s_free(&in);
+			return;
+		}
+		break;
+	case HD_APPLIST:
+		hd_applist(c);
+		break;
 	case HD_DMAQ:
 		hd_dmaq(c, cls);
 		break;
@@ -970,6 +983,15 @@ void hd_conn(int c, vec *cls, int id, int tid, int m, int *quit, int *upg)
 		if (fd < 0)
 			break;
 		if (in.n != BF_HDR || !hd_frmpeer(c)) {
+			close(fd);
+			break;
+		}
+		/* An image granted to an app is that app's to write alone:
+		   two senders on one id are one image at Blit. */
+		if (hd_appowned((unsigned)hd_frmnum((const unsigned char *)in.p + 4, 4))) {
+			lg(HIBR_LWRN, "hold: a frame for image %lu, an app's, "
+				      "refused from another sender",
+			   (unsigned long)hd_frmnum((const unsigned char *)in.p + 4, 4));
 			close(fd);
 			break;
 		}
@@ -1304,6 +1326,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				continue;
 			if (hd_recv(pf, &t, &in) <= 0) {
 				lg(HIBR_LDBG, "hold: a frame producer went");
+				hd_appgone(pf);
 				hd_f3prod(pf);
 				close(pf);
 				for (j = 0; j < hd_nprod; j++)
@@ -1312,6 +1335,27 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				continue;
 			}
 			nf = hd_takefds(fds);
+			if (hd_appis(pf)) {
+				if (hd_appmsg(&cls, tid, pf, t, in.p, in.n, fds, nf))
+					owed = 1;
+				continue;
+			}
+			if (t == HD_APPCTL) {
+				while (nf > 0)
+					close(fds[--nf]);
+				if (hd_appctl(&cls, tid, pf, in.p, in.n))
+					owed = 1;
+				continue;
+			}
+			if (t == HD_FRM3 && in.n == BF_HDR3 &&
+			    hd_appowned((unsigned)hd_frmnum((const unsigned char *)in.p + 4, 4))) {
+				lg(HIBR_LWRN, "hold: a dmabuf frame for an app's image "
+					      "refused from another sender");
+				while (nf > 0)
+					close(fds[--nf]);
+				hd_appsay(pf, "FRAME error 0 EACCES", 20);
+				continue;
+			}
 			if (t == HD_FRM3 && in.n == BF_HDR3)
 				hd_f3put(&cls, tid, pf, (const unsigned char *)in.p,
 					 fds, nf);
@@ -1531,6 +1575,12 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 					cn->fdok = v != 0;
 					if (!v)
 						cn->hud = 0;
+					/* Its Blit closing let go of every
+					   frame it held, whoever sent it:
+					   Blit drops a connection's dmabufs
+					   with it. */
+					if (!v)
+						hd_f3client(fd);
 					cn->fsn = 0;
 					lg(HIBR_LDBG, "hold: a display %s frames by descriptor",
 					   v ? "takes" : "no longer takes");
@@ -1604,6 +1654,8 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 				hd_rensend(&cls, tid);
 			hd_poke(m);
 		}
+		/* Whether apps may send pictures follows the displays. */
+		hd_apppic(&cls);
 		if (q[0].revents & POLLIN) {
 			int c = accept(l, 0, 0);
 			if (c >= 0) {
@@ -1642,6 +1694,7 @@ void hd_loop(sh *s, const char *path, int l, int m, int id, int tid,
 	close(l);
 	free(q);
 	hd_frmclear();
+	hd_appclear();
 	if (quit || hd_term)
 		hd_pty->drop(id);
 	for (i = 0; i < 300 && hd_pty->alive(id); i++)
