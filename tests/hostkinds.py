@@ -35,6 +35,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
 from screen import Term, check, report, load, tree, scratch, expect
 
+# Every wait is longer under the sanitizers, whose build is several times slower.
+SLOW = 4 if os.environ.get("ASAN_OPTIONS") else 1
+
 MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 PANEL = tree("programs/desktop/system/panel.hibr")
@@ -167,7 +170,7 @@ def session(name, body):
 def do(t, cmd):
     """Run cmd in t's desktop, from its ticker, and wait until it is taken."""
     open(t.mark, "w").write(cmd + "\n")
-    deadline = time.time() + 5
+    deadline = time.time() + 5 * SLOW
     while os.path.exists(t.mark) and time.time() < deadline:
         t.send(b"\x1b[I", settle=0.05, collect=0.05)
 
@@ -186,7 +189,7 @@ def result(t, cmd):
 
 def waitfor(t, cmd, secs=10):
     """Wait until cmd, a test in the desktop, holds."""
-    deadline = time.time() + secs
+    deadline = time.time() + secs * SLOW
     while time.time() < deadline:
         if result(t, "if %s; then echo yes; else echo no; fi" % cmd) == "yes":
             return True
@@ -202,7 +205,7 @@ def ended(pid):
 
 
 def waitend(t, pid, secs=4):
-    deadline = time.time() + secs
+    deadline = time.time() + secs * SLOW
     while time.time() < deadline and pid and not ended(pid):
         t.collect(0.1)
     return bool(pid) and ended(pid)
@@ -235,7 +238,7 @@ def agree(t, u, region, secs=6):
     """Whether region (a function of a term answering a rectangle) shows the
     same cells in both sessions, read until it does or secs pass: what is
     waited out is a second turning between the two, never a difference."""
-    deadline = time.time() + secs
+    deadline = time.time() + secs * SLOW
     a = b = None
     while time.time() < deadline:
         t.collect(0.1)
@@ -315,7 +318,7 @@ def bar(term):
 
 
 def onbar(term, text, secs=6):
-    deadline = time.time() + secs
+    deadline = time.time() + secs * SLOW
     while time.time() < deadline:
         term.collect(0.1)
         if text in "".join(term.screen().g[0]):
@@ -349,7 +352,7 @@ check("a press on the drawn item reaches its own handler, and its redraw "
       ok and "press %s left" % dpid in taken(SAID + ".bar"), (taken(SAID + ".bar"), why))
 expect(r"refused: dt_baritem: .* named the bar item dbar, which is not its own")
 do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVB[tbar]}]}" tbar_steal')
-deadline = time.time() + 3
+deadline = time.time() + 3 * SLOW
 while time.time() < deadline and "named the bar item dbar" not in log(t):
     t.collect(0.1)
 check("an item's process naming another's item is refused, and the item stays",
@@ -400,7 +403,7 @@ pr, pc, ph, pw = geom(t, "P")
 
 
 def body(text, secs=5):
-    deadline = time.time() + secs
+    deadline = time.time() + secs * SLOW
     while time.time() < deadline:
         t.collect(0.1)
         if text in t.screen().text():
@@ -423,7 +426,7 @@ check("the press first, then the click, each in the pane's own process",
       any(l.startswith("click %s " % tpid) for l in said[1:]), (said, tpid))
 t.send(b"x", settle=0.2, collect=0.2)
 t.send(screen.wheel(br, bc, up=False), settle=0.2, collect=0.2)
-deadline = time.time() + 3
+deadline = time.time() + 3 * SLOW
 while time.time() < deadline and not any(l.startswith("wheel") for l in taken(SAID + ".tp")):
     t.collect(0.1)
 said = taken(SAID + ".tp")
@@ -446,7 +449,7 @@ do(t, "dt_saverstart")
 
 
 def mac(secs=5):
-    deadline = time.time() + secs
+    deadline = time.time() + secs * SLOW
     while time.time() < deadline:
         t.collect(0.1)
         s = t.screen().text()
@@ -461,7 +464,7 @@ check("the saver's Mac is on the screen, drawn by its own process: the "
       "desktop made no call of the saver's own, which it has read",
       first is not None and calls == "0", (calls, t.screen().text()))
 moved = False
-deadline = time.time() + 4
+deadline = time.time() + 4 * SLOW
 while time.time() < deadline and first:
     t.collect(0.2)
     s = t.screen().text()

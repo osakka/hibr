@@ -30,6 +30,7 @@ MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 PANEL = tree("programs/desktop/system/panel.hibr")
 MOUSE = tree("programs/desktop/control-panel/mouse.hibr")
+DATETIME = tree("programs/desktop/control-panel/datetime.hibr")
 SAID = scratch("hostparts-said")
 ROOT = scratch("hostparts-tree")
 for d in ("apps", "control-panel", "menubar"):
@@ -40,6 +41,17 @@ BBAR = os.path.join(ROOT, "menubar", "tbunb.hibr")
 OPANE = os.path.join(ROOT, "control-panel", "opane.hibr")
 OBAR = os.path.join(ROOT, "menubar", "obar.hibr")
 SPANE = os.path.join(ROOT, "control-panel", "slowp.hibr")
+# A terminal of the test's own, in the desktop in both sessions: what a
+# window of it was made to run, written down as it opens.
+TERM = scratch("hostparts-term.hibr")
+open(TERM, "w").write(r'''fn term_draw(int id, int h, int w, int row, int col) {
+	:
+}
+fn term_open(int id, arg = "") {
+	printf 'term %%s %%s\n' "${DT[$id]["cmd0"]-} ${DT[$id]["cmd1"]-}" "${DT[$id]["openself"]-}" >> %s
+}
+dt_app term "Terminal" 10 40
+''' % SAID)
 
 # The bundle: an app with no window, whose parts are a rows pane and a bar
 # item with a hook and a pop-up; two functions it can be told to run, each
@@ -154,12 +166,20 @@ DT_LOADING=%s dt_baritem tbunb ""
 DT_LOADING=%s cp_pane opane "Other Pane" "+"
 DT_LOADING=%s dt_baritem obar "O:1"
 DT_LOADING=%s cp_pane slowp "Slow Pane" "+"
-DT_LOADING=''' % (PANEL, PANEL, MOUSE, APP, BPANE, BBAR, OPANE, OBAR, SPANE)
+DT_LOADING=%s cp_pane datetime "Date & Time" "◷" hardware
+DT_LOADING=%s dt_app dtz "Time Zone" 16 46 "" "" fixed hidden
+DT_LOADING=%s dt_app dts "Set Date & Time" 10 46 "" "" fixed hidden
+DT_LOADING=%s dt_app dtf "Clock Format" 9 50 "" "" fixed hidden
+DT_LOADING=%s . %s
+DT_LOADING=''' % (PANEL, PANEL, MOUSE, APP, BPANE, BBAR, OPANE, OBAR, SPANE,
+                  DATETIME, DATETIME, DATETIME, DATETIME, TERM, TERM)
 INPROC = r'''DT_LOADING=%s . %s
 DT_LOADING=%s . %s
 DT_LOADING=%s . %s
 DT_LOADING=%s . %s
-DT_LOADING=''' % (PANEL, PANEL, MOUSE, MOUSE, BPANE, BPANE, BBAR, BBAR)
+DT_LOADING=%s . %s
+DT_LOADING=%s . %s
+DT_LOADING=''' % (PANEL, PANEL, MOUSE, MOUSE, BPANE, BPANE, BBAR, BBAR, DATETIME, DATETIME, TERM, TERM)
 
 
 def session(name, body):
@@ -397,6 +417,37 @@ check("a step on its Wheel Scrolls row sets the desktop's own setting, "
 ok, why = agree(t, u, lambda term: geom(term, "P"), secs=6)
 check("and the pane is drawn with it as in-process", ok, why)
 
+# Date & Time's pane in its own process: a dialog it opens is placed over
+# the panel's window, which that process is sent (DT's rtpane), and a
+# command it runs in a terminal is the request's own words.
+do(t, "dt_rthostk pane datetime")
+waitfor(t, '[ -n "${DT_RVPC[datetime]-}" ]')
+for term in (t, u):
+    do(term, "dt_move $P 2 1; panel_goto $P datetime")
+waitfor(t, '[ -n "${DT_RVX[p$P]+x}" ] && [ "${DT_RVXP[p$P]-}" = datetime ]', 6)
+
+
+def dialog(term):
+    return result(term, 'for i in "${!DT[@]}"; do [ "${DT[$i]["title"]-}" = "Clock Format" ] && '
+                  'echo "${DT[$i]["row"]} ${DT[$i]["col"]}"; done')
+
+
+do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVPC[datetime]}]}" dtf_dialog')
+do(u, "dtf_dialog")
+deadline = time.time() + 5 * SLOW
+while time.time() < deadline and not dialog(t):
+    t.collect(0.1)
+check("a dialog the hosted pane opens is placed over the panel's window, "
+      "as in-process, its process sent the window it is drawn in",
+      dialog(t) != "" and dialog(t) == dialog(u)
+      and result(t, 'echo "${DT[$P]["rtpane"]-}"') == DATETIME,
+      (dialog(t), dialog(u), geom(t, "P"), result(t, 'echo "${DT[$P]["rtpane"]-}"')))
+do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVPC[datetime]}]}" dtp_run echo hi')
+check("a command the hosted pane runs in a terminal reaches the new "
+      "window's own record, from the request's own words",
+      saidwait("term echo hi 1"), (said(), log(t)[-800:]))
+do(t, "panel_goto $P mouse")
+
 # What is another's is refused: an item, and a pane said to be had.
 expect(r"refused: dt_baritem: .* named the bar item obar, which is not its own")
 do(t, 'dt_rttell "${DT_RTCTOK[${DT_RTHOST[tbun]}]}" tbun_steal')
@@ -446,7 +497,7 @@ expect(r"tbunb_hook: command not found|tbunb_hook: not found")
 
 u.close()
 t.close()
-for f in (APP, BPANE, BBAR, OPANE, OBAR, SPANE, SAID, t.mark, u.mark, SAID + ".pend",
+for f in (APP, BPANE, BBAR, OPANE, OBAR, SPANE, TERM, SAID, t.mark, u.mark, SAID + ".pend",
           scratch("hostparts-hosted.hibr"), scratch("hostparts-inproc.hibr")):
     if os.path.exists(f):
         os.unlink(f)
@@ -455,4 +506,4 @@ for d in ("apps", "control-panel", "menubar", ""):
         os.rmdir(os.path.join(ROOT, d))
     except OSError:
         pass
-report(22)
+report(24)
