@@ -417,7 +417,7 @@ fn dt_rtcalled(line) {
 # desktop times a callback (dt_appcall). An ask (SEQ above 0) is answered
 # `took SEQ STATUS KIND VALUE WHY`, 126 when refused.
 fn dt_rtcall(seq, target, name, ...args) {
-	local fn= st=126 v= why= k t0
+	local fn= st=126 v= why= k t0 rows=
 
 	# Revoked before it ran: dropped, and answered 125, not run -- an answer
 	# all the same, so the desktop sees this process answering again.
@@ -431,6 +431,14 @@ fn dt_rtcall(seq, target, name, ...args) {
 	fi
 	if [ "$target" = - ]; then
 		fn=$name
+		# A rows pane's input, worked by the panel's own rows here
+		# (widgets/rows.hibr), for the callbacks the pane does not define.
+		if ! dt_has "$fn" && [[ $fn == *_* ]] && dt_rtrows "${fn%_*}"; then
+			case ${name##*_} in
+			key | click) fn=cp_rows${name##*_}; args=("${args[0]-}" "${name%_*}" "${args[@]:1}"); rows=1 ;;
+			mouse | wheel) fn=cp_rows${name##*_}; rows=1 ;;
+			esac
+		fi
 	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ]; then
 		# Its menus or its context menu: built here and pushed when
 		# different from the last, never answered as a call. An edit is
@@ -451,7 +459,7 @@ fn dt_rtcall(seq, target, name, ...args) {
 	else
 		dt_log "app runtime: the desktop called $name of window $target, which this process does not draw; refused"
 	fi
-	if [ -n "$fn" ] && { [ -n "${DT_RTIFACE["$fn"]+x}" ] || ! dt_has "$fn"; }; then
+	if [ -n "$fn" ] && [ -z "$rows" ] && { [ -n "${DT_RTIFACE["$fn"]+x}" ] || ! dt_has "$fn"; }; then
 		dt_log "app runtime: the desktop told $fn, which is not this app's own; refused"
 		fn=
 	fi
@@ -745,7 +753,7 @@ fn dt_rtview(name, gen, h, w, kind = "", ...args) {
 
 	case $kind:${#args[@]} in
 	win:5) [ "$name" = "w${args[0]}" ] && ok=1 ;;
-	pane:4) [ "$name" = "p${args[0]}" ] && [ "${DT_RTKP["$p"]-}" = pane ] && ok=1 && pn="w${args[0]}" ;;
+	pane:6) [ "$name" = "p${args[0]}" ] && [ "${DT_RTKP["$p"]-}" = pane ] && ok=1 && pn="w${args[0]}" ;;
 	strip:2) [ "$name" = "s${args[0]}" ] && [ "${DT_RTKP["${args[0]}"]-}" = strip ] && ok=1 ;;
 	saver:1) [ "$name" = v ] && [[ ${DT_RTKP["${args[0]}"]-} == saver\ * ]] && ok=1 ;;
 	pop:2)
@@ -829,13 +837,13 @@ dt_rtdraw() {
 # asked-again view and then draws a frame each period, never cleared
 # between them, since each frame draws only what moved.
 fn dt_rtkind(v) {
-	local kind a b c d now r ms who t0 t
+	local kind a b c d e f now r ms who t0 t
 
-	read -r kind a b c d <<< "${DT_RTV["$v"]}"
+	read -r kind a b c d e f <<< "${DT_RTV["$v"]}"
 	case $kind in
 	pane)
 		who=$b
-		dt_has "${who}_draw" || return 1
+		dt_has "${who}_draw" || dt_rtrows "$who" || return 1
 		console cells clear "$v"
 		console pen "$DT_INK" "$DT_FACE"
 		DT_NOTEWIN=$a
@@ -845,7 +853,14 @@ fn dt_rtkind(v) {
 		DT_WHO="pane:$who"
 		slowest on "${DT_SLOWMS:-50}"
 		t0=${EPOCHREALTIME/./}
-		"${who}_draw" "$a" "${DT_RTVH["$v"]}" "${DT_RTVW["$v"]}" "$d"
+		if dt_has "${who}_draw"; then
+			"${who}_draw" "$a" "${DT_RTVH["$v"]}" "$((DT_RTVW["$v"] - e + d))" "$e"
+		else
+			# Its rows, as the panel draws them: the selection lit while
+			# the panel's keys are the pane's (the view's last word).
+			PW[$a]["side"]=$f
+			cp_rowsdraw "$a" "$who" "${DT_RTVH["$v"]}" "$((DT_RTVW["$v"] - 1))" "$e"
+		fi
 		;;
 	strip)
 		who=$a
@@ -923,6 +938,13 @@ fn dt_rtkind(v) {
 	return 0
 }
 
+# Whether p is a Control Panel pane of this process's that is rows: one with
+# a <p>_rows and no _draw, which this process draws and works with the
+# panel's own rows (widgets/rows.hibr), as the panel does in the desktop.
+fn dt_rtrows(p) {
+	[ "${DT_RTKP["$p"]-}" = pane ] && ! dt_has "${p}_draw" && dt_has "${p}_rows"
+}
+
 # A pop-up's prefix: what it has of popdraw, popmouse and popkey, said to
 # the desktop (`has PREFIX KIND...`) before the pop-up opens, once.
 declare -gA DT_RTPOPSAID
@@ -994,6 +1016,9 @@ dt_rtcells() {
 			f=${f##* }
 			[[ $f == "${p}_"* ]] && [ -z "${DT_RTIFACE["$f"]+x}" ] && kinds+=("${f#"${p}_"}")
 		done
+		# A rows pane is drawn and worked here as the panel does it: what
+		# the panel gives a pane that draws itself, and that it is rows.
+		dt_rtrows "$p" && kinds=(draw key click mouse wheel rows)
 		l := dt_rtline has "$p" "${kinds[@]}"
 		send "$DT_RTFD" "$l" 2> /dev/null || return 1
 	done

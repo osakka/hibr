@@ -600,11 +600,14 @@ fn panel_mouse(int id, act, button, int r, int c, mods) {
 			return 0
 		fi
 		# A press on a row that can be moved is held until it is known
-		# whether it is a drag (widgets/rows.hibr).
-		if ! panel_inlist "$id" "$c" && cp_rowspress "$id" "$r" "$c"; then
+		# whether it is a drag (widgets/rows.hibr) -- a row of the rows
+		# this panel built, never of a pane that draws itself, whose rows
+		# here are another pane's from before.
+		pane := panel_pane "$id"
+		if ! panel_inlist "$id" "$c" && ! dt_has "${pane}_draw" &&
+			cp_rowspress "$id" "$r" "$c"; then
 			return 0
 		fi
-		pane := panel_pane "$id"
 		if ! panel_inlist "$id" "$c" && [ -n "$pane" ] &&
 		   dt_has "${pane}_mouse" &&
 		   dt_prefixfn "$pane" mouse "$id" press "$button" "$r" "$c"; then

@@ -832,6 +832,7 @@ fn cp_rowskey(int w, pane, key) {
 fn cp_rowsclick(int w, pane, int r, int c) {
 	local i n top tag wc
 
+	PW[$w]["side"]=pane
 	n=${PW[$w]["n"]}
 	top=${PW[$w]["top"]}
 	i=$((top + r - 1))
@@ -934,6 +935,29 @@ fn cp_rowsdrag(int id, act, int r, int c) {
 		return 0
 	fi
 	return 1
+}
+
+# A press, a drag or a release on pane's rows under id, where a pane's own
+# _mouse would be given it: what a pane drawn by its own process is sent
+# (ADR 0050). A press on a row that moves or on a slider is taken, so the
+# drag that follows comes here; any other press is declined, and comes
+# back as the panel's click (cp_rowsclick).
+fn cp_rowsmouse(int id, act, button, int r, int c) {
+	local pane=${CP_ROWPANE[$id]-} i tag
+
+	if [ "$act" = press ]; then
+		CP_MSLIDE[$id]=
+		CP_MORD[$id]=
+		cp_rowspress "$id" "$r" "$c" && return 0
+		i=$((${PW[$id]["top"]:-0} + r - 1))
+		tag := dt_hit "$id" "$r" "$c"
+		[ "$r" -ge 1 ] && [ "$i" -lt "${PW[$id]["n"]:-0}" ] && [ -n "$tag" ] &&
+			[ "${CP[$id][$i]["kind"]}" = set ] && [ "${CP[$id][$i]["wtype"]}" = slider ] &&
+			dt_has "${pane}_slide" || return 1
+		cp_rowsclick "$id" "$pane" "$r" "$c"
+		return 0
+	fi
+	cp_rowsdrag "$id" "$act" "$r" "$c"
 }
 
 # The wheel over the rows under w.

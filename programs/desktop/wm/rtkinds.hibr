@@ -35,7 +35,7 @@ declare -gA DT_RVX DT_RVXGEN DT_RVXARGS DT_RVXDIRTY DT_RVXP
 # pane's body is drawn, clicked, scrolled, typed into and pressed in; a
 # strip module drawn and clicked; a saver begun and stepped. A pane's rows,
 # a module's _shown and the rest are asks or another track's.
-declare -gA DT_RVCARRY=([pane]=" draw click wheel key mouse " [strip]=" draw click " [saver]=" start frame ")
+declare -gA DT_RVCARRY=([pane]=" draw click wheel key mouse rows " [strip]=" draw click " [saver]=" start frame ")
 
 # The file who stands for: an app's, or who itself when it is a file -- a
 # pane, a strip module or a saver started by its file. Answered with ret.
@@ -283,7 +283,12 @@ fn dt_rvkinds_in(int c, who, p, ...kinds) {
 		return 0
 	fi
 	for f in "${kinds[@]}"; do
-		if [[ ${DT_RVCARRY["$k"]} == *" $f "* ]]; then
+		if [ "$k:$f" = pane:rows ]; then
+			# A rows pane, which its process draws and works with the
+			# panel's own rows (widgets/rows.hibr): said so it is given
+			# the scrollbar's column too, and never called for its rows.
+			h+="$f "
+		elif [[ ${DT_RVCARRY["$k"]} == *" $f "* ]]; then
 			DT_RVFN["${p}_$f"]=1
 			h+="$f "
 		else
@@ -463,10 +468,17 @@ fn dt_rvxshow(name, all = "") {
 # shown whole over the face the panel painted. The pane's own code writes
 # into w$ID at those columns, so its view's origin is 1, bx.
 fn dt_rvxpane(p, int id, int h, int w, int bx) {
-	local n="p$id"
+	local n="p$id" oc=$bx vw=$w
 
 	[ -z "${DT_RVXP["$n"]-}" ] || [ "${DT_RVXP["$n"]}" = "$p" ] || dt_rvxforget "$n"
-	dt_rvxbind "$n" "$p" "${DT_RVPC["$p"]-}" "w$id" 1 "$bx" "$h" "$w" pane "$id" "$p" 1 "$bx" || {
+	# A rows pane's scrollbar is the column past its rows, at the left
+	# mirrored (cp_rowsdraw): its view takes that column in.
+	if [[ ${DT_RVPK["$p"]-} == *" rows "* ]]; then
+		vw=$((w + 1))
+		[ "$DT_MIRRORON" != 1 ] || oc=$((bx - 1))
+	fi
+	dt_rvxbind "$n" "$p" "${DT_RVPC["$p"]-}" "w$id" 1 "$oc" "$h" "$vw" pane "$id" "$p" 1 "$oc" "$bx" \
+		"${PW[$id]["side"]:-list}" || {
 		dt_rvonce "pend:$n" "app runtime: pane $p waits for its process's cells; its face meanwhile"
 		return 0
 	}
