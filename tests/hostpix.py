@@ -232,8 +232,11 @@ class Prod:
         self.pid = self.p.pid
 
     def say(self, *ws):
-        self.p.stdin.write(" ".join(str(w) for w in ws) + "\n")
-        self.p.stdin.flush()
+        try:
+            self.p.stdin.write(" ".join(str(w) for w in ws) + "\n")
+            self.p.stdin.flush()
+        except (BrokenPipeError, ValueError):
+            pass
 
     def log(self):
         return open(self.out).read().splitlines()
@@ -250,11 +253,14 @@ class Prod:
         return out
 
     def quit(self):
+        self.say("quit")
         try:
-            self.say("quit")
             self.p.stdin.close()
+        except (BrokenPipeError, ValueError):
+            pass
+        try:
             self.p.wait(3)
-        except Exception:
+        except subprocess.TimeoutExpired:
             self.p.kill()
 
 
@@ -498,6 +504,7 @@ open(appb, "w").write(
     "    case $v in\n"
     "    pic) draw \"$a\" ;;\n"
     "    none) draw \"\" ;;\n"
+    "    regen) console cells view v1 2 8 28; draw \"\" ;;\n"
     "    film) for ((i = 0; i < a; i++)); do draw \"%(p)s$((i %% 2)).png\"; sleep 0.05; done ;;\n"
     "    flood) for ((i = 0; i < a; i++)); do draw \"%(p)s$((i %% 3)).png\"; done ;;\n"
     "    quit) exit 0 ;;\n"
@@ -524,14 +531,19 @@ open(deskb, "w").write(
     "  console pane w2 2 34 8 16\n"
     "  console pen default default\n"
     "  console put -p w1 0 0 WIN\n"
+    "  if [ -n \"$CFD\" ] && [ -f %(o)s.regen ] && [ -z \"${rg-}\" ]; then\n"
+    "    console cells own \"$CFD\" v1 2 w1 1 1 8 28; rg=1; echo x > %(o)s.regened\n"
+    "  fi\n"
+    "  if [ -n \"$CFD\" ] && [ -f %(o)s.close ]; then\n"
+    "    console unwatch \"$CFD\"; console cells drop \"$CFD\"; exec {CFD}>&-; CFD=; echo x > %(o)s.dropped\n"
+    "  fi\n"
     "  if [ -n \"$CFD\" ]; then\n"
     "    st=0\n"
-    "    x := console cells take \"$CFD\" || st=$?\n"
+    "    [ -f %(o)s.gone ] || { x := console cells take \"$CFD\" || st=$?; }\n"
     "    if [ \"$st\" != 0 ]; then\n"
-    "      console unwatch \"$CFD\"; console cells drop \"$CFD\"; CFD=; echo gone > %(o)s.gone\n"
-    "    elif [ ! -f %(o)s.hide ]; then\n"
-    "      console cells show v1 -a\n"
+    "      console unwatch \"$CFD\"; echo gone > %(o)s.gone\n"
     "    fi\n"
+    "    [ -f %(o)s.hide ] || console cells show v1 -a\n"
     "  fi\n"
     "  k=0; [ -f %(o)s.anim ] && k=$((n %% 2))\n"
     "  img draw %(g)s$k.png 1 1 6 12 -m pixels -p w2\n"
@@ -622,6 +634,22 @@ check("a picture after it has a fresh id, and no frame anywhere is refused "
       app2 and app2[-1] != I and not refused(lba, "deleted") and
       not refused(lbb, "deleted"), (app2, refused(lba)))
 
+# A picture let go in a frame the desktop skips -- drawn for a size the
+# window had already left -- still goes: the next frame starts the view
+# again and says every picture it has, and this one is not among them.
+K = app2[-1] if app2 else 0
+open(ob + ".regen", "w").close()
+wait(lambda: os.path.exists(ob + ".regened"), 5)
+time.sleep(0.5 * SLOW)
+c0, c1 = len(tb0.out), len(tb1.out)
+appdo("none")
+mid = deleted(ctls(tb0, c0), K, "I")
+appdo("regen")
+s0 = ctls(tb0, c0)
+check("a picture whose going was said in a frame the desktop skipped, for a "
+      "size the window had left, is deleted all the same when the view "
+      "starts again without it", not mid and deleted(s0, K, "I"), (mid, s0))
+
 def deskframes():
     return [x for x in memframes(lba) if x["first"][:2] == [0, 0]]
 
@@ -637,10 +665,31 @@ check("an app drawing faster than it may is refused past its rate and "
       "display meanwhile", ap and ap[2] > 0 and len(dn) >= 5,
       (ap, len(dn), dn[-4:]))
 
+J = app2[-1] if app2 else 0
+fl = [x["id"] for x in memframes(lba) if x["first"][0] == 200]
+J = fl[-1] if fl else J
 appdo("quit")
-time.sleep(1.5 * SLOW)
-check("the app's end ends its pictures: the desktop revokes it, hold forgets "
-      "it", os.path.exists(ob + ".gone") and apid not in apps(nmb), apps(nmb))
+wait(lambda: os.path.exists(ob + ".gone"), 5)
+open(ob + ".hide", "w").close()
+time.sleep(2.0 * SLOW)
+c0, c1 = len(tb0.out), len(tb1.out)
+os.unlink(ob + ".hide")
+time.sleep(2.0 * SLOW)
+s0, s1 = ctls(tb0, c0), ctls(tb1, c1)
+ap = apps(nmb).get(apid)
+check("an app that has ended leaves its window its last picture, as Control "
+      "Panel's default keeps it: hidden and shown again, it is placed on both "
+      "displays, hold keeping its frame", os.path.exists(ob + ".gone") and
+      placed(s0, J) and placed(s1, J) and ap and ap[0] == 1, (J, s0, s1, ap))
+c0, c1 = len(tb0.out), len(tb1.out)
+open(ob + ".close", "w").close()
+wait(lambda: os.path.exists(ob + ".dropped"), 5)
+time.sleep(2.0 * SLOW)
+s0, s1 = ctls(tb0, c0), ctls(tb1, c1)
+check("and when the window lets it go, the picture is deleted for good on "
+      "every display and hold forgets the app, its frame with it",
+      deleted(s0, J, "I") and deleted(s1, J, "I") and apid not in apps(nmb),
+      (s0, s1, apps(nmb)))
 open(ob + ".stop", "w").close()
 time.sleep(0.5)
 finish(nmb, tb0, tb1, psb)
@@ -681,4 +730,4 @@ check("outside a held session an app's picture is drawn as cells, and no "
       "picture is said to the desktop",
       any(l.startswith(b"r ") for l in recs) and not any(l.startswith(b"p ") for l in recs),
       recs[:8])
-report(26)
+report(28)
