@@ -728,7 +728,9 @@ fn dt_rvmenus(int id) {
 
 	dt_rvhas "$ap" menus || return 1
 	DT_RVQUIETM=
-	[ "$q" = "$id" ] || [ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 menus
+	# Not while its view is not yet bound, nor once its app has gone (-),
+	# when the last it pushed was let go with it and File > Close stands.
+	case ${DT_RVC[$id]} in "" | -) ;; *) [ "$q" = "$id" ] || dt_rvsend "$id" 0 menus ;; esac
 	dt_rvreplay "menus:$ap" "$ap" "$id"
 }
 
@@ -740,7 +742,9 @@ fn dt_rvcontext(ap, int id) {
 	local now q=$DT_RVQUIETC
 
 	DT_RVQUIETC=
-	[ "$q" = "$id" ] || [ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 context
+	# Its app has gone: there is nobody to build it.
+	[ "${DT_RVC[$id]}" != - ] || return 1
+	case ${DT_RVC[$id]} in "") ;; *) [ "$q" = "$id" ] || dt_rvsend "$id" 0 context ;; esac
 	if dt_rvreplay "context:$ap" "$ap" "$id"; then
 		DT_RVCTXT=
 		return 0
