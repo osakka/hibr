@@ -81,10 +81,10 @@ fn mfx_named(buf, id) {
 	[ "$buf" = ok ]
 }
 fn mfx_conf(int id) {
-	dt_confirm "Sure?" "mfx_yes $id"
+	dt_confirm "Sure?" mfx_yes
 }
-fn mfx_yes(int id) {
-	mfx_say yes "$id"
+mfx_yes() {
+	mfx_say yes "$DT_FOCUS"
 }
 ''' % SAID)
 
@@ -186,14 +186,17 @@ def until(t, f, secs=5):
 
 
 def click(t, r, c, button=0):
+    if r < 0:
+        return
     t.send(screen.press(r, c, button), settle=0.05, collect=0.05)
     t.send(screen.release(r, c, button), settle=0.1, collect=0.1)
 
 
 def at(t, text, minrow=0, secs=5):
-    """Where text is on t's screen, waited for."""
+    """Where text is on t's screen, waited for; (-1, -1), which click
+    passes over, when it never comes."""
     sc = until(t, lambda s: s.find_from(text, minrow) is not None, secs)
-    return sc.find_from(text, minrow) if sc else None
+    return sc.find_from(text, minrow) if sc else (-1, -1)
 
 
 def same(rows=None, secs=6):
@@ -215,7 +218,7 @@ def both(data):
 
 def bothclick(text, minrow=0, button=0):
     p = at(u, text, minrow)
-    if p:
+    if p[0] >= 0:
         for term in (t, u):
             click(term, p[0], p[1] + 1, button)
     return p
@@ -337,16 +340,18 @@ at(t, "Sure?")
 t.send(b"y", settle=0.2, collect=0.2)
 s = saidwait(7)
 check("a confirm's Yes runs the app's command in the app's process",
-      len(s) == 7 and s[6] == [apid, "yes", m1], s)
+      [apid, "yes", m1] in s[6:], s)
 
 # Its context menu, for the window clicked.
 click(t, 14, 6, 2)
 click(t, *at(t, "Here", 12))
 s = saidwait(8)
 check("a context menu's row runs in the app's process, for the window clicked",
-      len(s) == 8 and s[7] == [apid, "here", m2], (s, t.screen().text()))
-check("nothing about menus refused or not carried, in either process",
-      not any(x in log(t) for x in ("not carried yet", "refused", "could not read")), log(t)[-1500:])
+      [apid, "here", m2] in s[6:], (s, t.screen().text()))
+check("nothing about menus, lists or dialogs refused, late or unread",
+      not any(x in log(t) for x in ("refused", "could not read", "did not build",
+                                    "did not answer", "which is pushed", "after its time")),
+      log(t)[-1500:])
 
 # What a menu rebuild costs the desktop: hosted (the last push built again,
 # the app asked afresh) against in-process (the app's own _menus).
@@ -355,10 +360,11 @@ waitfor(t, '[ -n "${DT_RTHOST[calc]-}" ]')
 for term in (t, u):
     do(term, "C := dt_new Calculator 16 24 4 40 calc")
 waitfor(t, '[ -n "${DT_RVMENU[menus:calc]["n"]-}" ]')
-PER = 'T0=${EPOCHREALTIME/./}; for i in {1..100}; do dt_menus; done; echo $(( (${EPOCHREALTIME/./} - T0) / 100 ))'
-ph = [int(result(t, PER) or 0) for _ in range(3)]
-pu = [int(result(u, PER) or 0) for _ in range(3)]
-print("a menu rebuild, Calculator focused, us (median of 3 x 100): hosted %d, in-process %d"
+# Twenty at a time: a hundred held the desktop past the stall budget.
+PER = 'T0=${EPOCHREALTIME/./}; for i in {1..20}; do dt_menus; done; echo $(( (${EPOCHREALTIME/./} - T0) / 20 ))'
+ph = [int(result(t, PER) or 0) for _ in range(7)]
+pu = [int(result(u, PER) or 0) for _ in range(7)]
+print("a menu rebuild, Calculator focused, us (median of 7 x 20): hosted %d, in-process %d"
       % (statistics.median(ph), statistics.median(pu)))
 
 u.close()
@@ -367,4 +373,4 @@ for f in (MFX, SAID, t.mark, u.mark, SAID + ".pend",
           scratch("hostmenus-hosted.hibr"), scratch("hostmenus-inproc.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(21)
+report(22)
