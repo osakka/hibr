@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.20",
+ "version": "3.99.21",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -14,6 +14,10 @@
   "%s quit unexpectedly and was opened again": "توقّف %s على غير المتوقع وفُتح من جديد",
   "%s quit unexpectedly: click to reopen it": "توقّف %s على غير المتوقع: انقر لفتحه من جديد",
   "When an App Quits": "عند توقّف تطبيق",
+  "Not Responding": "لا يستجيب",
+  "Busy Pointer After": "مؤشر الانشغال بعد",
+  "Not Responding After": "«لا يستجيب» بعد",
+  "Reopen": "إعادة الفتح",
   "Choose a Login": "اختر بيانات دخول",
   "Fill Sign-In": "ملء بيانات الدخول",
   "Shade": "طيّ",

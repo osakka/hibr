@@ -262,6 +262,10 @@ dt_menus() {
 				term_passall "$DT_FOCUS"
 		fi
 		dt_sep
+		# A window whose app's own process has quit, kept with its last
+		# picture (wm/rtfail.hibr): its app started again in its place.
+		[ "${DT_RVC[$DT_FOCUS]-}" != - ] ||
+			dt_item "Reopen" e dt_rvreopen "${DT[$DT_FOCUS]["app"]}"
 		dt_item "Close" w dt_close_focused
 		# Not q: a menu letter is looked at before any global
 		# shortcut while a menu is open, so Quit Application on q

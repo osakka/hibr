@@ -34,8 +34,9 @@ strict
 # for ever.
 declare -gA DT_RTENDAPP DT_RTENDWHY DT_RTENDOWE DT_RTENDHIT DT_RVGONE DT_RVREOPENAT
 # A window whose app has left the person's input unanswered past its time:
-# the number of the oldest such input, and whether its title says so yet.
-declare -gA DT_RVLATE DT_RVMARK
+# the number of the oldest such input, whether the pointer is busy over it
+# yet (while it has focus), and whether its title says so yet.
+declare -gA DT_RVLATE DT_RVBUSY DT_RVMARK
 # A key the desktop also acts on, sent to a hosted window as an ask whose
 # answer the desktop's own action waits on (ADR 0050, Review 4): its number
 # and the key; and the person's input that came while it waited, in order,
@@ -64,15 +65,18 @@ fn dt_rvtitle(int id, t) {
 }
 
 # A window whose app has left the person's input unanswered past its time
-# (DT_RVLATE, the oldest such): marked not responding in its title once it
-# has waited DT_RVMARKMS -- never paused, never hidden, its input still
-# sent (ADR 0050, Decision 2) -- and named in the log as a stall, `held:`,
+# (DT_RVLATE, the oldest such): while it has focus the pointer is busy
+# (progress, an arrow with a spinner: the desktop still takes clicks) once
+# the input has waited DT_NRPTRMS, and its title says not responding once
+# it has waited DT_NRMARKMS -- both Control Panel > Mouse's, on unless Not
+# Responding is off (the owner, 2026-11-19, 2026-11-22). Never paused, never
+# hidden, its input still sent (ADR 0050, Decision 2) -- and named in the
+# log as a stall, `held:`,
 # once what the app has spent on it reaches DT_HOLDMS by the rule a stall
 # is judged by in-process (DT_HOLDBY: its process's own processor time
 # under cpu; the clock less what it waited for a processor under wall).
 # The log line is what fails a suite, and the only one an app that never
 # returns makes: its own process says `held:` only when the call ends.
-DT_RVMARKMS="${DT_RVMARKMS-}"
 fn dt_rvlate(int id, int now) {
 	local s=${DT_RVLATE[$id]} kind t0 on wt fl p on2 wt2 ms ap=${DT[$id]["app"]-?} el
 
@@ -82,7 +86,11 @@ fn dt_rvlate(int id, int now) {
 	fi
 	read -r kind _ _ t0 on wt fl <<< "${DT_RVASK["$s"]}"
 	el=$((now - t0 / 1000))
-	if [ -z "${DT_RVMARK[$id]-}" ] && [ "$el" -ge "${DT_RVMARKMS:-$DT_HOLDMS}" ]; then
+	if [ "${DT_NRSHOW:-1}" = 1 ] && [ "$el" -ge "${DT_NRPTRMS:-500}" ]; then
+		DT_RVBUSY[$id]=1
+		[ "$DT_FOCUS" != "$id" ] || [ "$DT_PTRNOW" = progress ] || dt_ptrput progress
+	fi
+	if [ "${DT_NRSHOW:-1}" = 1 ] && [ -z "${DT_RVMARK[$id]-}" ] && [ "$el" -ge "${DT_NRMARKMS:-3000}" ]; then
 		DT_RVMARK[$id]=1
 		DT_RVDIRTY[$id]=1
 		DT_RVUNC[$id]=1
@@ -124,7 +132,14 @@ fn dt_rvrelate(int id) {
 		DT_RVLATE[$id]=$m
 		return 0
 	fi
-	unset DT_RVLATE[$id]
+	unset DT_RVLATE[$id] DT_RVBUSY[$id]
+	# The busy pointer goes the moment the answer comes, wherever the
+	# pointer is now.
+	if [ "$DT_PTRNOW" = progress ]; then
+		local l
+		l := dt_ptrfor "$DT_PTRR" "$DT_PTRC"
+		dt_ptrput "$l"
+	fi
 	[ -n "${DT_RVMARK[$id]-}" ] || return 0
 	unset DT_RVMARK[$id]
 	DT_RVDIRTY[$id]=1
@@ -246,14 +261,16 @@ fn dt_rvdrop(int c, who = "", pid = "", why = "") {
 	for id in "${ids[@]}"; do
 		DT_RVC[$id]=-
 		DT_RVGONE[$id]=$fd
-		unset DT_RVLATE[$id] DT_RVMARK[$id]
+		unset DT_RVLATE[$id] DT_RVBUSY[$id] DT_RVMARK[$id]
 		if [ "$how" = close ] || [ -n "${DT_RVCLOSE[$id]-}" ]; then
 			DT_RVCLOSE[$id]=done
 			dt_del "$id"
 			continue
 		fi
-		# Drawn whole next frame, its title saying the app has gone; or,
-		# reopened at once, given way to a fresh one in its place.
+		# Drawn whole next frame, its title saying the app has gone and
+		# its Window menu offering Reopen; or, reopened at once, given way
+		# to a fresh one in its place.
+		DT_MENUIN=
 		DT_RVDIRTY[$id]=1
 		DT_RVUNC[$id]=1
 		kept=1

@@ -941,6 +941,12 @@ fn dt_ptrput(shape = "") {
 fn dt_ptrfor(r = "", c = "") {
 	local id= rr cc g
 
+	# The focused window's app has left the person's input unanswered: the
+	# pointer is busy wherever it is (wm/rtfail.hibr).
+	if [ -n "$DT_FOCUS" ] && [ -n "${DT_RVBUSY[$DT_FOCUS]-}" ]; then
+		ret progress
+		return 0
+	fi
 	if [ -n "$r" ] && [ "$MB_OPEN" = -1 ] &&
 	   { dt_hoveron || { dt_hoverown && dt_hoverbody "$r" "$c"; }; }; then
 		id := console hit "$r" "$c"

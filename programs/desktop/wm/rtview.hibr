@@ -322,7 +322,7 @@ fn dt_rvforget(int id) {
 	local c=${DT_RVC[$id]-} fd i p x
 
 	unset DT_RVC[$id] DT_RVGEN[$id] DT_RVARGS[$id] DT_RVDIRTY[$id] DT_RVUNC[$id] DT_RVOPEN[$id] DT_RVCLOSE[$id]
-	unset DT_RVLATE[$id] DT_RVMARK[$id]
+	unset DT_RVLATE[$id] DT_RVBUSY[$id] DT_RVMARK[$id]
 	if [ "$c" = - ]; then
 		dt_rvletgo "$id"
 		return 0

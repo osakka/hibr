@@ -221,6 +221,7 @@ Bottom
 Bricks
 Browse
 Bulleted List
+Busy Pointer After
 Button Shadow
 By Kind
 CPU:    %s%%       Memory: %s
@@ -774,6 +775,8 @@ No vault yet. Log in to a Bitwarden or Vaultwarden
 No zone matches
 None
 None yet -- add one in Servers
+Not Responding
+Not Responding After
 Not a place: latitude -90 to 90, longitude -180 to 180
 Not a valid name
 Not changed
@@ -953,6 +956,7 @@ Removed; the server is told at the next sync
 Remove…
 Rename
 Renamed the theme to %s
+Reopen
 Reopened the windows from when the desktop was stopped
 Replace
 Replace it with the one you are copying?

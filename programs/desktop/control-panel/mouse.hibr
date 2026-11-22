@@ -4,15 +4,16 @@
 # a plain side resizes it as well as a corner, whether a modifier click
 # anywhere in its body moves it and which modifier, and what a double click
 # on its title bar does, whether a dragged window follows by its outline
-# or whole, how far one notch of the wheel scrolls, and whether and how soon a
-# tooltip shows. wm/input.hibr reads
+# or whole, how far one notch of the wheel scrolls, whether and how soon a
+# tooltip shows, and whether and how soon a window whose app has not
+# answered is shown not responding (ADR 0050). wm/input.hibr reads
 # the window settings and every scrolling window the wheel's; this pane only
 # changes the DT_* settings.
 
 strict
 
 
-app mouse "The Control Panel pane for what the mouse does to a window" 1.7.4
+app mouse "The Control Panel pane for what the mouse does to a window" 1.7.5
 command -v cp_pane > /dev/null && cp_pane mouse "Mouse" "◎" hardware
 
 MS_DRAGKEYS=(alt ctrl shift super)
@@ -29,6 +30,11 @@ MS_WHEELL=("1 row" "2 rows" "3 rows" "5 rows" "8 rows")
 # how long the pointer rests on a glyph before its tooltip shows.
 MS_TIPV=(300 600 1000 1500 2500)
 MS_TIPL=("300 ms" "600 ms" "1 second" "1.5 seconds" "2.5 seconds")
+# Not Responding's two marks, as DT_NRPTRMS and DT_NRMARKMS keep them: how
+# long the person's input goes unanswered before the pointer is busy, and
+# before the window's title says not responding.
+MS_NRPV=(250 500 1000 2000)
+MS_NRMV=(1000 2000 3000 5000 10000)
 
 fn cp_set_dragkey(int? id = "", value = "") { dt_set DT_DRAGKEY "$value"; }
 fn cp_set_titlekey(int? id = "", value = "") { dt_set DT_TITLEKEY "$value"; }
@@ -58,7 +64,19 @@ fn ms_tipname(v) {
 	ret "$v ms"
 }
 
+# A not-responding mark's time, in words.
+fn ms_nrname(v) {
+	case $v in
+	250) ret "250 ms" ;;
+	500) ret "0.5 seconds" ;;
+	1000) ret "1 second" ;;
+	*) ret "$((v / 1000)) seconds" ;;
+	esac
+}
+
 fn cp_set_tipms(int? id = "", int value = 600) { dt_set DT_TIPMS "$value"; }
+fn cp_set_nrptrms(int? id = "", int value = 500) { dt_set DT_NRPTRMS "$value"; }
+fn cp_set_nrmarkms(int? id = "", int value = 3000) { dt_set DT_NRMARKMS "$value"; }
 fn cp_set_wheel(int? id = "", int value = 3) { dt_set DT_SCROLLWHEEL "$value"; }
 
 fn mouse_rows(int w) {
@@ -107,6 +125,18 @@ fn mouse_rows(int w) {
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Tooltip Delay"; CP[$w][$n]["key"]=tipms
 	cp_choice "$w" "$n" "${DT_TIPMS:-600}" cp_set_tipms "${MS_TIPV[@]}"
 	CP[$w][$n]["vname"]=ms_tipname; n=$((n + 1))
+	# A window whose app has left the person's input unanswered: the
+	# pointer busy over it, then its title saying so (ADR 0050).
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Not Responding"
+	CP[$w][$n]["wtype"]=bool
+	CP[$w][$n]["val"]=off; [ "${DT_NRSHOW:-1}" = 1 ] && CP[$w][$n]["val"]=on
+	CP[$w][$n]["key"]=DT_NRSHOW; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Busy Pointer After"; CP[$w][$n]["key"]=nrptrms
+	cp_choice "$w" "$n" "${DT_NRPTRMS:-500}" cp_set_nrptrms "${MS_NRPV[@]}"
+	CP[$w][$n]["vname"]=ms_nrname; n=$((n + 1))
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Not Responding After"; CP[$w][$n]["key"]=nrmarkms
+	cp_choice "$w" "$n" "${DT_NRMARKMS:-3000}" cp_set_nrmarkms "${MS_NRMV[@]}"
+	CP[$w][$n]["vname"]=ms_nrname; n=$((n + 1))
 	ret "$n"
 }
 
@@ -114,7 +144,7 @@ fn mouse_do(int w, k, int dir) {
 	local v=1
 
 	case $k in
-	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER | DT_TIPS)
+	DT_EDGERESIZE | DT_DRAGMOD | DT_FOCUSHOVER | DT_TIPS | DT_NRSHOW)
 		[ "${!k}" = 1 ] && v=0
 		dt_set "$k" "$v"
 		;;

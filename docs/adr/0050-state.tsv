@@ -37,6 +37,7 @@ DT_PW	6	2	wm/powerlist.hibr	local
 DT_WHY	4	4	wm/frame.hibr	local
 DT_WRAPLINES	6	2	widgets/textfit.hibr	local
 DT_LANG	7	0	wm/lang.hibr	shared
+DT_POPNAMENEXT	0	7	widgets/dropdown.hibr	local
 DT_BARI	6	0	wm/bar.hibr	shared
 DT_CLIP	4	2	wm/state.hibr	arg
 DT_CURSOR	6	0	wm/settings.hibr	shared
@@ -49,7 +50,6 @@ DT_PLAT	6	0	wm/prayertimes.hibr	shared
 DT_PLON	6	0	wm/prayertimes.hibr	shared
 DT_PMETHOD	6	0	wm/prayertimes.hibr	shared
 DT_POPH	6	0	wm/bar.hibr	call
-DT_POPNAMENEXT	0	6	widgets/dropdown.hibr	local
 DT_WFD	6	0	wm/state.hibr	local
 DT_WLINES	6	0	wm/state.hibr	local
 DT_WPTY	6	0	wm/state.hibr	local
@@ -261,8 +261,10 @@ DT_PRIMARY_COL	2	0	wm/state.hibr	shared
 DT_PRIMARY_H	2	0	wm/state.hibr	shared
 DT_PRIMARY_W	2	0	wm/state.hibr	shared
 DT_PROGAUTO	2	0	wm/programs.hibr	shared
+DT_PROGSCALES	2	0	wm/winfacts.hibr	shared
 DT_RESTORED	2	0	wm/restart.hibr	shared
 DT_SAVER	2	0	wm/saver.hibr	shared
+DT_SAVERHONOUR	2	0	wm/saver.hibr	shared
 DT_SAVERIDLE	2	0	wm/saver.hibr	shared
 DT_SBLIST	2	0	wm/standby.hibr	shared
 DT_SHADOWSHAPE	2	0	wm/settings.hibr	shared
@@ -323,11 +325,10 @@ DT_KEYBASE	1	0	wm/keyphase.hibr	call
 DT_KEYCODE	1	0	wm/keyphase.hibr	call
 DT_KEYMODS	1	0	wm/keyphase.hibr	call
 DT_KEYPHASE	1	0	wm/keyphase.hibr	call
-DT_NATCH	1	0	wm/native.hibr	call
-DT_NATCW	1	0	wm/native.hibr	call
+DT_NRMARKMS	1	0	wm/settings.hibr	shared
+DT_NRPTRMS	1	0	wm/settings.hibr	shared
+DT_NRSHOW	1	0	wm/settings.hibr	shared
 DT_PHASEWIN	1	0	wm/keyphase.hibr	call
-DT_PROGSCALES	1	0	wm/winfacts.hibr	shared
-DT_SAVERHONOUR	1	0	wm/saver.hibr	shared
 FP	1	0	wm/filepick.hibr	shared
 HIBR_DAV_TIMEOUT	0	1	wm/servers.hibr	request
 HIBR_GLYPHS	1	0	wm/glyphs.hibr	local

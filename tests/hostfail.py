@@ -60,7 +60,7 @@ fn hanger_draw(int id, int h, int w, int row, int col) {
 fn hanger_key(int id, key) {
 	local t=0
 	case $key in
-	h) t=3000000 ;;
+	h) t=5000000 ;;
 	escape) t=2000000 ;;
 	esac
 	t=$((${EPOCHREALTIME/./} + t))
@@ -256,11 +256,17 @@ t.send(b"a", settle=0.3, collect=0.3)
 check("a key to it is sent nowhere, and its picture stays as it was",
       "window %s's app victim has gone; its key is not sent" % vid in log(t)
       and t.screen().find("alive 1") is not None, log(t)[-400:])
-f = t.screen().find("click to reopen")
-if f:
-    t.send(press(f[0], f[1]) + release(f[0], f[1]), settle=0.3, collect=0.3)
+# Reopen is on the kept window's own Window menu (the owner, 2026-11-22),
+# chosen as a person would: the menu's title clicked, its letter typed.
+ok = waitfor(t, 'dt_menus; for m in "${!MI[@]}"; do for n in "${!MI[$m][@]}"; do [ "${MI[$m][$n]["label"]-}" = Reopen ] && [ "${MI[$m][$n]["a0"]-}" = dt_rvreopen ] && exit_ok=1; done; done; [ -n "${exit_ok-}" ]', 3)
+check("the kept window's Window menu offers Reopen", ok,
+      result(t, 'for m in "${!MI[@]}"; do for n in "${!MI[$m][@]}"; do echo "${MI[$m][$n]["label"]-}"; done; done | tr "\\n" " "'))
+f = t.screen().find("Window")
+if f and f[0] == 0:
+    t.send(press(0, f[1]) + release(0, f[1]), settle=0.3, collect=0.3)
+    t.send(b"e", settle=0.3, collect=0.3)
 v2 = readpid(".vpid", secs=8, old=vpid)
-check("Reopen, from the note, starts the app again in a window where the kept one was",
+check("Reopen, from the Window menu, starts the app again in a window where the kept one was",
       v2 and waitfor(t, '! dt_iswin %s && id := dt_appwin victim && [ "${DT[$id]["row"]} ${DT[$id]["col"]}" = "2 2" ] && [ -n "${DT_RVC[$id]-}" ] && [ "${DT_RVC[$id]}" != - ]' % vid, 5)
       and t.until("alive 0", tries=40, step=0.1).find("alive 0") is not None,
       (v2, log(t)[-600:], t.screen().text()))
@@ -299,23 +305,38 @@ check("with one note",
       notes(t, "Victim quit unexpectedly") == "1", notes(t, "Victim quit unexpectedly"))
 do(t, "DT_APPGONE=keep")
 
-# -- a hang: marked, never paused; another window answers at once; the stall
-# is logged; the mark goes when the app answers.
+# -- a hang: never paused; while the window has focus the pointer is busy
+# after half a second, and its title says not responding after three
+# (Control Panel > Mouse); another window answers at once; the stall is
+# logged at DT_HOLDMS; both marks go when the app answers.
 do(t, "G := dt_new Good 6 26 12 60 gd")
 hpid = hosted(t, "hanger", "H", 12, 2, pidfile=".hpid", text="hanger")
 hid = result(t, 'echo "$H"')
 t.send(b"h", settle=0.05, collect=0.05)
 t0 = time.time()
+busy = waitfor(t, 'p := console pointer; [ "$p" = progress ]', 2)
+early = time.time() - t0
+sc = t.screen()
+check("while the hung window has focus the pointer is busy, by about half a second",
+      busy and early < 1.6, (busy, round(early, 2)))
+check("and its title does not say not responding yet",
+      sc.find("(not responding)") is None and time.time() - t0 < 2.8,
+      (round(time.time() - t0, 2), sc.text()))
+t1 = time.time()
 g = t.screen().find("got:")
 if g:
     t.send(press(g[0], g[1]) + release(g[0], g[1]) + b"x", settle=0, collect=0)
 sc = t.until("got: x", tries=50, step=0.02)
-took = time.time() - t0
+took = time.time() - t1
 check("a hosted app spinning in its key handler: another window answers a key "
       "within half a second", sc.find("got: x") is not None and took < 0.5, (round(took, 2), sc.text()))
-check("its window is marked not responding",
-      t.until("Hanger (not responding)", tries=30, step=0.05).find("Hanger (not responding)") is not None,
-      t.screen().text())
+check("with the focus gone from it, the pointer is not busy",
+      waitfor(t, 'p := console pointer; [ "$p" != progress ]', 2),
+      result(t, 'console pointer'))
+sc = t.until("Hanger (not responding)", tries=60, step=0.05)
+check("its title says not responding after about three seconds",
+      sc.find("Hanger (not responding)") is not None and time.time() - t0 >= 2.5,
+      (round(time.time() - t0, 2), sc.text()))
 check("and the stall is a held: line naming it, as in-process",
       logwait(t, "held: input:hanger has not answered the person's key in window %s" % hid, 3),
       log(t)[-600:])
@@ -409,4 +430,4 @@ for f in (VICTIM, HANGER, DECLINER, GOOD, t.mark, scratch("hostfail.hibr")):
 for f in (".pend", ".vpid", ".hpid", ".dpid", ".keys", ".dkeys"):
     if os.path.exists(SAID + f):
         os.unlink(SAID + f)
-report(26)
+report(30)
