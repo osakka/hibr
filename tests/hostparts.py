@@ -139,6 +139,9 @@ fn slowp_draw(int id, int h, int w, int bx) {
 	while [ "${EPOCHREALTIME/./}" -lt "$t" ]; do :; done
 	console put -p "w$id" 1 "$bx" "slow"
 }
+fn slowp_click(int id, int r, int c) {
+	:
+}
 ''')
 
 SESSION = r'''%s. %s
@@ -244,6 +247,15 @@ def geom(t, var):
     return [int(x) for x in v.split()] if len(v.split()) == 4 else [0, 0, 1, 1]
 
 
+def body(term):
+    """The pane's body in the panel's window: right of its list, inside its
+    frame -- the list differs, the hosted session having more panes."""
+    r, c, h, w = geom(term, "P")
+    lw = result(term, 'echo "${PW[$P]["lw"]-}"')
+    lw = int(lw) if lw.isdigit() else 19
+    return [r + 1, c + lw + 2, h - 2, w - lw - 3]
+
+
 def agree(t, u, region, secs=6):
     """Whether region shows the same cells, glyphs and pens, in both
     sessions, read until it does or secs pass."""
@@ -299,17 +311,17 @@ for name, term in (("hosted", t), ("in-process", u)):
 # and each part, so the item, its pane and its hook are that process's.
 do(t, "DT_LOADING=%s dt_barhook tbunb_hook; DT_LOADING=; dt_rthostb tbunb" % BBAR)
 check("starting a bundle's bar item starts its app's process, which says "
-      "hello as the app and has the bundle's pane too",
-      waitfor(t, '[ -n "${DT_RTHOST[tbun]-}" ] && [ "${DT_RVPC[tbunp]-}" = "${DT_RTHOST[tbun]}" ] && '
-              '[ "${DT_RVB[tbunb]-}" = "${DT_RTHOST[tbun]}" ]'),
-      (result(t, 'echo "${DT_RTHOST[tbun]-} ${DT_RVPC[tbunp]-} ${DT_RVB[tbunb]-}"'), log(t)[-1500:]))
-bpid = result(t, 'echo "${DT_RTCPID[${DT_RTHOST[tbun]}]-}"')
+      "hello as the app and has the bundle's pane and item both",
+      waitfor(t, '[ -n "${DT_RVPC[tbunp]-}" ] && [ "${DT_RVB[tbunb]-}" = "${DT_RVPC[tbunp]}" ] && '
+              '[ "${DT_RTC[${DT_RVPC[tbunp]}]-}" = tbun ]'),
+      (result(t, 'echo "${DT_RVPC[tbunp]-} ${DT_RVB[tbunb]-} ${DT_RTC[${DT_RVPC[tbunp]-0}]-}"'), log(t)[-1500:]))
+bpid = result(t, 'echo "${DT_RTCPID[${DT_RVPC[tbunp]}]-}"')
 check("its hook runs in that process, from its first pass, and puts its "
       "text on the bar", onscreen(t, "B:60000") and "hook %s 60000" % bpid in said(),
       (said(), bpid, t.screen().text()[:220]))
 check("and the desktop runs it no more, nor ever defined it",
-      result(t, 'case " ${DT_BARHOOKS[*]-} " in *" tbunb_hook "*) printf "on ";; *) printf "off ";; esac; '
-             'echo "${DT_RVHOOKS[tbunb_hook]-} $(command -v tbunb_hook || echo none)"')
+      result(t, '{ case " ${DT_BARHOOKS[*]-} " in *" tbunb_hook "*) printf "on ";; *) printf "off ";; esac; '
+             'echo "${DT_RVHOOKS[tbunb_hook]-} $(command -v tbunb_hook || echo none)"; }')
       == "off %s none" % BBAR,
       result(t, 'echo "${DT_BARHOOKS[*]-} / ${!DT_RVHOOKS[*]-}"'))
 do(t, "DT_NOTEMS=61000")
@@ -357,7 +369,7 @@ u.send(b"\x1b", settle=0.3, collect=0.3)
 # own rows, against the same pane in-process.
 do(t, "P := dt_launch panel tbunp")
 do(u, "P := dt_launch panel tbunp")
-ok, why = agree(t, u, lambda term: geom(term, "P"), secs=8)
+ok, why = agree(t, u, body, secs=8)
 check("the bundle's rows pane is cell for cell the in-process one, drawn in "
       "the bundle's process, the desktop never defining its functions",
       ok and result(t, 'command -v tbunp_rows tbunp_draw cp_rowsdraw | tr "\\n" " "').split() == ["cp_rowsdraw"]
@@ -374,21 +386,21 @@ for term in (t, u):
         click(term, rr, cr)
 check("a click on its checkbox reaches the pane's _do in the bundle's process",
       saidwait("do %s sw" % bpid), (said(), cr, t.screen().text()))
-ok, why = agree(t, u, lambda term: geom(term, "P"), secs=6)
+ok, why = agree(t, u, body, secs=6)
 check("and its rows are drawn again, switched, as in-process", ok, why)
 for term in (t, u):
     term.send(b"\x1b[B\x1b[B", settle=0.2, collect=0.2)
     term.send(b"\r", settle=0.3, collect=0.3)
 check("the keys move its selection and Enter acts on an action row, there",
       saidwait("do %s go" % bpid) and onscreen(t, "Count 1"), (said(), t.screen().text()))
-ok, why = agree(t, u, lambda term: geom(term, "P"), secs=6)
+ok, why = agree(t, u, body, secs=6)
 check("and the selection and the count are drawn as in-process", ok, why)
 for term in (t, u):
     term.send(b"\x1b[A", settle=0.2, collect=0.2)
     term.send(b"\x1b[C", settle=0.3, collect=0.3)
 check("the right arrow steps a list row through the pane's setter, there",
       saidwait("set %s b" % bpid), said())
-ok, why = agree(t, u, lambda term: geom(term, "P"), secs=6)
+ok, why = agree(t, u, body, secs=6)
 check("and the stepped value is drawn as in-process", ok, why)
 
 # The Mouse pane, a real one that is no bundle's part: started by its file,
@@ -397,7 +409,7 @@ do(t, "dt_rthostk pane mouse")
 waitfor(t, '[ -n "${DT_RVPC[mouse]-}" ]')
 do(t, "panel_goto $P mouse")
 do(u, "panel_goto $P mouse")
-ok, why = agree(t, u, lambda term: geom(term, "P"), secs=8)
+ok, why = agree(t, u, body, secs=8)
 check("the Mouse pane drawn by its own process is cell for cell the "
       "in-process one", ok and result(t, 'command -v mouse_rows || echo none') == "none", why)
 mpid = result(t, 'echo "${DT_RTCPID[${DT_RVPC[mouse]}]-}"')
@@ -414,7 +426,7 @@ check("a step on its Wheel Scrolls row sets the desktop's own setting, "
       waitfor(t, '[ "$DT_SCROLLWHEEL" != "%s" ]' % was, 4) and
       waitfor(u, '[ "$DT_SCROLLWHEEL" != "%s" ]' % was, 4),
       (was, result(t, 'echo "$DT_SCROLLWHEEL"'), log(t)[-800:]))
-ok, why = agree(t, u, lambda term: geom(term, "P"), secs=6)
+ok, why = agree(t, u, body, secs=6)
 check("and the pane is drawn with it as in-process", ok, why)
 
 # Date & Time's pane in its own process: a dialog it opens is placed over
@@ -446,18 +458,18 @@ do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVPC[datetime]}]}" dtp_run echo hi')
 check("a command the hosted pane runs in a terminal reaches the new "
       "window's own record, from the request's own words",
       saidwait("term echo hi 1"), (said(), log(t)[-800:]))
-do(t, "panel_goto $P mouse")
+do(t, "panel_goto $P tbunp")
 
 # What is another's is refused: an item, and a pane said to be had.
 expect(r"refused: dt_baritem: .* named the bar item obar, which is not its own")
-do(t, 'dt_rttell "${DT_RTCTOK[${DT_RTHOST[tbun]}]}" tbun_steal')
+do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVPC[tbunp]}]}" tbun_steal')
 deadline = time.time() + 3 * SLOW
 while time.time() < deadline and "named the bar item obar" not in log(t):
     t.collect(0.1)
 check("the bundle's process naming another's bar item is refused, and the "
       "item stays", "named the bar item obar, which is not its own" in log(t)
       and onscreen(t, "O:1", 1) and "STOLEN" not in t.screen().text(), log(t)[-1500:])
-do(t, 'dt_rttell "${DT_RTCTOK[${DT_RTHOST[tbun]}]}" tbun_claim')
+do(t, 'dt_rttell "${DT_RTCTOK[${DT_RVPC[tbunp]}]}" tbun_claim')
 deadline = time.time() + 3 * SLOW
 while time.time() < deadline and "what opane has" not in log(t):
     t.collect(0.1)
@@ -466,18 +478,23 @@ check("and saying it has another's pane is refused: the pane stays the "
       and result(t, 'echo "${DT_RVP[opane]-none} ${DT_RVFN[opane_draw]-none}"') == "none none",
       log(t)[-1500:])
 
-# A pane that holds its process past a stall is named held, as in-process.
-expect(r"held: pane:slowp held the desktop")
+# A pane that holds its process past a stall: the person's input to it is
+# named held, judged from outside by a window's rule, the same budget.
+expect(r"held: input:\S*slowp\.hibr has not answered the person's input to pane:slowp:click")
 do(t, "dt_rthostk pane slowp")
 waitfor(t, '[ -n "${DT_RVPC[slowp]-}" ]')
 do(t, "panel_goto $P slowp")
 onscreen(t, "slow", 6)
+r, c = find(t, "slow")
+if r is not None:
+    click(t, r, c)
 deadline = time.time() + 4 * SLOW
-while time.time() < deadline and "held: pane:slowp" not in log(t):
+while time.time() < deadline and "has not answered the person's input to pane:slowp:click" not in log(t):
     t.collect(0.2)
-check("a pane that holds its own process past a stall is named held in the "
-      "log, as one in the desktop is", "held: pane:slowp held the desktop" in log(t)
-      and onscreen(t, "slow", 1), log(t)[-1500:])
+check("a click on a pane whose process is held past a stall is named held in "
+      "the log, its process and the input, as a window's is",
+      "has not answered the person's input to pane:slowp:click" in log(t)
+      and onscreen(t, "slow", 1), "\n".join(l for l in log(t).split("\n") if "slowp" in l or "held" in l)[-2500:])
 
 # Each ends: the panel closing leaves the bundle's process, which has an
 # item on the bar; killed, its item, its pop-up's prefix and its hook go.

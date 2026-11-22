@@ -2,7 +2,7 @@
 GL	115	0	wm/glyphs.hibr	local
 DT_FACE	105	0	wm/settings.hibr	shared
 DT_INK	99	0	wm/settings.hibr	shared
-CP	4	82	system/panel.hibr	declare
+CP	4	82	widgets/rows.hibr	local
 DT_DIM	79	0	wm/settings.hibr	shared
 DT_ACTIVE	73	0	wm/settings.hibr	shared
 DT_SELINK	61	0	wm/settings.hibr	shared
@@ -82,8 +82,6 @@ DT_NETKIND	4	0	wm/settings.hibr	shared
 DT_NOTEFROM	0	4	wm/notify.hibr	arg
 DT_NOTEHIST	4	0	wm/notify.hibr	shared
 DT_NOTEHIST_ORDER	4	0	wm/notify.hibr	shared
-DT_OPENCMD	1	3	wm/handlers.hibr	arg
-DT_OPENSELF	1	3	wm/handlers.hibr	arg
 DT_OWLIST	4	0	wm/openfacts.hibr	answer
 DT_PADJ	4	0	wm/prayertimes.hibr	shared
 DT_PASR	4	0	wm/prayertimes.hibr	shared
@@ -112,7 +110,7 @@ DT_WALLIMGMODE	4	0	wm/picmode.hibr	shared
 DT_WINTRANS	4	0	wm/settings.hibr	shared
 DT_WS	4	0	wm/workspaces.hibr	shared
 LANG	4	0	wm/locale.hibr	local
-PW	4	0	system/panel.hibr	declare
+PW	4	0	widgets/rows.hibr	local
 WP_GLYPHS	4	0	wm/settings.hibr	shared
 WS_ALIGNS	4	0	wm/settings.hibr	shared
 WS_FRAMES	4	0	wm/settings.hibr	shared
@@ -121,6 +119,8 @@ DT_HOVER	3	0	wm/settings.hibr	shared
 DT_IME	3	0	wm/ime.hibr	shared
 DT_IMEC	3	0	wm/ime.hibr	local
 DT_IMEP	3	0	wm/ime.hibr	local
+DT_OPENCMD	1	2	wm/handlers.hibr	arg
+DT_OPENSELF	1	2	wm/handlers.hibr	arg
 DT_PX	3	0	wm/loop.hibr	call
 DT_PY	3	0	wm/loop.hibr	call
 DT_SHOTDIR	3	0	wm/shot.hibr	shared
@@ -312,7 +312,7 @@ TB_SC	2	0	widgets/textarea.hibr	local
 TB_SR	2	0	widgets/textarea.hibr	local
 VW_SESSION	2	0	wm/vault.hibr	shared
 BG	1	0	wm/glyphs.hibr	local
-CP_MSLIDE	1	0	system/panel.hibr	declare
+CP_MSLIDE	1	0	widgets/rows.hibr	local
 DTW_C	1	0	wm/winfacts.hibr	local
 DTW_H	1	0	wm/winfacts.hibr	local
 DTW_R	1	0	wm/winfacts.hibr	local

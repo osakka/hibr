@@ -337,6 +337,10 @@ def inspect(req, files):
     return [json.loads(d) for d in docs]
 
 
+# The rows functions the app runtime runs for a pane of rows (widgets/rows.hibr).
+ROWSRUN = ("cp_rowsdraw", "cp_rowskey", "cp_rowsclick", "cp_rowsmouse", "cp_rowswheel")
+
+
 def reach():
     """What code every process may load reads, by who reaches it: for each
     shared name a function of the app interface or a library reads, the
@@ -406,6 +410,14 @@ def reach():
     for fn in fnreads:
         if words[fn] > static[fn] + 1:
             star |= fnreads[fn]
+    # A Control Panel pane of rows is drawn and worked in its own process by
+    # the panel's own rows, which the app runtime calls for it (runtime.hibr's
+    # dt_rtrows), never its file: what they read goes to every rows pane.
+    rowsfn = re.compile(r"^(?:fn\s+)?\w+_rows\s*\(", re.M)
+    for f in inst:
+        if rowsfn.search(open(f, errors="replace").read()):
+            for fn in ROWSRUN:
+                callers[fn].add(("file", kindrel(f)))
     pat = re.compile(r"\b(%s)\b" % "|".join(map(re.escape, fnreads)))
     for f in inst:
         code = "\n".join(l for l in open(f, errors="replace").read().split("\n")
