@@ -631,4 +631,7 @@ check("one kept with no window idle in its own wait, its ticker asking for nothi
       alive(ipid) and "resident:idleapp" not in log(t), log(t)[-800:])
 
 t.close()
+for f in os.listdir(os.path.dirname(SAID)):
+    if f.startswith(os.path.basename(SAID) + "."):
+        os.unlink(os.path.join(os.path.dirname(SAID), f))
 report(25)
