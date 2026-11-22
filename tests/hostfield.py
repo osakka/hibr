@@ -31,7 +31,7 @@ MOD = tree("build/mods/console.so")
 WM = tree("programs/desktop/desktop.hibr")
 TERM = tree("programs/desktop/apps/term.hibr")
 SAID = scratch("hostfield-said")
-APPS = {n: scratch("hostfield-%s.hibr" % n) for n in ("fdapp", "keyapp", "bigapp", "spinapp", "calmapp")}
+APPS = {n: scratch("hostfield-%s.hibr" % n) for n in ("fdapp", "mnapp", "keyapp", "bigapp", "cutapp", "spcapp", "spinapp", "calmapp")}
 
 # A field and nothing else -- no _menus, no _copy, no _selall -- focused
 # only once tab has been pressed. Its value is written out on each draw.
@@ -59,6 +59,30 @@ fn fdapp_key(int id, k) {
 	return 0
 }
 """ % {"s": SAID})
+# The same field in an app with menus of its own, for two windows of it.
+open(APPS["mnapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app mnapp "Menus" 6 40
+declare -gA MN
+fn mnapp_open(int id, arg = "") {
+	MN["$id"]=hello
+	MN["$id.c"]=5
+	MN["$id.on"]=0
+}
+fn mnapp_draw(int id, int h, int w, int row, int col) {
+	dt_textdraw "$id" 1 1 30 "${MN["$id"]}" "${MN["$id.c"]}" "${MN["$id.on"]}"
+}
+fn mnapp_key(int id, k) {
+	[ "${MN["$id.on"]}" = 0 ] && [ "$k" = tab ] || return 1
+	MN["$id.on"]=1
+	return 0
+}
+mnapp_menus() {
+	dt_menu "File"
+	dt_item "Close" w dt_close_focused
+	dt_editmenu
+	dt_menu "Tools"
+	dt_item "Ping" p true
+}
+""")
 # No field and no _selall: every key it is given is written out.
 open(APPS["keyapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app keyapp "Keys" 6 30
 fn keyapp_draw(int id, int h, int w, int row, int col) {
@@ -92,12 +116,61 @@ fn bigapp_cut(int id) {
 	ret "$t"
 }
 """ % {"s": SAID})
+# The same, with a Cut and a Paste and no Copy to measure a cut by.
+open(APPS["cutapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app cutapp "Cut" 6 30
+declare -gA CUT
+fn cutapp_open(int id, arg = "") {
+	local s=a
+	while [ "${#s}" -lt 2097152 ]; do s+=$s; done
+	CUT["$id"]=$s
+}
+fn cutapp_draw(int id, int h, int w, int row, int col) {
+	console put -p "w$id" 1 1 "cut"
+	echo "${#CUT["$id"]}" > %(s)s.cut
+}
+fn cutapp_cut(int id) {
+	local t=${CUT["$id"]}
+	CUT["$id"]=
+	ret "$t"
+}
+fn cutapp_paste(int id, text, op = "") {
+	CUT["$id"]+=$text
+}
+""" % {"s": SAID})
+# A window titled Spaces holding 400,000 spaces -- under the 1 MiB the
+# desktop reads a line to as text, three times that on the wire, where a
+# space is %20 -- and one titled Letters holding 300,000 letters, well
+# under: each with a Copy of its own.
+open(APPS["spcapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app spcapp "Spaces" 6 30
+declare -gA SPC
+fn spcapp_open(int id, arg = "") {
+	local s=" " n=400000 t
+	[ "${DT[$id]["title"]-}" = Spaces ] || { s=a; n=300000; }
+	t=$s
+	while [ "${#t}" -lt "$n" ]; do t+=$t; done
+	SPC["$id"]=${t:0:$n}
+}
+fn spcapp_draw(int id, int h, int w, int row, int col) {
+	console put -p "w$id" 1 1 "spc"
+	echo "${#SPC["$id"]}" > %(s)s.spc$id
+}
+fn spcapp_copy(int id) {
+	ret "${SPC["$id"]}"
+}
+""" % {"s": SAID})
 # A ticker that does nothing until a file says spin, then spins for eight
-# seconds without returning.
+# seconds without returning; or says stall, then spins for a second and
+# returns.
 open(APPS["spinapp"], "w").write(r"""command -v dt_app > /dev/null && dt_app spinapp "Spin" 6 30
 spinapp_tick() {
 	local e
 	echo "$$" > %(s)s.spid
+	if [ -f %(s)s.stall ]; then
+		command rm -f %(s)s.stall
+		e=$((${EPOCHREALTIME/./} + 1000000))
+		while [ "${EPOCHREALTIME/./}" -lt "$e" ]; do :; done
+		echo done > %(s)s.stalled
+	fi
 	if [ -f %(s)s.spin ]; then
 		command rm -f %(s)s.spin
 		e=$((SECONDS + 8))
@@ -281,6 +354,33 @@ tst_edit() {
 """
 
 
+# Every menus line an app's process pushes for a window that does not hold
+# the focus when it arrives, written out once TST_STRAY is set: the desktop
+# keeps one menus for an app, so such a push takes the app's menus away
+# from the window that has the focus.
+REG += r"""
+TST_STRAY=
+eval "$(declare -f dt_rvpush_in | sed '1s/dt_rvpush_in(/tst_rvpush_in(/')"
+dt_rvpush_in() {
+	if [ -n "$TST_STRAY" ] && [ "$2" = menus ] && [[ ${4-} =~ ^\{\"id\":\"?([0-9]+) ]] &&
+		[ "${BASH_REMATCH[1]}" != "$DT_FOCUS" ]; then
+		echo "${BASH_REMATCH[1]} while $DT_FOCUS has the focus" >> %s.stray
+	fi
+	tst_rvpush_in "$@"
+}
+tst_bar() {
+	local m
+	DT_MENUIN=
+	MB_N=0
+	dt_menus
+	for ((m = 0; m < MB_N; m++)); do
+		[ -n "${MB[$m]["par"]-}" ] || printf '%%s;' "${MB[$m]["title"]-}"
+	done
+	echo
+}
+""" % SAID
+
+
 def edit(t):
     return dict(p.split("=") for p in result(t, "tst_edit").split(";") if "=" in p)
 
@@ -316,6 +416,29 @@ waitfor(t, '[ "${DT_RVMENU["menus:fdapp"]["fundo"]-}" = 1 ]', 4)
 m = edit(t)
 check("after typing in it, Undo is offered", m.get("Undo") == "0", (m, read(".field")))
 
+# --- Two windows of one app with menus of its own -------------------------
+host(t, "mnapp")
+do(t, "MA := dt_new MenuA 6 40 14 2 mnapp")
+do(t, "MW := dt_new MenuB 6 40 14 60 mnapp")
+waitfor(t, '[ -n "${DT_RVC[$MA]-}" ] && [ -n "${DT_RVC[$MW]-}" ]', 8)
+do(t, "dt_raise $MA")
+t.send(b"\t", settle=0.4, collect=0.4)            # into the first window's field
+waitfor(t, '[ "${DT_RVMENU["menus:mnapp"]["id"]-}" = "$MA" ] && [ "${DT_RVMENU["menus:mnapp"]["field"]-}" = 1 ]', 6)
+do(t, "TST_STRAY=1; dt_raise $MW")
+waitfor(t, '[ "${DT_RVMENU["menus:mnapp"]["id"]-}" = "$MW" ]', 6)
+t.collect(1.5)
+check("a window that has lost the focus never pushes its app's menus over the focused window's",
+      read(".stray") == "", read(".stray"))
+bar, m = result(t, "tst_bar"), edit(t)
+check("the window with the focus keeps its app's menus, its own field not live: Copy dimmed",
+      "Tools" in bar.split(";") and m.get("Copy") == "1", (bar, m))
+do(t, "dt_raise $MA")
+waitfor(t, '[ "${DT_RVMENU["menus:mnapp"]["id"]-}" = "$MA" ] && [ "${DT_RVMENU["menus:mnapp"]["field"]-}" = 1 ]', 6)
+bar, m = result(t, "tst_bar"), edit(t)
+check("and back in the first window, its field is live again: Copy offered, with the app's menus",
+      "Tools" in bar.split(";") and m.get("Copy") == "0" and read(".stray") == "", (bar, m, read(".stray")))
+do(t, "TST_STRAY=; dt_del $MA; dt_del $MW")
+
 # --- Select All with no field and no _selall ------------------------------
 host(t, "keyapp")
 do(t, "K := dt_new Keys 6 30 12 2 keyapp")
@@ -343,12 +466,50 @@ check("a cut that long is not made: the window still holds all of it",
       and result(t, 'echo "${DT_RVC[$B]-none}"') not in ("-", "none", ""),
       (lastnote(t), read(".big"), log(t)[-600:]))
 do(t, "dt_del $B")
+host(t, "cutapp")
+do(t, "X := dt_new Cut 6 30 3 60 cutapp")
+until(t, ".cut", lambda s: s == "2097152", 15)
+t.send(b"\x1bx", settle=0.5, collect=0.5)          # Cut
+waitfor(t, '[ "${DT_NOTEQ[$((DT_NOTE_NEXT - 1))]["text"]-}" = "Too much to cut at once: 2097152 characters" ]', 10)
+t.collect(0.5)
+check("a cut that long from a window with no Copy to measure it by is put back with its Paste: nothing lost",
+      lastnote(t) == "Too much to cut at once: 2097152 characters" and read(".cut") == "2097152"
+      and result(t, 'echo "${DT_RVC[$X]-none}"') not in ("-", "none", ""),
+      (lastnote(t), read(".cut"), log(t)[-600:]))
+do(t, "dt_del $X")
+
+# --- Long as text, or long only on the wire -------------------------------
+host(t, "spcapp")
+do(t, "L := dt_new Letters 6 30 3 60 spcapp")
+until(t, ".spc" + result(t, 'echo "$L"'), lambda s: s == "300000", 15)
+t.send(b"\x1bc", settle=0.5, collect=0.5)          # Copy
+check("a copy of 300,000 characters reaches the clipboard whole (control)",
+      waitfor(t, '[ "${#DT_CLIP}" = 300000 ]', 10), result(t, 'echo "${#DT_CLIP}"'))
+do(t, "dt_del $L")
+do(t, "P := dt_new Spaces 6 30 3 60 spcapp")
+until(t, ".spc" + result(t, 'echo "$P"'), lambda s: s == "400000", 15)
+t.send(b"\x1bc", settle=0.5, collect=0.5)          # Copy
+check("a copy of 400,000 spaces, three times that on the wire, is refused with a note, the connection kept",
+      waitfor(t, '[ "${DT_NOTEQ[$((DT_NOTE_NEXT - 1))]["text"]-}" = "Too much to copy at once: 400000 characters" ]', 10)
+      and result(t, 'echo "${DT_RVC[$P]-none}"') not in ("-", "none", ""),
+      (lastnote(t), result(t, 'echo "[${DT_RVC[$P]-none}]"'), log(t)[-600:]))
+do(t, "dt_del $P")
 
 # --- A process kept with no window ----------------------------------------
 host(t, "spinapp")
 do(t, "S := dt_new Spin 6 30 12 60 spinapp")
 until(t, ".spid", lambda s: s != "")
 spid = read(".spid")
+# A ticker that stalls and returns is timed in its own process, as in the
+# desktop, and named there -- and so is the eight-second spin below, once
+# it ends. Before it: a smaller stall of the same name within ten seconds
+# of a bigger one is not said again (dt_slow).
+expect(r"held: spinapp_tick held")
+open(SAID + ".stall", "w").close()
+check("an app process's ticker that stalls a second and returns is a held: line, from its own timing",
+      until(t, ".stalled", lambda s: s == "done", 6) and
+      until(t, "", lambda s: "held: spinapp_tick held" in log(t), 6),
+      log(t)[-800:])
 do(t, "dt_del $S")
 time.sleep(2.5)
 open(SAID + ".spin", "w").close()
@@ -359,6 +520,7 @@ check("and it is left running", alive(spid), spid)
 check("said once, though it went on spinning",
       log(t).count("held: resident:spinapp") == 1, log(t).count("held: resident:spinapp"))
 
+
 host(t, "calmapp")
 do(t, "C := dt_new Calm 6 30 12 2 calmapp")
 until(t, ".cpid", lambda s: s != "")
@@ -368,4 +530,4 @@ check("one kept for a quiet ticker and a job that sleeps is never named (control
       read(".cjob") == "0" and "resident:calmapp" not in log(t), (read(".cjob"), log(t)[-800:]))
 
 t.close()
-report(14)
+report(21)

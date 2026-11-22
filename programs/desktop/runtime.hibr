@@ -380,7 +380,7 @@ fn dt_rtcalled(line) {
 		[ -n "${DT_RTV["$name"]+x}" ] || return 0
 		console cells forget "$name"
 		unset DT_RTV["$name"] DT_RTVNEW["$name"] DT_RTVDUE["$name"] DT_RTVH["$name"] DT_RTVW["$name"] DT_RTWAITOPEN["$name"]
-		unset DT_RTFTOLD["${name#w}"]
+		[ "${DT_RTFTOLD%%:*}" != "${name#w}" ] || DT_RTFTOLD=
 		;;
 	revoke)
 		if [ -n "${DT_RTDROPPED["${a[0]-}"]+x}" ]; then
@@ -507,21 +507,33 @@ fn dt_rtbuild(kind, int id) {
 	dt_rtmbpush "$kind" "$ap" "$id"
 }
 
-# Whether window id's field is live, and has typing to take back or put
-# again, as this process last drew it: three digits, told with its menus
-# (dt_rtmbpush) whenever they change, since only this process knows them
-# and the desktop's Edit menu and Select All ask (wm/rtcarry.hibr).
-declare -gA DT_RTFTOLD
-fn dt_rtfieldtell(int id) {
+# Whether the focused window id's field is live, and has typing to take
+# back or put again, as this process knows it now: three digits, 000 for
+# any window but the focused one, which only this process can answer.
+fn dt_rtfieldbits(id) {
 	local f=0 u=0 r=0
 
-	if dt_fieldlive && [ "$DT_FOCUS" = "$id" ]; then
+	if [ "$DT_FOCUS" = "$id" ] && dt_fieldlive; then
 		f=1
 		dt_fieldcan undo && u=1
 		dt_fieldcan redo && r=1
 	fi
-	[ "${DT_RTFTOLD["$id"]-000}" != "$f$u$r" ] || return 0
-	DT_RTFTOLD["$id"]=$f$u$r
+	ret "$f$u$r"
+}
+
+# After a draw of the focused window: its menus told again when its
+# field's facts differ from the last told (DT_RTFTOLD, "ID:BITS"), since
+# the desktop's Edit menu and Select All ask them (wm/rtcarry.hibr). Only
+# the focused window's, as the desktop keeps one menus for an app: one
+# told for a window that has lost the focus would take its app's menus
+# away from the window that has it.
+DT_RTFTOLD=
+fn dt_rtfieldtell(int id) {
+	local b
+
+	[ "$DT_FOCUS" = "$id" ] || return 0
+	b := dt_rtfieldbits "$id"
+	[ "$DT_RTFTOLD" != "$id:$b" ] || return 0
 	dt_rtbuild menus "$id"
 }
 
@@ -551,7 +563,8 @@ fn dt_rtmbpush(kind, ap, id = "", ...sel) {
 	v := json emit v
 	j+="$v,\"n\":$MB_N,\"edited\":$MB_EDITED"
 	if [ "$kind" = menus ] && [ "${#sel[@]}" = 0 ]; then
-		v=${DT_RTFTOLD["$id"]-000}
+		v := dt_rtfieldbits "$id"
+		DT_RTFTOLD="$id:$v"
 		j+=",\"field\":${v:0:1},\"fundo\":${v:1:1},\"fredo\":${v:2:1}"
 	fi
 	if [ "${#sel[@]}" -gt 0 ]; then
@@ -594,13 +607,14 @@ fn dt_rtedit(int seq, int id, op, clip = "", clipop = "") {
 		# desktop gives it to a window of its own.
 		if [ "$op" = selall ] && [ -n "$clip" ] && [ "${DT_EDITR["say"]-}" = cannot ]; then
 			DT_EDITR=()
-			dt_has "${DT[$id]["app"]-}_key" && dt_appcall "$id" "${DT[$id]["app"]}_key" "$clip"
+			k=${DT[$id]["app"]-}_key
+			[ -z "${DT_RTIFACE["$k"]+x}" ] && dt_has "$k" && dt_appcall "$id" "$k" "$clip"
 		fi
 		[ "$seq" = 0 ] && return 0
 		k := dt_rteditline "$seq"
 		if [ "${#k}" -gt "$DT_RTEDITMAX" ]; then
 			n=${#DT_EDITR["clip"]}
-			dt_rteditback "$id" "$op"
+			dt_rteditback "$id" "$op" "${DT_EDITR["clip"]}"
 		fi
 	fi
 	if [ -n "$n" ]; then
@@ -624,15 +638,13 @@ fn dt_rteditline(int seq) {
 }
 
 # A cut too long to answer from a window whose app has no _copy to measure
-# it by first: put back with its own _paste, as a cut, so nothing is lost.
-fn dt_rteditback(int id, op) {
-	local cb=${DT[$id]["paste"]-}
-
+# it by first: put back by pasting it, as a cut, through the same edit, so
+# nothing is lost.
+fn dt_rteditback(int id, op, clip) {
 	[ "$op" = cut ] || return 0
-	if [ -n "$cb" ] && dt_wincall "$id" "$cb" "${DT_EDITR["clip"]}" cut; then
-		return 0
-	fi
-	dt_log "app runtime: window $id's cut of ${#DT_EDITR["clip"]} characters could not be put back: its app has no _copy to measure a cut by and no _paste to undo one"
+	dt_editwin "$id" paste "$clip" cut
+	[ "${DT_EDITR["say"]-}" = cannot ] || return 0
+	dt_log "app runtime: window $id's cut of ${#clip} characters could not be put back: its app has no _copy to measure a cut by and no _paste to undo one"
 	return 0
 }
 
