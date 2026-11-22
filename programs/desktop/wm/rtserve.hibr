@@ -723,6 +723,7 @@ fn dt_rtmsg(int c, line) {
 			dt_log "app runtime: refused a hello from $who, which is not $x"
 			x := dt_rtline refused "$who is not $x"
 			dt_rtsay "$c" "$x"
+			[ "${#DT_RVP[@]}${#DT_RVB[@]}" = 00 ] || dt_rvxvoid "$who"
 			dt_rtdrop "$c"
 			return 1
 		fi

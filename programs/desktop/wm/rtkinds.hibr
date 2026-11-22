@@ -67,6 +67,9 @@ fn dt_rvinst(f) {
 	dt_has sv_saver && for p in "${!SV[@]}"; do
 		[ "${SV[$p]["src"]-}" = "$f" ] && return 0
 	done
+	for p in "${DT_BARIN[@]}"; do
+		[ "${DT_BARI["$p"]["src"]-}" = "$f" ] && return 0
+	done
 	for p in "${!DT_APPS[@]}"; do
 		[ "${DT_APPS[$p]["src"]-}" = "$f" ] && return 0
 	done

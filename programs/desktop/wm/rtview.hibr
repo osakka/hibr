@@ -439,6 +439,12 @@ fn dt_rvcells_in(int x, tok = "") {
 	console watch "$x"
 	DT_RTCELLS["$rc"]=$x
 	DT_RTCELLC["$x"]=$rc
+	# A bar item that draws itself waited for this to be bound, and the
+	# bar is drawn again only when something says so (wm/rtkinds.hibr).
+	if [ "${#DT_RVB[@]}" != 0 ]; then
+		DT_BARWAS=
+		dt_want 0
+	fi
 	return 0
 }
 

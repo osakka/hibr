@@ -97,6 +97,7 @@ fn dbar_draw(int c, int hover) {
 }
 fn dbar_press(btn, int r, int c) {
 	DB_N=$((DB_N + 1))
+	dt_baritem dbar "D:$DB_N   "
 	printf 'press %%s %%s\n' "$$" "$btn" >> %s
 	return 0
 }
@@ -353,7 +354,7 @@ while time.time() < deadline and "named the bar item dbar" not in log(t):
     t.collect(0.1)
 check("an item's process naming another's item is refused, and the item stays",
       "named the bar item dbar, which is not its own" in log(t) and onbar(t, "D:1", 1)
-      and "STOLEN" not in t.screen().text(), log(t)[-600:])
+      and "STOLEN" not in t.screen().text(), (taken(SAID + ".bar"), log(t)[-2500:]))
 for pid in (bpid, dpid):
     if pid:
         os.kill(int(pid), 15)
