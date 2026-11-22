@@ -31,8 +31,9 @@ declare -gA DT_RVGEN DT_RVARGS DT_RVDIRTY DT_RVUNC DT_RVOPEN DT_RVCLOSE
 # for a callback handed back to its app: dt_rvappfn); what has been said
 # once; and an app process with no window left, by pid, with when it is
 # ended if still there (in milliseconds, so DT_RTENDSECS is that long and not
-# up to a second less).
-declare -gA DT_RTHAS DT_RVASK DT_RVSAID DT_RTENDPID
+# up to a second less), and whether it was at work of its own the last time
+# that came (dt_rvbusy).
+declare -gA DT_RTHAS DT_RVASK DT_RVSAID DT_RTENDPID DT_RTENDBUSY
 DT_RVSEQ=0
 DT_RTENDSECS="${DT_RTENDSECS-5}"
 # What a hosted app's process last built of its menus (menus:APP), of a
@@ -686,12 +687,24 @@ dt_rvtick() {
 			# said, and said once for an app that went with windows
 			# open; its zygote gone too, not known.
 			[ -z "${DT_RTENDOWE["$p"]-}" ] || dt_rvended "$p" "${DT_RTEXIT["$p"]-}"
-			unset DT_RTENDPID["$p"] DT_RTENDAPP["$p"] DT_RTENDWHY["$p"] DT_RTENDOWE["$p"] DT_RTENDHIT["$p"]
+			unset DT_RTENDPID["$p"] DT_RTENDAPP["$p"] DT_RTENDWHY["$p"] DT_RTENDOWE["$p"] DT_RTENDHIT["$p"] DT_RTENDBUSY["$p"]
 			unset DT_RVRESON["$p"] DT_RVRESAT["$p"] DT_RVRESHELD["$p"] DT_RVRESWAIT["$p"]
 			unset DT_RTEXIT["$p"]
 		elif [ "$now" -ge "${DT_RTENDPID["$p"]}" ]; then
 			# Still running a program of its own with no window: left.
 			dt_rvbusy "$p" "$now" && continue
+			# At work the last time and not now: its work has just
+			# ended -- a job whose callback has run -- and it is given
+			# its time to end from now, as its last window's going gave
+			# it; its own end after that work may be a moment away, and
+			# the desktop learns of it only from the zygote. Idle at this
+			# look, what it was judged by at work goes too (dt_rvresjudge),
+			# so a later look at work is compared with a fresh one.
+			if [ -n "${DT_RTENDBUSY["$p"]-}" ]; then
+				unset DT_RTENDBUSY["$p"] DT_RVRESON["$p"] DT_RVRESAT["$p"] DT_RVRESHELD["$p"] DT_RVRESWAIT["$p"]
+				DT_RTENDPID["$p"]=$((now + DT_RTENDSECS * 1000))
+				continue
+			fi
 			# Still there: ended, then watched until it has gone, and
 			# killed outright once more time has passed.
 			if [ -z "${DT_RTENDHIT["$p"]-}" ]; then

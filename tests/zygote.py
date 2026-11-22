@@ -279,6 +279,22 @@ check("and no app process or zygote is left a zombie",
       not any(stat(x) and stat(x)["state"] == "Z" for x in (apid, zpid, apid2)),
       [(x, stat(x)) for x in (apid, zpid, apid2)])
 
+# An app process with no window left, at work of its own when its time to
+# end came, is looked at again; found idle then, its work has only just
+# ended and its own end may be a moment away -- which the desktop learns of
+# from the zygote, not at once -- so it is given its time again rather than
+# ended mid-way (tests/hostedit.py's job app ended this way one run in two).
+# A stand-in process, its jobs folder filled and then emptied, each look
+# made due at once.
+w = result(r'sleep 60 & p=$!; d := dt_jobsof "$p"; mkdir -p "$d"; : > "$d/1.st"; '
+           r'n=$((${EPOCHREALTIME/./} / 1000)); DT_RTENDPID[$p]=$((n - 1)); dt_rvtick; '
+           r'command rm -f "$d/1.st"; DT_RTENDPID[$p]=$((${EPOCHREALTIME/./} / 1000 - 1)); dt_rvtick; '
+           r'x="$p ${DT_RTENDHIT[$p]:-0} $((DT_RTENDPID[$p] - n))"; kill "$p"; command rmdir "$d"; '
+           r'echo "$x"').split()
+check("one whose work ended as its time came is given its time again, not ended",
+      len(w) == 3 and w[1] == "0" and int(w[2]) >= 1000
+      and "process %s had no window left and had not gone" % w[0] not in log(), (w, log()[-500:]))
+
 t.close()
 
 # --- the hold: an app's process draws as often as the desktop shows -------
@@ -432,4 +448,4 @@ t.close()
 for f in (p, p2, MARK, SAID, SAID + ".pend", WRITER, PIDF, PULSE, COUNT, ECHO, ELAT, FIFO):
     if os.path.exists(f):
         os.unlink(f)
-report(20)
+report(21)

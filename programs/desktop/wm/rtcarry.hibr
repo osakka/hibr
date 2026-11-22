@@ -129,6 +129,7 @@ fn dt_rvbusy(int p, int now) {
 	fi
 	[ -n "$k" ] || return 1
 	DT_RTENDPID["$p"]=$((now + DT_RTENDSECS * 1000))
+	DT_RTENDBUSY["$p"]=1
 	dt_rvonce "busy:$p" "app runtime: process $p has no window left and is still at work ($k); not ended while it is"
 	dt_rvresjudge "$p" "$now"
 	return 0
