@@ -857,8 +857,15 @@ fn dt_rtkind(v) {
 			"${who}_draw" "$a" "${DT_RTVH["$v"]}" "$((DT_RTVW["$v"] - e + d))" "$e"
 		else
 			# Its rows, as the panel draws them: the selection lit while
-			# the panel's keys are the pane's (the view's last word).
+			# the panel's keys are the pane's (the view's last word), and
+			# put at the first row when the window shows another pane, as
+			# the panel puts it (panel_goto).
 			PW[$a]["side"]=$f
+			if [ "${CP_ROWPANE[$a]-}" != "$who" ]; then
+				PW[$a]["sel"]=0
+				PW[$a]["top"]=0
+				PW[$a]["last"]=-1
+			fi
 			cp_rowsdraw "$a" "$who" "${DT_RTVH["$v"]}" "$((DT_RTVW["$v"] - 1))" "$e"
 		fi
 		;;

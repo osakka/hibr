@@ -1770,16 +1770,19 @@ int cw_take(cw_conn *k)
    nothing will finish it -- 2 once it is broken. */
 int cw_takev(sh *s, int fd)
 {
-	cw_conn *k = cw_conn4(fd, 0);
+	cw_conn *k;
 	str o, ch, un, ag;
 	size_t i;
 	cw_view *v;
 	int rc;
 
-	if (!k) {
-		lg(HIBR_LERR, "console cells take: %d holds no view", fd);
+	if (fd < 0) {
+		lg(HIBR_LERR, "console cells take: %d is no descriptor", fd);
 		return HIBR_FAIL;
 	}
+	/* A channel no view was owned on yet -- a bar item's process, whose
+	   pop-up has not opened -- is read all the same: its end is an end. */
+	k = cw_conn4(fd, 1);
 	rc = cw_take(k);
 	s_init(&o);
 	s_init(&ch);
