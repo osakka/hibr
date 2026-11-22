@@ -58,8 +58,12 @@ DT_HOTWIN=
 DT_HOTTAG=
 # What each pane of rows drawn here last told the desktop it holds.
 declare -gA DT_RTROWTXT
+# A pane's title, as its file declares it: what the panel's rows name the
+# pane by when a search narrows them here ("Show all of TITLE").
+declare -gA CP_PANES
 fn cp_pane(pane, title, icon, group = "system") {
 	DT_RTKP["$pane"]=pane
+	CP_PANES["$pane"]["title"]=$title
 }
 fn sv_saver(name, title, int ms) {
 	DT_RTKP["$name"]="saver $ms"
