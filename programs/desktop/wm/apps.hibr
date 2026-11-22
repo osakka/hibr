@@ -293,6 +293,92 @@ dt_shadownote() {
 }
 command -v dt_ticker > /dev/null && dt_ticker dt_shadownote
 
+# What an installable declares, read and never run (ADR 0050, Decision 3):
+# every call its file makes at the top level to a registration -- a
+# declaration of the app interface's (dt_app, dt_keep, dt_keepstate,
+# cs_module, dt_baritem and the bar item's others), a Control Panel pane
+# (cp_pane) or an opener (dt_opener, dt_openerverb) -- found by the parser
+# with its words (`inspect calls --arguments`), and made here as the file
+# would make it, with DT_LOADING the file, so nothing of the installable's
+# own runs in the desktop. A registration whose words are not all written
+# out (an expansion, a substitution) cannot be read: it is not made, and
+# the log names it, file and line; status 1 then. One inside a function is
+# not the file's declaration and is left to its own process. A setting the
+# file keeps gets the default its file writes for it at the top level
+# (`X="${X-v}"`, `: "${X:=v}"`, `X=v`, the line read, never run) before it
+# is kept,
+# as in-process the line runs before the dt_keep; one whose default is not
+# written out is said in the log, and kept with none. The scans
+# read an installable this way once apps run in processes of their own
+# (the flip); until then a test session's hosted apps are registered so.
+DT_REGNAMES=
+fn dt_regread(file) {
+	local i j n st=0 x k ln
+	local -a w lines
+	local -A r v def
+
+	[ -r "$file" ] || { dt_log "registrations: cannot read $file"; return 1; }
+	need inspect 2> /dev/null || { dt_log "registrations: no inspect module, so $file cannot be read"; return 1; }
+	if [ -z "$DT_REGNAMES" ]; then
+		x='"cp_pane","dt_opener","dt_openerverb"'
+		while IFS=$'\t' read -r i j _; do
+			[ "$i" = declare ] && x+=",\"$j\""
+		done < "$DT_HERE/interface.tsv"
+		DT_REGNAMES="[$x]"
+	fi
+	r := inspect calls "$file" --arguments "$DT_REGNAMES" 2> /dev/null ||
+		{ dt_log "registrations: $file could not be read"; return 1; }
+	# Each top-level default, by name: the line as written, matched whole.
+	v := inspect vars "$file" 2> /dev/null || v=()
+	mapfile -t lines < "$file"
+	for i in "${!v["vars"][@]}"; do
+		[ -z "${v["vars"][$i]["owner"]-}" ] && [ "${v["vars"][$i]["access"]-}" = write ] || continue
+		k=${v["vars"][$i]["name"]-}
+		[[ $k =~ ^[A-Z][A-Z0-9_]*$ ]] || continue
+		ln=${lines[$((${v["vars"][$i]["span"]["line"]:-0} - 1))]-}
+		ln=${ln#"${ln%%[![:space:]]*}"}
+		ln=${ln%"${ln##*[![:space:]]}"}
+		if [[ $ln =~ ^$k=\"?\$\{$k:?-([^\}\$\`\\\"]*)\}\"?$ ]] ||
+			[[ $ln =~ ^:\ \"?\$\{$k:?=([^\}\$\`\\\"]*)\}\"?$ ]]; then
+			def["$k"]=${BASH_REMATCH[1]}
+		elif [[ $ln =~ ^$k=\"([^\$\`\\\"]*)\"$ ]] || [[ $ln =~ ^$k=([^\$\`\\\"\'\ \;\&\|\(\)\<\>]*)$ ]]; then
+			def["$k"]=${BASH_REMATCH[1]}
+		fi
+	done
+	for i in "${!r["calls"][@]}"; do
+		[ "${#r["calls"][$i]["arguments"][@]}" -gt 0 ] || continue
+		[ -z "${r["calls"][$i]["owner"]-}" ] || continue
+		n=${r["calls"][$i]["name"]}
+		w=()
+		x=
+		for j in "${!r["calls"][$i]["arguments"][@]}"; do
+			if [ "${r["calls"][$i]["arguments"][$j]["quote"]-}" = dynamic ]; then
+				x=1
+				break
+			fi
+			w+=("${r["calls"][$i]["arguments"][$j]["text"]}")
+		done
+		if [ -n "$x" ]; then
+			dt_log "registrations: $file:${r["calls"][$i]["line"]-?}: $n is not written out, so it cannot be read; not made"
+			st=1
+			continue
+		fi
+		if [ "$n" = dt_keep ]; then
+			for k in "${w[@]}"; do
+				[ -z "${!k+x}" ] || continue
+				if [ -n "${def["$k"]+x}" ]; then
+					declare -g "$k=${def["$k"]}"
+				else
+					dt_log "registrations: $file keeps $k with no default written out; kept with none"
+				fi
+			done
+		fi
+		DT_LOADING=$file "$n" "${w[@]}" ||
+			dt_log "registrations: $file:${r["calls"][$i]["line"]-?}: $n refused its words"
+	done
+	return "$st"
+}
+
 # The scan itself, which a rescan runs again without the libraries: a
 # file already in DT_SRC is skipped, so a second pass sources only what
 # has arrived since.

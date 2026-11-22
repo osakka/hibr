@@ -65,6 +65,11 @@ PICTURES = {"img": ("draw", "keep", "pic"), "media": ("draw", "frame"), "web": (
 # Which track carries a kind not carried yet (the owner's tracks after the
 # spine, 2026-11-21). Organisational, so by hand; whether a kind IS carried
 # is never written here.
+# What the desktop reads of an installable rather than runs (dt_regread):
+# every declaration interface.tsv names, a pane and an opener.
+REGNAMES = tuple(sorted(set(["cp_pane", "dt_opener", "dt_openerverb"] + [
+    l.split("\t")[1] for l in open(os.path.join(DESK, "interface.tsv"))
+    if l.startswith("declare\t")])))
 TRACK = {"view": "views", "pane": "views", "strip": "views", "bar": "views", "saver": "views",
          "row": "views", "menus": "menus", "context": "menus", "titlemenu": "menus",
          "handed": "menus", "list": "menus"}
@@ -308,6 +313,7 @@ class Audit:
         self.stubs = set(re.findall(r"^(?:fn\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(",
                                     open(appcalls.STUBS).read(), re.M))
         self.carried, self.views = carriage()
+        self.regread = "fn dt_regread(" in open(os.path.join(DESK, "wm", "apps.hibr")).read()
         self.body = appcalls.bodies()
         self.reg = registrars(self.body)
         allfiles = sorted(set(f for e in entries for f in e["files"]))
@@ -398,8 +404,9 @@ class Audit:
 
     def calls(self, f):
         try:
-            facts = records(f, "calls", arguments=("dt_app", "dt_note", "dt_notep", "dt_notify", "dt_notifyp", "dt_has", "command")
-                            + tuple(PICTURES)).get("calls", [])
+            facts = records(f, "calls", arguments=tuple(sorted(set(
+                ("dt_app", "dt_note", "dt_notep", "dt_notify", "dt_notifyp", "dt_has", "command")
+                + tuple(PICTURES) + REGNAMES)))).get("calls", [])
         except Exception as e:
             return None
         try:
@@ -435,6 +442,15 @@ class Audit:
             # command -v): a name it guards may live in another installable
             # this audit does not read, so it is no vanished function.
             guarded = set()
+            # A registration the desktop reads, not runs (dt_regread,
+            # Decision 3): one at the top level whose words are not all
+            # written out cannot be read, so the entry must write it out.
+            if self.regread:
+                for c in facts:
+                    if (not c.get("owner") and c.get("name") in REGNAMES
+                            and any(a.get("quote") == "dynamic" for a in (c.get("arguments") or []))):
+                        need["change:a registration not written out:" + c["name"]].append(
+                            "%s:%s" % (os.path.basename(f), c.get("line", "?")))
             for c in facts:
                 w = [x.get("text") for x in (c.get("arguments") or [])]
                 if c.get("name") == "dt_has" and w:
@@ -647,8 +663,13 @@ def hdr(a, rows):
     s += "\npartly (some of the desktop's calling sites route a hosted window, some do not): %s" % (
         " ".join(sorted(k for k, v in a.carried.items() if v == "partly")))
     s += "\nnot carried yet: %s" % " ".join(sorted(k for k, v in a.carried.items() if v == "no"))
-    s += ("\nglobal, for every entry: registrations are still run, not read (Decision 3: dt_app, cp_pane, "
-          "cs_module, dt_baritem, dt_keep read by inspect at scan): not built in this tree")
+    if a.regread:
+        s += ("\nglobal, for every entry: registrations are read, not run (Decision 3: dt_regread, every "
+              "top-level declaration, cp_pane and opener read by inspect with its words and a kept "
+              "setting's default line); the scans take it at the flip")
+    else:
+        s += ("\nglobal, for every entry: registrations are still run, not read (Decision 3: dt_app, cp_pane, "
+              "cs_module, dt_baritem, dt_keep read by inspect at scan): not built in this tree")
     return s
 
 

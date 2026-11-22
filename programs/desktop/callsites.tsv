@@ -2,6 +2,7 @@
 local	savers/saver.hibr	63	sv_call	"${name}_$what" "${rest[@]}"
 local	widgets/bidi.hibr	113	bd_put	"$pen" "$y"
 local	widgets/omnibox.hibr	78	dt_omniask	out := "$cb" "$id" "$text" || out=
+desktop	wm/apps.hibr	376	dt_regread	DT_LOADING=$file "$n" "${w[@]}" ||
 local	wm/budget.hibr	228	dt_appcall	"$cb" "$id" "${args[@]}"
 local	wm/budget.hibr	255	dt_appget	"$cb" "$id" "${args[@]}"
 desktop	wm/handlers.hibr	114	dt_runhandler	( "${DT_OPENCMD[@]}" "$path" >> "$DT_LOG" 2>&1 & )

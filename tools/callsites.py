@@ -45,7 +45,7 @@ BYOWNER = {
     "local": """bd_put dt_dropcontext dt_omniask dt_sbto sv_call""",
     "desktop": """dt_tickers dt_job dt_jobmerge dt_jobvarsrun dt_runhandler dt_autohold
                   dt_natver dt_pwlocal dt_supervise dt_updcheck dt_rtmsg dt_rtanswer dt_rvbfn dt_vw
-                  dt_vwget dt_vwmatch dt_vwjobrun dt_set dt_rvtook dt_rvappfn""",
+                  dt_vwget dt_vwmatch dt_vwjobrun dt_set dt_rvtook dt_rvappfn dt_regread""",
 }
 # One site at a time, where the function holds sites of two kinds:
 # file:line of the call -> class. dt_mouse dispatches a bar item's click
