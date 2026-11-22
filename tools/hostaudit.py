@@ -128,6 +128,11 @@ def carriage(desk=DESK):
     byowner = bool(m and re.search(r"\bdt_rv|DT_RTHOST", m.group(0)))
     met = {}
     sites = collections.defaultdict(list)
+    # A kind the runtime itself calls, in the app's own process (a window's
+    # _idle, every pass beside its draw), is carried there whole: dt_rvhas
+    # leaves that field of a hosted window empty, so none of the desktop's
+    # own sites reaches one.
+    own = set()
     for l in open(os.path.join(desk, "seamcalls.tsv")):
         if l.startswith("#kind"):
             c = l.rstrip("\n").split("\t")
@@ -135,7 +140,14 @@ def carriage(desk=DESK):
         if l.startswith("#") or not l.strip():
             continue
         f, ln, fn, seam, cb, kind = l.rstrip("\n").split("\t")[:6]
-        if seam == "dt_wincall":
+        if f == "runtime.hibr":
+            own.add(kind)
+        if seam in ("dt_wincall", "dt_winget") and fn in runs:
+            # A window's own process runs this function itself (an edit,
+            # done whole there: dt_editwin), for its own window; the
+            # desktop's callers send it a hosted window's call instead.
+            ok = True
+        elif seam == "dt_wincall":
             ok = kind.lstrip("_") not in refused
         elif seam == "dt_winget":
             ok = not getnot
@@ -155,6 +167,16 @@ def carriage(desk=DESK):
         out[k] = "yes" if all(v) and k.lstrip("_") not in refused else ("partly" if any(v) else "no")
     for k in refused:
         out["_" + k] = "no"
+    for k in own:
+        out[k] = "yes"
+    # An app's own Edit callbacks are reached through one kind, _edit
+    # (dt_editwin), as carried as it is, unless refused by name.
+    if "_edit" in out:
+        for k in ("copy", "cut", "paste", "undo", "redo", "selall", "find"):
+            out["_" + k] = "no" if k in refused else out["_edit"]
+    # Work that goes on with no window -- an app's ticker, a job -- is
+    # carried once the runtime keeps its process for it (dt_rtworking).
+    out["background"] = "yes" if re.search(r"^dt_rtworking\(\)", rt, re.M) else "no"
     return out, views
 
 
@@ -471,7 +493,7 @@ class Audit:
                     need["change:calls another installable:" + n].append(
                         "%s:%s -> %s" % (os.path.basename(f), c.get("line", "?"),
                                          ",".join(sorted(os.path.basename(x) for x in self.owner[n]))))
-                if n == "dt_ticker" and kindof(f) in ("apps", "system"):
+                if n == "dt_ticker" and kindof(f) in ("apps", "system") and self.carried.get("background") != "yes":
                     need["background"].append("%s:%s" % (os.path.basename(f), c.get("line", "?")))
             # State.
             for n in self.rfile.get(f, ()):

@@ -170,13 +170,14 @@ def run(tree, case, hosted=False):
     tree = os.path.abspath(tree)
     if hosted and not hosted_ok(tree):
         return {"case": case, "skipped": "this tree has no spine (dt_rthost)"}
-    if hosted and case == "writers":
-        # What a terminal window runs is handed to its _open in DT_OPENCMD,
-        # the desktop's own variable (appstate.py: an argument to come); a
-        # hosted Terminal's _open runs in its own process, which never sees
-        # it, and would start its default program -- a different case under
-        # the same name.
-        return {"case": case, "skipped": "DT_OPENCMD does not reach a hosted Terminal's _open yet"}
+    if hosted and case == "writers" and 'DT[$id]["cmdn"]' not in open(
+            os.path.join(tree, "programs/desktop/apps/term.hibr")).read():
+        # What a terminal window runs reached its _open in DT_OPENCMD, the
+        # desktop's own variable, until the window's record carried it
+        # (dt_newcmd): in such a tree a hosted Terminal's _open, in its own
+        # process, never sees it and starts its default program -- a
+        # different case under the same name.
+        return {"case": case, "skipped": "DT_OPENCMD does not reach a hosted Terminal's _open in this tree"}
     scratch = tempfile.mkdtemp(prefix="budgets-")
     # One harness for every tree: this tree's tests/screen.py drives the
     # measured tree's binary and modules, so two trees differ only in what
