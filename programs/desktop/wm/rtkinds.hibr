@@ -309,7 +309,7 @@ fn dt_rvkinds_in(int c, who, p, ...kinds) {
 # which the desktop never waits for -- and anything not carried said once.
 # While its process is being started nothing is drawn and nothing sent.
 dt_rvpfn() {
-	local p=$1 what=$2 k=${DT_RVP["$1"]} c=${DT_RVPC["$1"]-}
+	local p=$1 what=$2 k=${DT_RVP["$1"]} c=${DT_RVPC["$1"]-} x
 
 	shift 3
 	if [ -z "$c" ]; then
@@ -327,17 +327,17 @@ dt_rvpfn() {
 		;;
 	pane:click | pane:wheel | strip:click)
 		dt_rvxinput "$p" "$k" "${1-}"
-		dt_rvxsend "$c" 0 "${p}_$what" "$@"
+		x := dt_rvkinput "$c" kcall "$k:$p:$what"
+		dt_rvxsend "$c" "$x" "${p}_$what" "$@"
 		;;
 	pane:key)
 		if dt_rvwithheld "${2-}"; then
 			dt_log "hosted: key ${2-} withheld, the desktop's"
 			return 1
 		fi
-		DT_RVSEQ=$((DT_RVSEQ + 1))
-		DT_RVASK[$DT_RVSEQ]="pkey - $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
+		x := dt_rvkinput "$c" pkey "pane:$p:key"
 		dt_rvxinput "$p" "$k" "${1-}"
-		dt_rvxsend "$c" "$DT_RVSEQ" "${p}_key" "$@"
+		dt_rvxsend "$c" "$x" "${p}_key" "$@"
 		;;
 	pane:mouse)
 		dt_rvxinput "$p" "$k" "${1-}"
@@ -345,9 +345,8 @@ dt_rvpfn() {
 			dt_rvxsend "$c" 0 "${p}_mouse" "$@"
 			return 0
 		fi
-		DT_RVSEQ=$((DT_RVSEQ + 1))
-		DT_RVASK[$DT_RVSEQ]="pmouse $p:${1-}:${4-}:${5-} $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
-		dt_rvxsend "$c" "$DT_RVSEQ" "${p}_mouse" "$@"
+		x := dt_rvkinput "$c" pmouse "$p:${1-}:${4-}:${5-}"
+		dt_rvxsend "$c" "$x" "${p}_mouse" "$@"
 		;;
 	strip:shown)
 		dt_rvonce "ask:$p:$what" "app runtime: ${p}_$what is asked, which is not carried yet (ADR 0050); the module shows"
@@ -368,6 +367,51 @@ fn dt_rvxsend(int c, int seq, name, ...words) {
 	dt_rtpass force
 	x := dt_rtline call "$seq" - "$name" "${words[@]}"
 	dt_rtsay "$c" "$x"
+}
+
+# The person's own input to a pane, a module, a bar item or a pop-up,
+# numbered as an ask, as a window's is (dt_rvinput): "KIND TAG DEADLINE T0
+# ON WAIT FLAGS C", ON and WAIT its process's processor and run-queue time
+# then, so one past DT_HOLDMS is judged a stall by the rule a window's is
+# (dt_rvklate) -- the same budget, measured from outside. Answered with ret.
+fn dt_rvkinput(int c, kind, tag) {
+	local p=${DT_RTCPID["$c"]-} on=0 wt=0 now=${EPOCHREALTIME/./}
+
+	DT_RVSEQ=$((DT_RVSEQ + 1))
+	[ -z "$p" ] || read -r on wt _ 2> /dev/null < "/proc/$p/schedstat" || { on=0; wt=0; }
+	DT_RVASK[$DT_RVSEQ]="$kind $tag $((now / 1000 + DT_HOLDMS)) $now $on $wt - $c"
+	ret "$DT_RVSEQ"
+}
+
+# Such an input s past its time, each pass until it is answered: a stall
+# once what its process spent on it reaches DT_HOLDMS, said once as a
+# `held:` line naming the process and what it was given -- which fails a
+# suite, as a window's does. Nothing is done to the process for it; one
+# that has gone takes its inputs with it.
+fn dt_rvklate(s, int now) {
+	local kind tag t0 on wt fl c p on2 wt2 ms el who
+
+	read -r kind tag _ t0 on wt fl c <<< "${DT_RVASK["$s"]}"
+	if [ -z "$c" ] || [ -z "${DT_RTC["$c"]+x}" ] || [ "${DT_RTC["$c"]}" = - ]; then
+		unset DT_RVASK["$s"]
+		return 0
+	fi
+	[[ $fl != *h* ]] || return 0
+	el=$((now - t0 / 1000))
+	p=${DT_RTCPID["$c"]-}
+	on2=$on
+	wt2=$wt
+	[ -z "$p" ] || read -r on2 wt2 _ 2> /dev/null < "/proc/$p/schedstat" || { on2=$on; wt2=$wt; }
+	if [ "$DT_HOLDBY" = cpu ]; then
+		ms=$(((on2 - on) / 1000000))
+	else
+		ms=$((el - (wt2 - wt) / 1000000))
+	fi
+	[ "$ms" -ge "$DT_HOLDMS" ] || return 0
+	who=${DT_RTC["$c"]}
+	DT_RVASK["$s"]="$kind $tag $((t0 / 1000 + DT_HOLDMS)) $t0 $on $wt ${fl}h $c"
+	dt_log "held: input:$who has not answered the person's input to $tag for $ms ms (a stall is $DT_HOLDMS ms)"
+	return 0
 }
 
 # The person's own input to a view: its cells channel is input until the
@@ -623,7 +667,7 @@ fn dt_rvbmine(name, what) {
 # call to the process otherwise; the wheel, its switch and its stop told.
 # While its process is being started nothing is drawn and nothing sent.
 dt_rvbfn() {
-	local role=$1 nm=$2 c=${DT_RVB["$2"]-}
+	local role=$1 nm=$2 c=${DT_RVB["$2"]-} x
 
 	shift 2
 	if [ -z "$c" ]; then
@@ -638,13 +682,13 @@ dt_rvbfn() {
 		# Taken at once, as a pane's key is: the pop-up is up and the key
 		# was its; Escape closed it before it was offered.
 		[ -z "${DT_RVX["o$nm"]-}" ] || console cells input "o$nm"
-		dt_rvxsend "$c" 0 "$@"
+		x := dt_rvkinput "$c" kcall "pop:$nm:key"
+		dt_rvxsend "$c" "$x" "$@"
 		;;
 	press)
-		DT_RVSEQ=$((DT_RVSEQ + 1))
-		DT_RVASK[$DT_RVSEQ]="bpress $nm:${2-left} $((${EPOCHREALTIME/./} / 1000 + DT_HOLDMS))"
+		x := dt_rvkinput "$c" bpress "$nm:${2-left}"
 		[ -z "${DT_RVX["b$nm"]-}" ] || console cells input "b$nm"
-		dt_rvxsend "$c" "$DT_RVSEQ" "$@"
+		dt_rvxsend "$c" "$x" "$@"
 		;;
 	do)
 		if [ -n "${DT_RTALLOW["${1-}"]+x}" ] || [ -n "${DT_RTASK["${1-}"]+x}" ]; then

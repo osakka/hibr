@@ -387,6 +387,8 @@ fn dt_rvtook(int c, seq, st = "", t = "", v = "") {
 		"${w[@]}"
 		return 0
 	fi
+	# The person's input to a hosted pane, module, item or pop-up, answered.
+	[ "$kind" != kcall ] && [ "$kind" != pkey ] || return 0
 	# A press a hosted pane declined (wm/rtkinds.hibr).
 	if [ "$kind" = pmouse ]; then
 		dt_rvxpress "$id" "$st"
@@ -555,6 +557,13 @@ dt_rvtick() {
 			dt_log "app runtime: $id did not answer in $DT_HOLDMS ms; what asked it waits for its answer"
 			continue
 		fi
+		# The person's input to a pane, a module, a bar item or a pop-up
+		# (wm/rtkinds.hibr): kept until answered, its stall said.
+		case $kind in pkey | pmouse | bpress | kcall)
+			dt_rvklate "$s" "$now"
+			continue
+			;;
+		esac
 		if [ -z "${DT_RVC[$id]+x}" ]; then
 			unset DT_RVASK["$s"]
 			[ "$DT_RVHOLD" != "$s" ] || dt_rvunhold "$s" 1
