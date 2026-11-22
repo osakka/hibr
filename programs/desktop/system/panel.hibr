@@ -275,7 +275,11 @@ fn panel_filter(int id) {
 			t=${CP_PANES[$n]["title"]}
 			case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
 			[[ ${t,,} == *"$q"* ]] && hit=1
-			if [ "$hit" = 0 ] && ! dt_has "${n}_draw" && dt_has "${n}_rows"; then
+			# A pane of rows drawn by its own process: by what its rows
+			# said they hold, the last time they were built there.
+			if [ "$hit" = 0 ] && [ -n "${DT_RVROWTEXT["$n"]+x}" ]; then
+				[[ ${DT_RVROWTEXT["$n"]} == *"$q"* ]] && hit=1
+			elif [ "$hit" = 0 ] && ! dt_has "${n}_draw" && dt_has "${n}_rows"; then
 				unset "CP[$scratch]"
 				k := dt_prefixfn "$n" rows "$scratch"
 				CP_ROWOWNER[$scratch]=${DT_HOOKOWNER["${n}_"]-}

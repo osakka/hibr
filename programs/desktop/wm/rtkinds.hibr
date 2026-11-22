@@ -186,6 +186,41 @@ fn dt_rvhookback(f = "") {
 	return 0
 }
 
+# What the panel's rows ask of the desktop for a pane of rows drawn by its
+# own process: a shortcut row's key capture, the desktop's (tools/appcalls.py,
+# rowsreach, puts them in the contract as that pane's).
+DT_RVROWSASK=(dt_keycap dt_keyclear dt_rvrowsfound)
+
+# What a pane of rows drawn by its own process holds, by prefix: each row's
+# label, what follows it and its value, in lower case, as the search reads
+# a row (cp_rowhas) -- told by its process whenever its rows change, so the
+# panel's search finds it by its rows as it finds one drawn here.
+declare -gA DT_RVROWTEXT
+fn dt_rvrowsfound(pane, text = "") {
+	if [ -n "${DT_RTFROM-}" ] && ! dt_rtmine "${CP_PANES["$pane"]["src"]-}"; then
+		dt_log "refused: dt_rvrowsfound: ${DT_CALLER:-an app} told the rows of pane $pane, which is not its own"
+		return 1
+	fi
+	[ "${DT_RVROWTEXT["$pane"]-}" != "$text" ] || [ -z "${DT_RVROWTEXT["$pane"]+x}" ] || return 0
+	DT_RVROWTEXT["$pane"]=$text
+	local id
+	# Every panel's search reads the panes again (panel_filter).
+	for id in "${!PW[@]}"; do
+		unset PW[$id]["mq"]
+	done
+	return 0
+}
+
+# The view a pointer was last told to be over, as "NAME R C" (dt_rvxhover);
+# and the search each rows pane's view was last sent, by view.
+DT_RVXHOV=
+declare -gA DT_RVXQ
+
+# A part a second process said it has while the first drew it, by prefix:
+# "CONNECTION KIND...", what it said, so it draws the part once the first
+# goes (dt_rvxdrop).
+declare -gA DT_RVPALT
+
 # The pop-up prefixes a process said it has (`has PREFIX popdraw ...`, sent
 # as it opens one), by prefix: its connection.
 declare -gA DT_RVPOP
@@ -216,6 +251,9 @@ fn dt_rvpendapp(app) {
 
 # A prefix hosted by a process being started: never drawn here from now.
 fn dt_rvxpend(p, kind, f) {
+	# One a live process draws already -- a part two bundles share -- stays
+	# that one's; the second says it has it too (dt_rvkinds_in).
+	[ -z "${DT_RVPC["$p"]-}" ] || [ -z "${DT_RTC["${DT_RVPC["$p"]}"]+x}" ] || return 0
 	DT_RVP["$p"]=$kind
 	DT_RVPC["$p"]=
 	DT_RVPF["$p"]=$f
@@ -279,7 +317,10 @@ fn dt_rvkinds_in(int c, who, p, ...kinds) {
 		return 0
 	fi
 	if [ -n "${DT_RVPC["$p"]-}" ] && [ "${DT_RVPC["$p"]}" != "$c" ] && [ -n "${DT_RTC["${DT_RVPC["$p"]}"]+x}" ]; then
-		dt_rvonce "two:$p:$c" "app runtime: $who's process has $k $p too, which ${DT_RTC["${DT_RVPC["$p"]}"]}'s draws; it stays there"
+		# Kept, so when the first process goes this one draws it
+		# (dt_rvxdrop): what it said is all it would say again.
+		DT_RVPALT["$p"]="$c ${kinds[*]}"
+		dt_rvonce "two:$p:$c" "app runtime: $who's process has $k $p too, which ${DT_RTC["${DT_RVPC["$p"]}"]}'s draws; it stays there until that one goes"
 		return 0
 	fi
 	for f in "${kinds[@]}"; do
@@ -331,11 +372,18 @@ dt_rvpfn() {
 		dt_rvxsend "$c" "$x" "${p}_$what" "$@"
 		;;
 	pane:key)
-		if dt_rvwithheld "${2-}"; then
-			dt_log "hosted: key ${2-} withheld, the desktop's"
-			return 1
-		fi
 		x := dt_rvkinput "$c" pkey "pane:$p:key"
+		# One the desktop also acts on once the panel declines it -- the
+		# panel window's own key (DT_RVFALL, wm/input.hibr) -- is held for
+		# the pane's answer as a window's is (wm/rtfail.hibr): the desktop's
+		# action and what follows wait for it, or DT_HOLDMS, never longer;
+		# declined, the action runs, and unanswered the key is revoked.
+		if [ -n "$DT_RVFALL" ] && [ "$DT_RVFALL" = "${2-}" ] && dt_rvwithheld "${2-}"; then
+			DT_RVFALL=
+			DT_RVHOLD=$x
+			DT_RVHOLDK=${2-}
+			dt_want "$DT_HOLDMS"
+		fi
 		dt_rvxinput "$p" "$k" "${1-}"
 		dt_rvxsend "$c" "$x" "${p}_key" "$@"
 		;;
@@ -369,6 +417,41 @@ fn dt_rvxsend(int c, int seq, name, ...words) {
 	dt_rtsay "$c" "$x"
 }
 
+# The pointer over window id at its row r and column c, with no button held
+# (dt_hover): over a pane of rows its own process draws, told to it, which
+# lights the row under it as the panel does (cp_rowsdraw's dt_hotpen).
+# Status 0 when it is over such a pane; telling it -1 -1 when it leaves.
+fn dt_rvxhover(id = "", int r = -1, int c = -1) {
+	local n="p$id" p a=()
+
+	if [ -n "$id" ] && [ -n "${DT_RVX["$n"]-}" ]; then
+		p=${DT_RVXP["$n"]-}
+		read -ra a <<< "${DT_RVXARGS["$n"]-}"
+		if [[ ${DT_RVPK["$p"]-} == *" rows "* ]] && [ "${#a[@]}" -ge 5 ] &&
+			[ "$r" -ge "${a[1]}" ] && [ "$r" -lt $((a[1] + a[3])) ] &&
+			[ "$c" -ge "${a[2]}" ] && [ "$c" -lt $((a[2] + a[4])) ]; then
+			[ "$DT_RVXHOV" = "$n $r $c" ] && return 0
+			dt_rvxhoveroff "$n"
+			DT_RVXHOV="$n $r $c"
+			dt_rvxsend "${DT_RVPC["$p"]}" 0 "${p}_hover" "$id" "$r" "$c"
+			return 0
+		fi
+	fi
+	dt_rvxhoveroff
+	return 1
+}
+
+# The pointer has left the pane it was last told over (but for keep).
+fn dt_rvxhoveroff(keep = "") {
+	local n=${DT_RVXHOV%% *} p
+
+	[ -n "$DT_RVXHOV" ] && [ "$n" != "$keep" ] || return 0
+	DT_RVXHOV=
+	p=${DT_RVXP["$n"]-}
+	[ -n "$p" ] && [ -n "${DT_RVPC["$p"]-}" ] || return 0
+	dt_rvxsend "${DT_RVPC["$p"]}" 0 "${p}_hover" "${n#p}" -1 -1
+}
+
 # The person's own input to a pane, a module, a bar item or a pop-up,
 # numbered as an ask, as a window's is (dt_rvinput): "KIND TAG DEADLINE T0
 # ON WAIT FLAGS C", ON and WAIT its process's processor and run-queue time
@@ -381,6 +464,18 @@ fn dt_rvkinput(int c, kind, tag) {
 	[ -z "$p" ] || read -r on wt _ 2> /dev/null < "/proc/$p/schedstat" || { on=0; wt=0; }
 	DT_RVASK[$DT_RVSEQ]="$kind $tag $((now / 1000 + DT_HOLDMS)) $now $on $wt - $c"
 	ret "$DT_RVSEQ"
+}
+
+# Withdraw such an input s held for its answer (a pane's key, DT_RVHOLD):
+# its process drops it if it has not run it, as a window's (dt_rvrevoke).
+fn dt_rvkrevoke(s) {
+	local kind tag c x
+
+	read -r kind tag _ _ _ _ _ c <<< "${DT_RVASK["$s"]-}"
+	dt_log "app runtime: ${DT_RTC["$c"]-an app} did not answer key $DT_RVHOLDK of $tag in $DT_HOLDMS ms; declined, and revoked"
+	[ -n "$c" ] && [ -n "${DT_RTC["$c"]+x}" ] && [ "${DT_RTC["$c"]}" != - ] || return 0
+	x := dt_rtline revoke "$s"
+	dt_rtsay "$c" "$x"
 }
 
 # Such an input s past its time, each pass until it is answered: a stall
@@ -526,6 +621,16 @@ fn dt_rvxpane(p, int id, int h, int w, int bx) {
 		dt_rvonce "pend:$n" "app runtime: pane $p waits for its process's cells; its face meanwhile"
 		return 0
 	}
+	# A rows pane narrows its rows to the panel's search, as the panel does
+	# (cp_rowsbuild): the query is sent when it changes.
+	if [[ ${DT_RVPK["$p"]-} == *" rows "* ]]; then
+		local q
+		q := dt_searchq "$id"
+		if [ "${DT_RVXQ["$n"]-}" != "$q" ]; then
+			DT_RVXQ["$n"]=$q
+			dt_rvxsend "${DT_RVPC["$p"]}" 0 "${p}_search" "$id" "$q"
+		fi
+	fi
 	# The window it is drawn in is that process's to read (DT's rtpane),
 	# so a dialog its pane opens is placed over it (dt_dlgat), as in-process.
 	[ "${DT[$id]["rtpane"]-}" = "${DT_RTC["${DT_RVPC["$p"]}"]-}" ] ||
@@ -560,7 +665,8 @@ fn dt_rvxsaver(p, int rows, int cols) {
 fn dt_rvxforget(name) {
 	local c=${DT_RVX["$name"]-} fd i p x
 
-	unset DT_RVX["$name"] DT_RVXGEN["$name"] DT_RVXARGS["$name"] DT_RVXDIRTY["$name"] DT_RVXP["$name"]
+	unset DT_RVX["$name"] DT_RVXGEN["$name"] DT_RVXARGS["$name"] DT_RVXDIRTY["$name"] DT_RVXP["$name"] DT_RVXQ["$name"]
+	[ "${DT_RVXHOV%% *}" != "$name" ] || DT_RVXHOV=
 	[[ $name != p* ]] || ! dt_iswin "${name#p}" || unset DT["${name#p}"]["rtpane"]
 	[ -n "$c" ] || return 0
 	fd=${DT_RTCELLS["$c"]-}
@@ -589,6 +695,10 @@ fn dt_rvxdrop(int c) {
 	local p n f
 	local -a ks
 
+	local -a alt
+	for p in "${!DT_RVPALT[@]}"; do
+		[ "${DT_RVPALT["$p"]%% *}" != "$c" ] || unset DT_RVPALT["$p"]
+	done
 	for p in "${!DT_RVP[@]}"; do
 		[ "${DT_RVPC["$p"]-}" = "$c" ] || continue
 		dt_log "app runtime: the process drawing ${DT_RVP["$p"]} $p has gone"
@@ -596,7 +706,16 @@ fn dt_rvxdrop(int c) {
 		for f in "${ks[@]}"; do
 			unset DT_RVFN["${p}_$f"]
 		done
-		unset DT_RVP["$p"] DT_RVPC["$p"] DT_RVPF["$p"] DT_RVPK["$p"]
+		unset DT_RVP["$p"] DT_RVPC["$p"] DT_RVPF["$p"] DT_RVPK["$p"] DT_RVROWTEXT["$p"]
+		# A part another bundle's process has too is that one's now.
+		if [ -n "${DT_RVPALT["$p"]-}" ]; then
+			read -ra alt <<< "${DT_RVPALT["$p"]}"
+			unset DT_RVPALT["$p"]
+			if [ -n "${DT_RTC["${alt[0]}"]+x}" ] && [ "${DT_RTC["${alt[0]}"]}" != - ] &&
+				dt_rvkinds_in "${alt[0]}" "${DT_RTC["${alt[0]}"]}" "$p" "${alt[@]:1}"; then
+				dt_log "app runtime: $p is drawn by ${DT_RTC["${alt[0]}"]}'s process now"
+			fi
+		fi
 	done
 	for n in "${!DT_RVX[@]}"; do
 		[ "${DT_RVX["$n"]}" = "$c" ] || continue
@@ -696,6 +815,13 @@ dt_rvbfn() {
 			return
 		fi
 		dt_rvxsend "$c" 0 "$@"
+		;;
+	popmouse)
+		# A press is the person's input, numbered; a drag or a release is
+		# its sequel, told.
+		x=0
+		[ "${2-}" != press ] || x := dt_rvkinput "$c" kcall "pop:$nm:press"
+		dt_rvxsend "$c" "$x" "$@"
 		;;
 	*) dt_rvxsend "$c" 0 "$@" ;;
 	esac

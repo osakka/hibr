@@ -638,6 +638,12 @@ fn dt_rtmay(name) {
 	for f in "${!DT_RTREACH[@]}"; do
 		[[ $t == *"$f"* ]] && DT_RTMAY["$name ${DT_RTREACH["$f"]}"]=1
 	done
+	# A pane of rows asks what the panel's rows ask for it (wm/rtkinds.hibr).
+	if [[ $t == *_rows\(* ]]; then
+		for f in "${DT_RVROWSASK[@]}"; do
+			DT_RTMAY["$name $f"]=1
+		done
+	fi
 	# The settings it may change through dt_set: a kept one its own file
 	# names as a word (ADR 0050: accepted only for a setting it declares).
 	for f in "${DT_KEEP[@]}"; do

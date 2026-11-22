@@ -111,6 +111,39 @@ for _n in """dt_baritem dt_barilabel dt_bariright dt_bariswitch dt_barikbd dt_ba
         dt_popclose dt_baripin dt_bariwide""".split():
     OVERRIDE[_n] = "request"
 OVERRIDE["dt_barput"] = "local"
+# A shortcut row's key capture is the desktop's: the panel's rows ask for
+# it, in whichever process draws them (ADR 0050, the view kinds).
+for _n in "dt_keycap dt_keyclear".split():
+    OVERRIDE[_n] = "request"
+# What a pane of rows holds, told by the app runtime when they change, so
+# the panel's search finds a pane drawn by its own process by its rows.
+OVERRIDE["dt_rvrowsfound"] = "request"
+ROWSTOLD = ("dt_rvrowsfound",)
+# The panel's rows the app runtime runs for a pane of rows (runtime.hibr's
+# dt_rtrows), never its file: what they call is that pane's to ask.
+ROWSRUN = ("cp_rowsdraw", "cp_rowskey", "cp_rowsclick", "cp_rowsmouse", "cp_rowswheel")
+ROWSDEF = re.compile(r"^(?:fn\s+)?\w+_rows\s*\(", re.M)
+
+
+def rowsreach():
+    """Every function the panel's rows call, from ROWSRUN through each
+    other of widgets/rows.hibr's own they call."""
+    f = os.path.join(ROOT, "programs/desktop/widgets/rows.hibr")
+    calls = collections.defaultdict(set)
+    for c in records(f, "calls").get("calls", []):
+        if c.get("owner") and c.get("name"):
+            calls[c["owner"]].add(c["name"])
+    seen, todo, out = set(), list(ROWSRUN), set()
+    while todo:
+        fn = todo.pop()
+        if fn in seen:
+            continue
+        seen.add(fn)
+        for n in calls.get(fn, ()):
+            out.add(n)
+            if n in calls:
+                todo.append(n)
+    return out
 
 
 def defs():
@@ -923,6 +956,13 @@ def main():
             if isinstance(n, dict):
                 n = n.get("text")
             if n in where:
+                use[n] += 1
+                users[n].add(f)
+    # A pane of rows calls what the panel's rows call for it.
+    rowsfiles = [f for f in installables() if ROWSDEF.search(open(f, errors="replace").read())]
+    for n in rowsreach() | set(ROWSTOLD):
+        if n in where and classify(n, where[n]) == "request":
+            for f in rowsfiles:
                 use[n] += 1
                 users[n].add(f)
     ask = asked(installables(), set(use))

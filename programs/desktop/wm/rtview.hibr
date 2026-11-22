@@ -387,8 +387,12 @@ fn dt_rvtook(int c, seq, st = "", t = "", v = "") {
 		"${w[@]}"
 		return 0
 	fi
-	# The person's input to a hosted pane, module, item or pop-up, answered.
-	[ "$kind" != kcall ] && [ "$kind" != pkey ] || return 0
+	# The person's input to a hosted pane, module, item or pop-up, answered;
+	# a pane's key the desktop's action waited on lets it go.
+	if [ "$kind" = kcall ] || [ "$kind" = pkey ]; then
+		[ "$DT_RVHOLD" != "$seq" ] || dt_rvunhold "$seq" "$st"
+		return 0
+	fi
 	# A press a hosted pane declined (wm/rtkinds.hibr).
 	if [ "$kind" = pmouse ]; then
 		dt_rvxpress "$id" "$st"
@@ -560,6 +564,12 @@ dt_rvtick() {
 		# The person's input to a pane, a module, a bar item or a pop-up
 		# (wm/rtkinds.hibr): kept until answered, its stall said.
 		case $kind in pkey | pmouse | bpress | kcall)
+			# A pane's key held for its answer is declined now and
+			# revoked, as a window's is.
+			if [ "$DT_RVHOLD" = "$s" ]; then
+				dt_rvkrevoke "$s"
+				dt_rvunhold "$s" 1
+			fi
 			dt_rvklate "$s" "$now"
 			continue
 			;;

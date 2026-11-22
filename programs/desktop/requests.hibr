@@ -310,6 +310,16 @@ fn dt_keepstate(app, ...maps) {
 	dt_rtsend declare dt_keepstate "$app" "${maps[@]}"
 }
 
+# Told to the desktop, wm/keys.hibr.
+fn dt_keycap(what, add = "") {
+	dt_rtsend tell dt_keycap "$what" "$add"
+}
+
+# Told to the desktop, wm/keys.hibr.
+fn dt_keyclear(what) {
+	dt_rtsend tell dt_keyclear "$what"
+}
+
 # Told to the desktop, wm/keyphase.hibr.
 fn dt_keyphases(int id, on) {
 	dt_rtsend tell dt_keyphases "$id" "$on"
@@ -568,6 +578,11 @@ fn dt_rsclaim(int fd) {
 # Told to the desktop, wm/restart.hibr.
 fn dt_rslog(text) {
 	dt_rtsend tell dt_rslog "$text"
+}
+
+# Told to the desktop, wm/rtkinds.hibr.
+fn dt_rvrowsfound(pane, text = "") {
+	dt_rtsend tell dt_rvrowsfound "$pane" "$text"
 }
 
 # Told to the desktop, wm/settings.hibr.

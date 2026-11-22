@@ -253,6 +253,9 @@ local	dt_fieldcut	widgets/text.hibr	1	1	asked	-	dt_fieldcut(id)	-	-
 request	dt_notep	wm/notify.hibr	588	86	told	-	dt_notep(prio, text, ...rest)	-	-
 request	dt_set	wm/settings.hibr	381	99	told	-	dt_set(...pairs)	0.99.554	-
 request	dt_del	wm/windows.hibr	220	46	told	-	dt_del(int id)	-	-
+request	dt_keyclear	wm/keys.hibr	84	84	told	-	dt_keyclear(what)	-	-
+request	dt_rvrowsfound	wm/rtkinds.hibr	84	84	told	-	dt_rvrowsfound(pane, text = "")	0.99.558	-
+request	dt_keycap	wm/keys.hibr	84	84	told	-	dt_keycap(what, add = "")	-	-
 request	dt_launch	wm/apps.hibr	66	35	asked	-	dt_launch(n, arg = "")	-	-
 request	dt_retitle	wm/windows.hibr	64	25	waited	-	dt_retitle(int id, title)	-	-
 request	dt_new	wm/windows.hibr	64	41	asked	-	dt_new(title, int h, int w, int row, int col, ap = "", arg = "")	-	-

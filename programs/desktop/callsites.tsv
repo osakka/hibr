@@ -18,12 +18,12 @@ desktop	wm/native.hibr	294	dt_natver	v := "$b" --version 2> /dev/null
 local	wm/powerlist.hibr	44	dt_pwlocal	o=$("$DT_PWCTL" show-session "$XDG_SESSION_ID" -p Remote -p Seat 2> /dev/null)
 desktop	wm/recover.hibr	79	dt_supervise	"$HIBR" "$DT_SELF0" "${DT_SELFARGS[@]}"
 desktop	wm/restart.hibr	579	dt_updcheck	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2> /dev/null)
-desktop	wm/rtkinds.hibr	695	dt_rvbfn	DT_RTFROM=$c "$@"
-desktop	wm/rtserve.hibr	763	dt_rtmsg	DT_CALLER=$who DT_RTFROM=$c "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
-desktop	wm/rtserve.hibr	823	dt_rtanswer	x := "$name" "${args[@]}"
-desktop	wm/rtserve.hibr	826	dt_rtanswer	"$name" "${args[@]}"
+desktop	wm/rtkinds.hibr	811	dt_rvbfn	DT_RTFROM=$c "$@"
+desktop	wm/rtserve.hibr	769	dt_rtmsg	DT_CALLER=$who DT_RTFROM=$c "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
+desktop	wm/rtserve.hibr	829	dt_rtanswer	x := "$name" "${args[@]}"
+desktop	wm/rtserve.hibr	832	dt_rtanswer	"$name" "${args[@]}"
 desktop	wm/rtview.hibr	387	dt_rvtook	"${w[@]}"
-desktop	wm/rtview.hibr	669	dt_rvappfn	"$f" "${args[@]}" && ret -k
+desktop	wm/rtview.hibr	679	dt_rvappfn	"$f" "${args[@]}" && ret -k
 window	wm/seam.hibr	50	dt_appfn	dt_appfn() { local DT_CALLER=$1; ${DT_RTHOST[$1]+dt_rvappfn} "${@:2}" && ret -k; }
 desktop	wm/settings.hibr	769	dt_set	"$f"
 desktop	wm/vault.hibr	108	dt_vw	DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")

@@ -1064,6 +1064,10 @@ fn dt_hover(int r, int c) {
 			dt_capped "$id" && wa=$((wa - 1))
 			if [ -n "${DT[$id]["hover"]+x}" ] && [ -n "${DT[$id]["hover"]}" ]; then
 				t="w:$id:$r:$c"
+			elif [ -n "$DT_RVXHOV" ] || [ -n "${DT_RVX["p$id"]-}" ] &&
+				dt_rvxhover "$id" $((r - wr)) $((c - wa)); then
+				# Over a pane of rows its own process draws (wm/rtkinds.hibr).
+				t="pv:$id:$((r - wr)):$((c - wa))"
 			elif b := dt_hit "$id" $((r - wr)) $((c - wa)) ||
 			     b := dt_hothit "$id" $((r - wr)) $((c - wa)); then
 				DT_HOTWIN=$id
@@ -1072,6 +1076,8 @@ fn dt_hover(int r, int c) {
 			fi
 		fi
 	fi
+	# Off a pane of rows its own process draws: told it has left.
+	[ -z "$DT_RVXHOV" ] || [ "${t#pv:}" != "$t" ] || dt_rvxhoveroff
 	[ -n "$DT_HOVERWIN" ] && [ "$DT_HOVERWIN" != "$id" ] && dt_hoverleave
 	if [ "${t#w:*:}" != "$t" ]; then
 		DT_HOVERWIN=$id

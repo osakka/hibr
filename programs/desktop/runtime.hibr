@@ -52,6 +52,12 @@ declare -gA DT_RTKP
 DT_RTBARD=
 DT_RTBARS=
 DT_RTHOOKS=()
+# What the pointer is over, which a pane of rows drawn here lights
+# (dt_hotpen): the desktop's own, told (dt_rtrowshover).
+DT_HOTWIN=
+DT_HOTTAG=
+# What each pane of rows drawn here last told the desktop it holds.
+declare -gA DT_RTROWTXT
 fn cp_pane(pane, title, icon, group = "system") {
 	DT_RTKP["$pane"]=pane
 }
@@ -437,6 +443,7 @@ fn dt_rtcall(seq, target, name, ...args) {
 			case ${name##*_} in
 			key | click) fn=cp_rows${name##*_}; args=("${args[0]-}" "${name%_*}" "${args[@]:1}"); rows=1 ;;
 			mouse | wheel) fn=cp_rows${name##*_}; rows=1 ;;
+			search | hover) fn=dt_rtrows${name##*_}; rows=1 ;;
 			esac
 		fi
 	elif [[ $target =~ ^[0-9]+$ ]] && [ -n "${DT_RTV["w$target"]+x}" ]; then
@@ -867,6 +874,7 @@ fn dt_rtkind(v) {
 				PW[$a]["last"]=-1
 			fi
 			cp_rowsdraw "$a" "$who" "${DT_RTVH["$v"]}" "$((DT_RTVW["$v"] - 1))" "$e"
+			dt_rtrowstold "$a" "$who"
 		fi
 		;;
 	strip)
@@ -950,6 +958,45 @@ fn dt_rtkind(v) {
 # panel's own rows (widgets/rows.hibr), as the panel does in the desktop.
 fn dt_rtrows(p) {
 	[ "${DT_RTKP["$p"]-}" = pane ] && ! dt_has "${p}_draw" && dt_has "${p}_rows"
+}
+
+# The panel's search, for the rows of window id drawn here: narrowed as the
+# panel narrows them (cp_rowsbuild), from the next draw.
+fn dt_rtrowssearch(int id, q = "") {
+	SQ[$id]["q"]=$q
+}
+
+# The pointer over window id at row r, column c (-1 -1 when it has left):
+# the row under it lit from the next draw, as the panel lights it.
+fn dt_rtrowshover(int id, int r, int c) {
+	local tag
+
+	DT_HOTWIN=
+	DT_HOTTAG=
+	[ "$r" -ge 0 ] || return 0
+	tag := dt_hothit "$id" "$r" "$c" || return 0
+	DT_HOTWIN=$id
+	DT_HOTTAG=$tag
+}
+
+# What the rows just drawn under id hold, told to the desktop when it has
+# changed, so the panel's search finds the pane by them: each row as the
+# search reads it (cp_rowhas). Not while they are narrowed, which is a part.
+fn dt_rtrowstold(int id, pane) {
+	local i=0 n=${PW[$id]["n"]:-0} t v l=
+
+	[ -z "${PW[$id]["narrow"]-}" ] || return 0
+	while [ "$i" -lt "$n" ]; do
+		t=${CP[$id][$i]["text"]-}
+		case $DT_LANG in ?*) t := dt_tr "$t" ;; esac
+		v := cp_rowval "$id" "$i"
+		l+="$t ${CP[$id][$i]["after"]-} $v"$'\n'
+		i=$((i + 1))
+	done
+	l=${l,,}
+	[ "${DT_RTROWTXT["$pane"]-}" != "$l" ] || return 0
+	DT_RTROWTXT["$pane"]=$l
+	dt_rvrowsfound "$pane" "$l"
 }
 
 # A pop-up's prefix: what it has of popdraw, popmouse and popkey, said to
