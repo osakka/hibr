@@ -50,6 +50,11 @@ mfx_menus() {
 	dt_item "Pick" p mfx_pick "$DT_FOCUS"
 	dt_item "Ask" a mfx_ask "$DT_FOCUS"
 	dt_item "Confirm" c mfx_conf "$DT_FOCUS"
+	dt_dim "At $EPOCHREALTIME"
+}
+fn mfx_titlemenu(int id, int r, int c) {
+	DT_POPNAMENEXT=mfx_name
+	dt_droplist "$id" "$r" "$c" mfx_picked up top
 }
 fn mfx_context(int? id = "") {
 	dt_menu "Mfx"
@@ -342,10 +347,34 @@ s = saidwait(7)
 check("a confirm's Yes runs the app's command in the app's process",
       [apid, "yes", m1] in s[6:], s)
 
+# A title menu, on the title clicked with its modifier (alt by default):
+# told to the app, whose list comes back built.
+t.send(b"\x1b[<8;9;13M", settle=0.05, collect=0.05)
+t.send(b"\x1b[<8;9;13m", settle=0.1, collect=0.1)
+sc = until(t, lambda x: x.find("Word top %s" % apid) is not None)
+check("a title menu is the app's own, its list with its namer's words",
+      sc is not None, (apid, t.screen().text(), log(t)[-400:]))
+p = sc.find("Word top") if sc else None
+if p:
+    click(t, p[0], p[1] + 1)
+s = saidwait(8)
+check("and choosing from it runs in the app's process, for that window",
+      [apid, "picked top", m2] in s[6:], s)
+
+# A menu whose label differs on every build (a time in it) settles: what a
+# push brings is built and not asked for again, so the idle desktop draws
+# no more than it would with any other window.
+t.collect(1.0)
+f0 = t.frames()
+t.collect(2.0)
+nf = t.frames() - f0
+check("a menu that differs on every build does not keep the desktop drawing",
+      nf <= 4, nf)
+
 # Its context menu, for the window clicked.
 click(t, 14, 6, 2)
 click(t, *at(t, "Here", 12))
-s = saidwait(8)
+s = saidwait(9)
 check("a context menu's row runs in the app's process, for the window clicked",
       [apid, "here", m2] in s[6:], (s, t.screen().text()))
 check("nothing about menus, lists or dialogs refused, late or unread",
@@ -373,4 +402,4 @@ for f in (MFX, SAID, t.mark, u.mark, SAID + ".pend",
           scratch("hostmenus-hosted.hibr"), scratch("hostmenus-inproc.hibr")):
     if os.path.exists(f):
         os.unlink(f)
-report(22)
+report(25)

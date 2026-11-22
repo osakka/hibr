@@ -20,8 +20,8 @@ desktop	wm/restart.hibr	569	dt_updcheck	v=$("$HIBR" -c 'echo "$HIBR_VERSION"' 2>
 desktop	wm/rtserve.hibr	757	dt_rtmsg	DT_CALLER=$who DT_RTFROM=$c "${a[1]}" "${a[@]:2}" || dt_log "app runtime: $who's ${a[1]} failed"
 desktop	wm/rtserve.hibr	817	dt_rtanswer	x := "$name" "${args[@]}"
 desktop	wm/rtserve.hibr	820	dt_rtanswer	"$name" "${args[@]}"
-desktop	wm/rtview.hibr	308	dt_rvtook	"${w[@]}"
-desktop	wm/rtview.hibr	511	dt_rvappfn	"$f" "${args[@]}" && ret -k
+desktop	wm/rtview.hibr	314	dt_rvtook	"${w[@]}"
+desktop	wm/rtview.hibr	519	dt_rvappfn	"$f" "${args[@]}" && ret -k
 window	wm/seam.hibr	50	dt_appfn	dt_appfn() { local DT_CALLER=$1; ${DT_RTHOST[$1]+dt_rvappfn} "${@:2}" && ret -k; }
 desktop	wm/settings.hibr	747	dt_set	"$f"
 desktop	wm/vault.hibr	108	dt_vw	DT_VWOUT=$(printf '%s\n' "$input" | VW_STDIN=1 "$HIBR" "$DT_VWCMD" "${args[@]}" 2> "$ef")

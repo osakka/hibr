@@ -46,6 +46,12 @@ DT_RTENDSECS="${DT_RTENDSECS-5}"
 # still the app's answer and the dialog waits for it, never the desktop.
 declare -gA DT_RVMENU DT_RVMTEXT DT_RVLSEL DT_RVTHENQ DT_RVTHENC
 DT_RVCTXT=
+# The window whose menus, and whose context menu, a push has just brought:
+# the rebuild that push causes builds what came and does not ask again, or
+# a menu that differs on every build -- a clock in a label -- would be asked
+# for and pushed at the round trip's own speed for as long as it is shown.
+DT_RVQUIETM=
+DT_RVQUIETC=
 
 # Start an installed app in a process of its own: the runtime, run with the
 # app and its file (runtime.hibr, run rather than sourced). A test session's
@@ -577,8 +583,10 @@ fn dt_rvappfn(f = "", ...args) {
 
 	c=${DT_RTHOST["$own"]}
 	if [ -z "$f" ] || dt_has "$f"; then
+		# What the app's own file may ask, read once per file: one file may
+		# register several apps (Mail's compose window), each its own owner.
 		if { [ -n "${DT_RTALLOW["$f"]+x}" ] || [ -n "${DT_RTASK["$f"]+x}" ]; } &&
-			[ -z "${DT_RTMAY["$own $f"]+x}" ]; then
+			{ ! dt_rtmay "$own" || [ -z "${DT_RTMAY["$own $f"]+x}" ]; }; then
 			dt_log "app runtime: $own asked for $f, which its own file never asks for; refused"
 			return 1
 		fi
@@ -635,7 +643,12 @@ fn dt_rvpush_in(int c, verb, ap = "", j = "") {
 	json parse DT_RVMENU["$key"] "$j"
 	DT_RVMENU["$key"]["from"]=$c
 	DT_RVMENU["$key"]["app"]=$ap
-	[ "$verb" = menus ] && DT_MENUIN=
+	if [ "$verb" = menus ]; then
+		DT_MENUIN=
+		DT_RVQUIETM=${g["id"]-}
+	elif [ -z "${g["list"]-}" ]; then
+		DT_RVQUIETC=${g["id"]-}
+	fi
 	DT_MENUEV=1
 	dt_want 0
 	return 0
@@ -711,10 +724,11 @@ fn dt_rvrows(key, int m) {
 # app has no _menus, or nothing has come yet -- so the bar keeps File >
 # Close meanwhile, which every window has.
 fn dt_rvmenus(int id) {
-	local ap=${DT[$id]["app"]-}
+	local ap=${DT[$id]["app"]-} q=$DT_RVQUIETM
 
 	dt_rvhas "$ap" menus || return 1
-	[ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 menus
+	DT_RVQUIETM=
+	[ "$q" = "$id" ] || [ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 menus
 	dt_rvreplay "menus:$ap" "$ap" "$id"
 }
 
@@ -723,9 +737,10 @@ fn dt_rvmenus(int id) {
 # nothing is drawn and the menu stays open for it -- and 1 once DT_HOLDMS
 # has passed with nothing, said in the log, so dt_ctxbuild closes it.
 fn dt_rvcontext(ap, int id) {
-	local now
+	local now q=$DT_RVQUIETC
 
-	[ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 context
+	DT_RVQUIETC=
+	[ "$q" = "$id" ] || [ -z "${DT_RVC[$id]}" ] || dt_rvsend "$id" 0 context
 	if dt_rvreplay "context:$ap" "$ap" "$id"; then
 		DT_RVCTXT=
 		return 0
