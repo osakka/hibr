@@ -27,6 +27,12 @@ Listens on the abstract Unix socket NAME (SOCK_SEQPACKET), as Blit does,
 takes a hello carrying TOKEN, and then frames: a 48-byte header and one
 memfd. Everything it accepts or refuses is a JSON line in LOG.
 
+An id deleted (handed in LOG.del) sits in a ring of the last 64, as Blit's
+BLIT_FRAME_DELETED, and a frame for it is refused ENOENT. LOG.drop makes it
+do what Blit does when a peer's uid stops matching: "FRAME error 0 EACCES"
+to every connection, and each closed, which lets go of every dmabuf frame
+it held.
+
 It refuses what Blit refuses, since a stand-in that accepts anything cannot
 catch a client that sends the wrong thing: a wrong token, a frame before the
 hello, a memfd not sealed against shrinking, growing and writing, one too
@@ -34,6 +40,7 @@ short for its header, a first frame for an id that is not whole, a sequence
 not newer than the last for that id, and a format that is not 24 or 32.
 Each refusal is also answered as Blit answers, "FRAME error <id> <code>\\n".
 """
+import collections
 import fcntl
 import json
 import os
@@ -55,6 +62,7 @@ NODMA = not (len(sys.argv) > 4 and sys.argv[4] == "v3")
 VER = next((tuple(int(x) for x in a[4:].split(".")) for a in sys.argv[4:]
             if a.startswith("ver=")), (0, 3, 127))
 HELLOLATE = next((float(a[6:]) for a in sys.argv[4:] if a.startswith("hello=")), 0.0)
+DELETED = collections.deque(maxlen=64)
 F_GET_SEALS = 1034
 SEALS = 0x0002 | 0x0004 | 0x0008
 
@@ -134,10 +142,14 @@ def frame(conn, st, data, fds):
         why = "frame-edit-unknown"
     elif iid in st and seq <= st[iid]:
         why = "stale"
+    elif iid in DELETED:
+        why = "deleted"
     if why:
         os.close(mfd)
         note(kind="refused", why=why, id=iid, seq=seq)
-        if why != "stale":
+        if why == "deleted":
+            conn.send(("FRAME error %d ENOENT\n" % iid).encode())
+        elif why != "stale":
             conn.send(("FRAME error %d EINVAL\n" % iid).encode())
         return
     st[iid] = seq
@@ -164,6 +176,12 @@ def frame3(conn, held, data, fds):
             os.close(fd)
         note(kind="refused", why="frame3", fds=len(fds))
         conn.send(b"FRAME error 0 EINVAL\n")
+        return
+    if iid in DELETED:
+        for fd in fds:
+            os.close(fd)
+        note(kind="refused", why="deleted", id=iid, seq=seq)
+        conn.send(b"FRAME error %d ENOENT\n" % iid)
         return
     pitch = struct.unpack("<I", data[44:48])[0]
     size = os.lseek(fds[0], 0, os.SEEK_END)
@@ -427,6 +445,7 @@ def main():
             gone = [int(x) for x in open(LOG + ".del").read().split()]
             os.unlink(LOG + ".del")
             for iid in gone:
+                DELETED.append(iid)
                 for r in routes.values():
                     r.pop(iid, None)
                 for seq, fds in held.pop(iid, []):
@@ -436,6 +455,20 @@ def main():
                         if ok:
                             c.send(b"FRAME release %d %d\n" % (iid, seq))
                     note(kind="released", id=iid, seq=seq, deleted=True)
+        if os.path.exists(LOG + ".drop"):
+            os.unlink(LOG + ".drop")
+            for c in list(conns):
+                try:
+                    c.send(b"FRAME error 0 EACCES\n")
+                except OSError:
+                    pass
+                c.close()
+                del conns[c]
+            for iid in list(held):
+                for seq, fds in held.pop(iid):
+                    for fd in fds:
+                        os.close(fd)
+            note(kind="dropped")
         if os.path.exists(LOG + ".place"):
             ps = open(LOG + ".place").read().split()
             os.unlink(LOG + ".place")
