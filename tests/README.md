@@ -1,8 +1,8 @@
 # tests
 
 ```text
-tests/run.sh [-v] [prefix]                  # 212 test scripts
-./build/hibr tests/self.hibr                # 92 assertions, written in hibr
+tests/run.sh [-v] [prefix]                  # every tests/*.t
+./build/hibr tests/self.hibr                # assertions written in hibr, planned
 HIBR=./build/hibr REF=dash tests/run.sh     # compare against another shell
 ```
 
@@ -81,6 +81,28 @@ python3 tests/holdlock.py   the pointer lock going to the display showing the wi
 python3 tests/holdrenew.py  hold upgrade renewing two stacked displays' clients
 python3 tests/holdseam.py   a picture across the seam of two stacked displays, cut for each
 python3 tests/shots.py      tools/screenshot.py's grid and pictures
+python3 tests/superdrag.py  Super as the drag modifier
+python3 tests/hoverwant.py  a window asking for the pointer's movement for itself
+python3 tests/widgetroles.py  the themed controls and the LCD roles
+python3 tests/saverload.py  the screen saver started again after a rescan
+python3 tests/keepawake.py  a program keeping the screen awake, by its window or the bus
+python3 tests/natscale.py   Program Scale, told to Blit's compositor per display
+python3 tests/archives.py   an archive in Files as a folder; Compress and Extract
+python3 tests/upgrade.py    the catalogue updating what it installed after an upgrade
+python3 tests/onset.py      what a setting does beyond its value (dt_onset)
+python3 tests/stale.py      a window left undrawn never shows a setting's old value
+python3 tests/audience.py   which shared state each app's own process is sent
+python3 tests/cellwire.py   an app's window drawn from its own process, as cell records
+python3 tests/hosted.py     a real app drawing and taking keys in its own process
+python3 tests/hostfail.py   an app in its own process that ends or hangs
+python3 tests/hostmenus.py  a hosted app's menus, context menu, lists and dialogs
+python3 tests/hostkinds.py  a pane, a strip module, a saver and bar items in their own processes
+python3 tests/hostparts.py  a bundle as one process: its pane, bar hook and bar pop-up
+python3 tests/hostedit.py   a hosted window's Edit menu, _idle, and work with no window
+python3 tests/hostfield.py  what only a hosted app's process knows: a live field, a copy
+python3 tests/hostconv.py   an app registered by reading its file, never running it
+python3 tests/hostpix.py    pictures from an app's own process, through hold, to every display
+python3 tests/zygote.py     app processes forked from a zygote; a terminal's program kept
 ```
 
 Beside them are suites that drive a module or a command, mostly with no
@@ -102,14 +124,25 @@ python3 tests/dav.py          dav, against tests/davserve.py
 python3 tests/fetch.py        fetch, against tests/fetchserve.py
 python3 tests/vw_crypto.py    the vw module's crypto, against Bitwarden's formats
 python3 tests/vw.py           the vw command, against tests/bwserve.py
-python3 tests/archive.py      archive, against real tarballs
+python3 tests/archive.py      archive, against real tarballs, zips and disc images
 python3 tests/mermaid.py      mermaid, the properties every drawing must have
 python3 tests/appmgr.py       the catalogue, against a stand-in index
+python3 tests/traymod.py      dbus, the tray's watcher and host, against tests/trayitem.py
 ```
 
+And more with no terminal of their own: `inspect_symbols.py`,
+`inspect_records.py`, `inspect_spans.py` and `inspect_vars.py` hold the
+inspect module's records to the source they describe; `regread.py` holds
+what the desktop reads from an installable's file without running it to
+what the same file registers when sourced, for every installable in the
+tree; and `contain.py` tries each way out of the contain module that a
+Sheet formula would take.
+
 The stand-ins (`mailserve.py`, `davserve.py`, `fetchserve.py`,
-`bwserve.py`) are servers, not suites, and so is
-`frameserve.py`, Blit's frame socket, which refuses what Blit refuses (versions 1 to 3, `v3` and `nodma` for dmabuf frames, checked by size and never mapped; an `INPUT` route refused ENOENT for a picture it has no frame of, EACCES for a socket the uid does not own, EBUSY for a second);
+`bwserve.py`) are servers, not suites, and so are
+`frameserve.py`, Blit's frame socket at wire version 5, which refuses what Blit refuses (`old` for a Blit before 0.3.74, `v3` to import dmabuf frames, `nodma` for none; an `INPUT` route refused ENOENT for no such socket, EACCES for a socket the uid does not own, EBUSY for a second),
+`natserve.py`, Blit's compositor for programs, and `trayitem.py`, a program's
+tray item and its menu on the session bus;
 `tests/net/` holds the programs that stand in for `nmcli`, `bluetoothctl`,
 `pkexec` and `pkttyagent`, with the output they were captured giving (see
 its [README](net/README.md)). `pdfmake.py` writes the PDF Reader's
@@ -365,12 +398,13 @@ standard output and status; the sandbox path and a `mktemp` suffix inside it
 are normalised first. It executes the scripts it is given, so give it a list.
 
 Each difference these find and fix gets a test of its own, compared against
-bash: `855` (an exit inside a condition), `860` (a script runs as it is read),
+bash: `855` (an exit inside a condition),
 `865` (a malformed `${…}` after `=~`), `870` (return and break outside a
 function or loop), `875` (a function
 in a pipeline or the background), `880` (`BASH_REMATCH`), `895` (the four
-`corpus.py` found in real system scripts), and the recorded `885` (`--plan`)
-and `890` (quoted keys in arithmetic) for what is hibr's own.
+`corpus.py` found in real system scripts), and the recorded `860` (a script
+runs as it is read), `885` (`--plan`) and `890` (quoted keys in arithmetic)
+for what is hibr's own.
 
 ## Fixtures without dependencies
 
@@ -403,7 +437,8 @@ arguments, and the assertion silently never runs.
 ## Before calling anything done
 
 ```text
-gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
+gcc -Iinclude -DHIBR_TLS -DHIBR_SYSDIR=\"/var/lib/hibr\" \
+    -DHIBR_MODDIR=\"/usr/local/lib/hibr\" -g -O1 -fsanitize=address,undefined \
     -fno-sanitize-recover=undefined -w -rdynamic -o build/hibr.asan src/*.c -ldl
 ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 ASAN_OPTIONS=detect_leaks=1 ./build/hibr.asan tests/<one>.t
@@ -420,15 +455,13 @@ forked child is still found. Any report fails the run.
 that changes C, a few minutes instead of twenty: run.sh, self.hibr and 300
 rounds of the parser fuzzer, run.sh again with leak detection on (Gitea
 #351, so a leak fails the gate rather than waiting to be looked for), every
-suite of a C module outside the desktop (`QUICK` in `tests/asan.py`: cat,
-console, term_diff, md_spec, html_tree, mail, pim, pim_rrule, dav, fetch,
-uni_bidi, uni_shape, hcal_icu, salat_adhan, vw_crypto, vw, sixel, kitgfx,
-holdpix, archive, mermaid, pdfapp), and whichever suites
+suite of a C module outside the desktop (`QUICK` in `tests/asan.py` names
+them), and whichever suites
 `tests/affected.py` says a module changed since REF -- the last tag unless
 given -- reaches; the desktop's own pty suites only when that module is
 one they draw through (console, term, pty, hold). A change to the shell
 alone adds no pty suite: those exercise the desktop's scripts, which reach
-C only through the core run.sh covers. Past `QUICKMANY` (12) suites it
+C only through the core run.sh covers. Past `QUICKMANY` suites it
 prints that the run should be alone, not beside `all.py`; `QUICK` itself
 is longer than that now, so every quick run says so. The
 full run is not per release: once a day, at the end of a long session, or
@@ -446,7 +479,7 @@ that copy:
 
 ```text
 gcc -Iinclude -g -O1 -fsanitize=address,undefined -w -shared -fPIC \
-    -o build/prompt-asan.so mods/prompt/*.c
+    -o build/prompt-asan.so mods/prompt/*.c mods/inflate.c mods/inftab.c mods/gfxask.c
 ```
 
 More in [the testing documentation](../docs/testing.md).

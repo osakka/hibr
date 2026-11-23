@@ -158,11 +158,12 @@ same way: `HIBR_FETCH_TIMEOUT`, `XDG_DATA_HOME`, the proxy variables and
 |---|---|
 | `fetch.c` | the builtin, the interface table, `init` and `fini` |
 | `http.c` | connections, the request and its reply, redirects, proxies, codings |
-| `url.c` | addresses: split, written, resolved, compared; HTTP dates; base64 |
+| `url.c` | addresses: split, written, resolved, compared; HTTP dates |
 | `cookie.c` | jars: read, matched, set, merged and written |
 | `auth.c`, `md5.c` | Basic and Digest, from the dav module's |
 | `ft.h` | what the files share |
 | `../fetch.h` | the public interface |
+| `../b64.c`, `../inflate.c`, `../inftab.c` | shared with other modules: base64 for a login, and the inflate for a compressed body |
 
 ## Tests
 

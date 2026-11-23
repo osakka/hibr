@@ -1,8 +1,9 @@
 # mods/img
 
 Decode an image and draw it into a terminal as coloured cells -- a jp2a-alike,
-issue #39. PNG and JPEG, told apart by their first bytes rather than their
-names. `img file.png` prints ANSI to standard output; `img draw file row
+issue #39. PNG and JPEG, and a binary PPM (see the end), told apart by their
+first bytes rather than their names; any other picture is refused, naming
+what it looks like. `img file.png` prints ANSI to standard output; `img draw file row
 col h w [-m mode] [-p pane]` blits directly into the open display instead,
 for a window or the desktop's own wallpaper.
 

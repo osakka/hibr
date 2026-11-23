@@ -188,12 +188,19 @@ and anything else through iconv, found at run time (glibc's own, or
 libiconv). Text that claims to be ASCII but is not valid UTF-8 is read as
 Windows-1252, which is what it nearly always is.
 
-```text
-$ email hdec "=?utf-8?q?Caf=C3=A9?= at =?utf-8?b?bm9vbg==?="
+```sh
+need email
+email hdec "=?utf-8?q?Caf=C3=A9?= at =?utf-8?b?bm9vbg==?="
+printf 'Lunch on Friday?\n' > body.txt
+email build out.eml -f "Pat Doe <pat@example.com>" -t "Zoë <zoe@example.org>" -s "Café" -T body.txt > /dev/null
+grep -v '^Date:\|^Message-ID:' out.eml | tr -d '\r'     # a message's lines end CRLF
+r := email parse out.eml
+echo "${r["fromname"]} / ${r["subject"]}"
+email clip 7 "Zoë Ünal"
+```
+
+```output
 Café at noon
-$ printf 'Lunch on Friday?\n' > body.txt
-$ email build out.eml -f "Pat Doe <pat@example.com>" -t "Zoë <zoe@example.org>" -s "Café" -T body.txt > /dev/null
-$ grep -v '^Date:\|^Message-ID:' out.eml
 From: Pat Doe <pat@example.com>
 To: =?UTF-8?B?Wm/Dqw==?= <zoe@example.org>
 Subject: =?UTF-8?B?Q2Fmw6k=?=
@@ -203,10 +210,7 @@ Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 7bit
 
 Lunch on Friday?
-$ r := email parse out.eml
-$ echo "${r["fromname"]} / ${r["subject"]}"
 Pat Doe / Café
-$ email clip 7 "Zoë Ünal"
 Zoë Ü
 ```
 
@@ -218,7 +222,7 @@ multipart/alternative, as `text/calendar; method=METHOD` -- how an
 invitation (REQUEST), an answer (REPLY) or a cancellation (CANCEL) is
 mailed so any mail program offers its buttons. `email build` prints the
 Message-ID it gave the message, with the sender's domain after the `@`, or
-binds it with `:=`; the transcript above sends it to `/dev/null`.
+binds it with `:=`; the example above sends it to `/dev/null`.
 `email clip bytes text` shortens text
 to at most that many bytes without cutting a character in half, for a
 fixed-width column.

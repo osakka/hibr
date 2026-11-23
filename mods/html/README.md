@@ -58,13 +58,17 @@ searching under `node` when one is given. Selectors are CSS's:
 | pseudo-classes | `:first-child`, `:last-child`, `:only-child`, `:first-of-type`, `:last-of-type`, `:nth-child(2n+1)`, `:nth-last-child(odd)`, `:empty`, `:root`, `:not(...)` |
 | lists | `h1, h2` |
 
-```text
-$ h := html parse -t '<div><p lang=en-GB>1<p>2<p data-k=v>3</div>'
-$ html query "$h" 'p[data-k^=v], p:first-child'
+```sh
+need html
+h := html parse -t '<div><p lang=en-GB>1<p>2<p data-k=v>3</div>'
+html query "$h" 'p[data-k^=v], p:first-child'
+n := html query "$h" 'p[data-k^=v], p:first-child'
+for i in "${n[@]}"; do html text "$h" $i; done
+```
+
+```output
 5
 9
-$ n := html query "$h" 'p[data-k^=v], p:first-child'
-$ for i in "${n[@]}"; do html text "$h" $i; done
 1
 3
 ```
@@ -91,7 +95,19 @@ ASCII. Without `:=` it prints the text.
 
 Run on a small page:
 
-```text
+```sh
+need html
+h := html parse -t '<p>Hello <b>there</b>, see <a href=x>the docs</a>.
+<ul><li>one<li>two</ul><table><tr><td>a<td>b</table>'
+l := html lines "$h" 30
+for ((i = 0; i < ${#l[@]}; i++)); do
+	[ -n "${l[$i][t]}" ] || { echo; continue; }
+	t := str pad "${l[$i][t]}" 30
+	echo "$t${l[$i][s]}"
+done
+```
+
+```output
 Hello there, see the docs.    ppppppbbbbbppppppllllllllp
 
 • one                         mmppp
@@ -135,6 +151,5 @@ bound, 48,000 lines.
 | `dom.c` | nodes, attributes, text, and the html5lib dump |
 | `query.c` | the CSS selector engine |
 | `lay.c` | `html lines`: blocks, inline runs, lists, quotes, tables, images |
-
 | `hl.h`, `tr.h` | types shared by the files |
 | `../htmlent.c` | the named character references, generated, shared with md |

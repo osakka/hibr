@@ -62,19 +62,6 @@ hibr examples/fetch.hibr --query .shell http://127.0.0.1:8080/api.json
 
 That prints `hibr`.
 
-## A note on map keys
-
-Both HTTP examples fold `-` to `_` in header names before using them as map
-keys. A subscript containing an operator is evaluated arithmetically, so
-`head[content-type]` reads as subtraction rather than as a key; a quoted one,
-`head["content-type"]`, is always a literal key. See
-[decision 0006](../docs/adr/0006-arrays-are-sparse-maps.md).
-
----
-
-For the pieces in isolation see [the language documentation](../docs/language.md);
-for scripts that exercise edge cases rather than read well, see [`tests/`](../tests/).
-
 ## play
 
 ```text
@@ -88,3 +75,16 @@ in a loop that sleeps until the next frame is due. Space pauses, left and
 right seek five seconds, up and down change the volume, `m` cycles half
 blocks, ASCII and plain ASCII, and `q` or escape leaves. It needs FFmpeg's libraries (libavformat 59 to 62) on the
 machine; nothing is linked.
+
+## A note on map keys
+
+Both HTTP examples fold `-` to `_` in header names before using them as map
+keys. A subscript containing an operator is evaluated arithmetically, so
+`head[content-type]` reads as subtraction rather than as a key; a quoted one,
+`head["content-type"]`, is always a literal key. See
+[decision 0006](../docs/adr/0006-arrays-are-sparse-maps.md).
+
+---
+
+For the pieces in isolation see [the language documentation](../docs/language.md);
+for scripts that exercise edge cases rather than read well, see [`tests/`](../tests/).

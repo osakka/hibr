@@ -2,7 +2,7 @@
 
 | file | audience | contents |
 |---|---|---|
-| `hibr.h` | **public** | Types, macros and the module ABI. This is what a module compiles against; `make install` puts it in `$(PREFIX)/include/hibr/`, beside `mods/fetch.h`, the one module interface installed for other modules to use |
+| `hibr.h` | **public** | Types, macros and the module ABI. This is what a module compiles against; `make install` puts it in `$(PREFIX)/include/hibr/`, beside `mods/fetch.h` and `mods/inspect/inspect.h`, the two module interfaces installed for other modules to use |
 | `pri.h` | internal | Declarations shared across `src/`, the token set, and the `lex` struct |
 | `re.h` | internal | Regex declarations. glibc's `regex.h` cannot be parsed by tcc, so the pieces actually used are declared here |
 
@@ -14,7 +14,9 @@ shell; a number written down here goes stale.
 
 Changing any public type, the meaning of any public function, or the name of
 any exported symbol means bumping it; adding a function does not
-(`hibr_schemef`, 0.99.140, left it alone). Newest first: `tl` and `ix`
+(`hibr_schemef`, 0.99.140, left it alone). Newest first: the count `n` in
+`ent` and `var` became an `unsigned` beside the type, so each is 56 bytes
+rather than 64 (0.99.430, Gitea #463); `tl` and `ix`
 joined `ent`, the tail and the index of a map's chain, when maps were
 indexed (0.99.74, Gitea #73); `ln` joined `node` and
 the per-file strict state joined `sh`, for `$LINENO` and `strict`; `bw`
@@ -38,9 +40,10 @@ struct; the check is what makes that impossible.
 A running shell reports the same number in `$HIBR_ABI`, so a script can check
 before it loads a module rather than after:
 
-<!-- not run: mine is a module of your own -->
+<!-- not run: mine is a module of your own, and NN its ABI -->
 ```sh
-[ "${HIBR_ABI:-0}" = 16 ] || { echo "this module wants ABI 16" >&2; exit 1; }
+want=NN    # HIBR_ABI in the hibr.h the module was compiled against
+[ "${HIBR_ABI:-0}" = "$want" ] || { echo "this module wants ABI $want" >&2; exit 1; }
 mod load mine
 ```
 
