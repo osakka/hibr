@@ -139,7 +139,7 @@ def session():
 
 def do(t, cmd):
     """Run cmd in t's desktop, from its ticker, and wait until it is taken."""
-    open(t.mark, "w").write(cmd + "\n")
+    screen.putcmd(t.mark, cmd + "\n")
     deadline = time.time() + 5
     while os.path.exists(t.mark) and time.time() < deadline:
         t.send(b"\x1b[I", settle=0.05, collect=0.05)
@@ -155,6 +155,21 @@ def result(t, cmd):
         t.collect(0.05)
     t.collect(0.05)
     return open(SAID + ".pend").read().strip() if os.path.exists(SAID + ".pend") else ""
+
+
+def firstseen(t, cmd, secs):
+    """Whether cmd came to hold in the desktop within secs, and when it was
+    last asked and did not: an answer comes a round trip after the desktop
+    looked, and under load that trip is most of a second, so only a time
+    the desktop was asked and said no shows it late."""
+    no = None
+    deadline = time.time() + secs
+    while time.time() < deadline:
+        asked = time.time()
+        if result(t, "if %s; then echo yes; else echo no; fi" % cmd) == "yes":
+            return True, no
+        no = asked
+    return False, no
 
 
 def waitfor(t, cmd, secs=10):
@@ -324,11 +339,12 @@ hpid = hosted(t, "hanger", "H", 12, 2, pidfile=".hpid", text="hanger")
 hid = result(t, 'echo "$H"')
 t.send(b"h", settle=0.05, collect=0.05)
 t0 = time.time()
-busy = waitfor(t, 'p := console pointer; [ "$p" = progress ]', 2 + LATE / 1000)
+busy, no = firstseen(t, 'p := console pointer; [ "$p" = progress ]', 2 + LATE / 1000)
 early = time.time() - t0
+late = no - t0 if no is not None else 0
 sc = t.screen()
 check("while the hung window has focus the pointer is busy, by about half a second",
-      busy and early < 1.6 + LATE / 1000, (busy, round(early, 2)))
+      busy and late < 1.6 + LATE / 1000, (busy, round(late, 2), round(early, 2)))
 check("and its title does not say not responding yet",
       sc.find("(not responding)") is None and time.time() - t0 < 2.8 + LATE / 1000,
       (round(time.time() - t0, 2), sc.text()))
