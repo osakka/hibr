@@ -2,12 +2,14 @@
 
 **hibr** is a shell that finally behaves the way you already expect a shell
 to behave. Familiar bash syntax, its sharpest edges resolved instead of
-carried forward, in about 22,900 lines of C and a 497 KB binary — under
-two-thirds of bash's memory, and about two and a half times its speed on a
-tight loop. Built with `tcc`, depending on nothing but libc and libdl.
+carried forward, in a binary half the size of bash's — about two-thirds of
+bash's memory, and about three times its speed on a tight loop, as
+[measured below](#measurements). Built with `tcc`, depending on nothing but
+libc and libdl.
 
 The name says what it is. **Highly**: two-thirds of bash's memory, tight
-loops two and a half times faster, in a 497 KB binary — the numbers below. **Intuitive**:
+loops about three times faster, in half its binary — the numbers below.
+**Intuitive**:
 the things that make bash surprising the first time you hit them —
 `test`'s word-splitting traps, `$BASH_REMATCH`'s awkward capture, a dozen more
 in [the decision records](docs/adr/README.md) — fixed, so the shell does what
@@ -126,43 +128,53 @@ place to start.
 
 ## Measurements
 
-Measured on 0.99.416, on one host (an Intel Core i3-N300, every process
-pinned to one core), by `tools/measure.py`, which prints this table and
-says what it ran under -- run it again rather than trusting a number here
-that has aged. The loop is `while [ $i -lt 50000 ]; do i=$((i+1)); done`.
-Times are the best of eleven runs. Memory is the shell's own `VmHWM`, read
-without forking, as the median of twenty-five runs — a single reading is
+Measured by `tools/measure.py`, which prints this table and the line above
+it saying what it ran under -- run it again rather than trusting a number
+here that has aged. Every process is pinned to one core. The loop is
+`while [ $i -lt 50000 ]; do i=$((i+1)); done`. Times are the best of eleven
+runs. Memory is the shell's own `VmHWM`, read without forking, as the median
+of twenty-five runs — a single reading is
 worthless here, because run-to-run spread is about 180 kB either way.
 Instructions are the loop under callgrind, which, unlike the clock, does not
 move with where the code happens to land in memory.
 
+```text
+hibr 0.99.559; Intel(R) Core(TM) i3-N300; load average 1.85 when it started; 2026-11-23
+```
+
 | | hibr | dash | bash |
 |---|---|---|---|
-| binary, stripped | 497 KB | 122 KB | 1235 KB |
-| resident memory at startup | 1960 kB | 1680 kB | 3088 kB |
-| resident memory after the loop | 2028 kB | 1684 kB | 3100 kB |
-| the loop | 77 ms | 70 ms | 211 ms |
-| the loop, instructions | 656M | 599M | 1418M |
-| 5000 function calls, results via `:=` | **14 ms** | — | — |
-| the same through `$( )` | 989 ms | 839 ms | 1625 ms |
-| startup, `-c true` | 1.28 ms | 1.26 ms | 1.70 ms |
+| binary, stripped | 616 KB | 126 KB | 1267 KB |
+| resident memory at startup | 2192 kB | 1792 kB | 3164 kB |
+| resident memory after the loop | 2320 kB | 1800 kB | 3168 kB |
+| the loop | 68 ms | 69 ms | 217 ms |
+| the loop, instructions | 564.1M | 622.1M | 1380.6M |
+| 5000 function calls, results via `:=` | **14 ms** | -- | -- |
+| the same through `$( )` | 1057 ms | 939 ms | 1723 ms |
+| startup, `-c true` | 1.57 ms | 1.35 ms | 2.05 ms |
 
-Read honestly. Against bash hibr is under two-thirds of the memory and about
-two and three-quarter times the speed on a tight loop. Against dash it is
-level on startup and 10% behind on the loop -- further behind on a loop
-built around `case` -- and about 280 kB heavier, and dash is a far smaller
-language, so being close is the claim, not being ahead. On 0.68 the binary
-was 398 KB, the loop 87 ms and the gap to dash 1.7x before a round of
-profiling; the language and the binary have grown together since, and the
-loop has got faster.
+Read honestly. Against bash hibr is about two-thirds of the memory and about
+three times the speed on a tight loop. Against dash it is level on that loop
+-- a tenth fewer instructions, the same time -- and still behind on a loop
+built around `case`; startup is within this host's noise of dash's, since two
+readings the same afternoon put each of them ahead in turn; and it is about
+400 kB heavier. dash is a far smaller language, so being close is the claim,
+not being ahead. Compare two readings only from the same host and the same
+week: dash's own row moves too, and this host's went from 0.5.12-2 to
+0.5.12-12 in November 2026. On 0.68 the binary was 398 KB, the loop 87 ms and
+the gap to dash 1.7x before a round of profiling; the language and the binary
+have grown together since, and the loop has got faster.
 
-Where the memory goes is worth knowing: the heap at startup is about 40 kB
-of it, so memory here means the binary, and the binary means how much
-language there is. There is no allocator trick left that would move it.
+Where the memory goes is worth knowing: nearly all of it is the binary and
+the C library, mapped from their files (`RssFile` in `/proc/self/status`),
+and the shell's own allocations (`RssAnon`) are a small part of it. So memory
+here means the binary, and the binary means how much language there is.
+There is no allocator trick left that would move it.
 
-The row that is not a near-miss is the fifth. Returning a value through `$( )`
-costs a fork per call in every shell; `:=` costs none, which is where the 60x
-comes from. That is the argument for the whole in-process design, in one line.
+The row that is not a near-miss is the sixth. Returning a value through
+`$( )` costs a fork per call in every shell; `:=` costs none, which is where
+the gap between those two rows comes from. That is the argument for the
+whole in-process design, in one line.
 
 A full prompt with git branch, working-tree status and upstream distance cost
 35 ms in a 2,600-file repository when it was measured — against 32 ms for
@@ -191,7 +203,7 @@ args "$@"
 |---|---|
 | [From bash to hibr, in ten minutes](docs/tutorial.md) | **Start here**: install, then each thing hibr adds, one checked example each |
 | [The language](docs/language.md) | The whole language, and every place it differs from bash |
-| [Builtins](docs/builtins.md) | All 77, what each takes and what it gives back |
+| [Builtins](docs/builtins.md) | Every one, what each takes and what it gives back |
 | [hibr, for a language model](docs/llm.md) | The whole language on one page, for a model to read; `llms.txt` points to it |
 | [The desktop](docs/desktop.md) | hui, the hibr user interface: windows, menus and applications in a terminal, all of it hibr -- a first hour, in five pictures |
 | [Everything else](docs/README.md) | Data, networking, the prompt, interactive use, full-screen programs, the desktop, modules, deployment, testing |
@@ -223,9 +235,9 @@ indexed in [the decisions](docs/adr/README.md). The ones met first:
 bash's compound coprocess, `coproc name { …; }`: hibr's `coproc` takes a
 command, `coproc name cmd args…` -- see
 [0018](docs/adr/0018-a-coprocess-is-an-endpoint.md).
-The line editor stores bidirectional text in logical order and leaves
-reordering to the terminal, so the cursor moves in logical order through Arabic
-text.
+The line editor draws right-to-left text in display order, but its cursor
+keys move in logical order: left and right step through Arabic text as it was
+typed, not as it reads on the screen.
 
 ## Source layout
 

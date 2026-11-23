@@ -1,6 +1,6 @@
 # hibr documentation
 
-A shell that runs a useful subset of bash in about 22,900 lines of C, and adds
+A shell that runs a useful subset of bash in one small C binary, and adds
 nested maps, JSON, regex capture, native sockets and TLS, typed functions,
 results without forking, declared command-line arguments, and modules that can
 add whole protocols.
@@ -34,10 +34,11 @@ exists. These pages are the detail.
 | | |
 |---|---|
 | [The grammar](grammar.md) | Lexical structure, EBNF, operator precedence, expansion order, patterns |
-| [Builtins](builtins.md) | All 77, what each takes and what it gives back |
+| [Builtins](builtins.md) | Every one, what each takes and what it gives back |
 | `man hibr` | Its flags (`--agent`, `--explain`, `--plan`, `--checkfirst`, `--modules=`, `--login`), environment variables, files and exit status |
 | `man desktop` | The `desktop` command: its options, keys, and `desktop ctl`, the control socket |
 | [Modules](modules.md) | The module ABI, and writing one |
+| [Source inspection](inspect.md) | `inspect`: what a script defines, calls, names and reads, from the parser's own view, without running it |
 | [Sheet](sheet.md) | The spreadsheet whose formula language is hibr: formulas, cells as variables, ranges as arrays, the containment they run in, and full access for a sheet that should act |
 
 ## Build on it
