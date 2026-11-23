@@ -14,6 +14,9 @@
 #include <termios.h>
 #include <unistd.h>
 
+/* POSIX: environ is the process's own, declared by no header on macOS and by glibc only under _GNU_SOURCE. */
+extern char **environ;
+
 vec tt_list;
 int tt_next = 1;
 
