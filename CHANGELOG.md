@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.99.559
+
+**hibr builds on macOS again.** 0.99.558's `brew upgrade` stopped at
+`mods/pty/pty.c`: the program spawn the zygote added set `environ`, which
+macOS declares in no header (Linux builds declared it only because the file
+asks for GNU extensions). The file declares it itself now, as three others
+already did. Every C file changed since 0.99.553 was compiled the way macOS
+sees it, against its 0.99.553 form, and that was the only new error.
+
+**Control Panel > Appearance > Controls: Slider Style** -- classic, circle
+or groove, for sliders and faders alike. Under the blit glyph set each is
+Blit's own drawing (Blit 0.3.136); a Blit without them, and every other
+glyph set, draws the same shape in plain characters.
+
 ## 0.99.558
 
 **Every kind of app can run in a process of its own, end to end in a test
