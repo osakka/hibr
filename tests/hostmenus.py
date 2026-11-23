@@ -133,7 +133,7 @@ def session(name, body):
 
 def do(t, cmd):
     """Run cmd in t's desktop, from its ticker, and wait until it is taken."""
-    open(t.mark, "w").write(cmd + "\n")
+    screen.putcmd(t.mark, cmd + "\n")
     deadline = time.time() + 5
     while os.path.exists(t.mark) and time.time() < deadline:
         t.send(b"\x1b[I", settle=0.05, collect=0.05)

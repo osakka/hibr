@@ -180,7 +180,7 @@ dt_close
         later, and the next command written over one not yet taken would
         lose it -- `AUDID := dt_new` lost made every step of the app's
         window an empty id -- so one not taken in time is named."""
-        open(self.mark, "w").write(cmd + "\n")
+        screen.putcmd(self.mark, cmd + "\n")
         deadline = time.time() + 30
         while os.path.exists(self.mark) and time.time() < deadline:
             self.t.send(b"\x1b[I", settle=0.1, collect=0.1)

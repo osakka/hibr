@@ -213,6 +213,19 @@ def scratch(nm):
     return "/tmp/hibr-%s-%d%s" % (r, os.getpid(), e)
 
 
+def putcmd(path, text):
+    """Write a command for a desktop's ticker to read from a marker file,
+    whole or not at all. Opened for writing, the file exists before its
+    text does, and a ticker that looks in between reads an empty line,
+    takes the file away and runs nothing -- the command lost, though it
+    reads as taken; on a loaded box that window is wide enough to land in.
+    So it is written beside and renamed into place."""
+    tmp = path + ".w"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
 class Screen:
     """Enough of a terminal to answer "what is at row r, column c".
 

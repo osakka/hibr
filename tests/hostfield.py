@@ -28,6 +28,7 @@ the desktop registers it (dt_app) and never sources it.
 """
 import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import screen
 from screen import Term, check, report, load, tree, scratch, expect
 
 MOD = tree("build/mods/console.so")
@@ -314,7 +315,7 @@ def session(name, body, env=None):
 
 def do(t, cmd):
     """Run cmd in t's desktop, from its ticker, and wait until it is taken."""
-    open(t.mark, "w").write(cmd + "\n")
+    screen.putcmd(t.mark, cmd + "\n")
     deadline = time.time() + 5
     while os.path.exists(t.mark) and time.time() < deadline:
         t.send(b"\x1b[I", settle=0.05, collect=0.05)
