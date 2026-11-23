@@ -125,6 +125,7 @@ quotes an argument that would not read back as one word, as bash does.
 | `\NNN` | the byte with that octal value, `\033` an escape | `\A` | time, `HH:MM` |
 | `\D{fmt}` | the time as `strftime` writes `fmt`, `\D{}` the locale's time | `\l` | the terminal's name |
 | `\!` | this command's number in the history | `\#` | this command's number in the shell |
+| `\\` | a backslash | | |
 
 <!-- not run: a prompt is drawn only by an interactive shell -->
 ```sh
@@ -212,9 +213,12 @@ default for `console bidi`.
 
 Saved to `$HIBR_HISTFILE`, or `~/.hibr_history`. `^R` searches it incrementally.
 It keeps the last 500 lines, does not add a line that repeats the one before
-it, and is written when the shell exits -- the whole file at once, so of two
-shells open together the last to exit decides what it holds. `\!` in a prompt
-therefore stops at 501.
+it, and is written when the shell exits or its terminal hangs up -- the whole
+file at once, readable by its owner alone, and renamed into place, so two
+shells ending together cannot leave it half written; of two shells open
+together the last to exit decides what it holds. A history file that is a
+symbolic link is written through the link. `\!` in a prompt therefore stops
+at 501.
 
 `history` prints it, `history -c` clears it, `history -s text` adds an entry
 without running it, and `history -p` shows what an expansion would become:
@@ -244,7 +248,7 @@ A script never sees it.
 
 | position | candidates |
 |---|---|
-| command | builtins, functions and everything on `PATH` |
+| command -- the first word, or the first after `;`, `\|`, `&` or `(` | builtins, functions, everything on `PATH`, and the names in the current folder |
 | after `$` or `${` | variable names |
 | anywhere else | paths |
 
@@ -280,8 +284,10 @@ beginning `~/` or `~user/`, is understood before it is completed:
 ```
 
 **[hibr]** It is programmable. `COMPLETE[cmd]` names a function, which is
-called with the command and the partial word, and whatever it `ret`s becomes
-the candidates:
+called with the command being typed -- the one the word belongs to, after
+any `;` or `|` -- and the partial word, and whatever it `ret`s becomes the
+candidates. It runs with the shell's state kept, as the prompt hook does:
+`$?`, an errexit or an `exit` inside it stay inside it.
 
 <!-- not run: completion happens when Tab is pressed at the prompt -->
 ```sh
@@ -349,6 +355,11 @@ After a pipeline `PIPESTATUS` holds each stage's status, as in bash, while
 name or a `%job`, `disown` forgets one without signalling it, and `wait` waits —
 for a job, a pid, or with `-n` for whichever finishes first, naming it with
 `-p`.
+
+When the terminal hangs up, the shell sends `HUP` to every job (and `CONT`
+to a stopped one, so it can act on it), saves the history, reads
+`~/.hibr_logout` if it is a login shell, and ends by the signal, as bash
+does -- wherever it was, at the prompt or in the middle of a command.
 
 ## When something fails
 
@@ -419,6 +430,9 @@ printf 'a\0b\n' | { read -r y; echo "[$y]"; }
 142 []
 [ab]
 ```
+
+`-t 0` reads nothing at all: it answers whether input is waiting, 0 if it is,
+as bash's does.
 
 A read from a datagram socket takes a whole datagram at a time -- see
 [Networking](networking.md).

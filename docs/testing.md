@@ -1,8 +1,8 @@
 # Tests
 
 ```text
-make check                                    # tests/run.sh: 212 test scripts
-./build/hibr tests/self.hibr                  # 92 assertions written in hibr
+make check                                    # tests/run.sh: every tests/*.t
+./build/hibr tests/self.hibr                  # assertions written in hibr
 HIBR=./build/hibr REF=dash tests/run.sh       # compare with another shell
 python3 tests/fuzz.py ./build/hibr.asan 500   # mutation fuzzing of the parser
 make check-all                                # tests/all.py: every suite at once
@@ -33,9 +33,9 @@ not measure -- a changed line outside every function, a function no suite
 was seen calling, a map from another history -- and every desktop suite
 runs then instead.
 
-`tests/all.py` is the daily run: every suite side by side, about 21
-minutes on four cores, after which the map is taken again. The full
-`tests/asan.py` is daily too, never beside a gate, whose time it doubles.
+`tests/all.py` is the daily run: every suite side by side, one to a core,
+after which the map is taken again. The full `tests/asan.py` is daily too,
+never beside a gate, whose time it doubles.
 
 A desktop callback that stalls the desktop writes a `held:` line to its
 log, and a pty suite in which one was written fails, the same as one in
@@ -56,9 +56,10 @@ levels of map nesting, a 2000-element array sorted, a 20,000-character string,
 The whole suite runs clean under AddressSanitizer and UndefinedBehaviorSanitizer:
 
 ```text
-gcc -Iinclude -DHIBR_TLS -g -O1 -fsanitize=address,undefined \
-    -fno-sanitize-recover=undefined -w -rdynamic \
-    -o build/hibr.asan src/*.c -ldl
+gcc -Iinclude -DHIBR_TLS -DHIBR_SYSDIR=\"/var/lib/hibr\" \
+    -DHIBR_MODDIR=\"/usr/local/lib/hibr\" -g -O1 \
+    -fsanitize=address,undefined -fno-sanitize-recover=undefined \
+    -w -rdynamic -o build/hibr.asan src/*.c -ldl
 ASAN_OPTIONS=detect_leaks=0 HIBR=./build/hibr.asan tests/run.sh
 python3 tests/asan.py        # the same for every suite, the pty ones too
 python3 tests/asan.py --quick    # core, C modules and what changed: the gate's half
@@ -68,9 +69,10 @@ python3 tests/asan.py --quick    # core, C modules and what changed: the gate's 
 run rather than print and go on; `make asan` builds the shell and every module
 the same way, into `build/asan`.
 
-Both forms of `tests/asan.py` run the recorded tests a third time with
-`detect_leaks=1`, and fail on any leak report (since 0.99.309, when every
-recorded test was made to pass it); the other passes run with leaks off.
+`tests/asan.py --quick` also runs `tests/self.hibr`, the parser fuzzer and
+the recorded tests a third time with `detect_leaks=1`, and fails on any leak
+report (since 0.99.309, when every recorded test was made to pass it); the
+other passes run with leaks off. The full form runs the suites alone.
 
 `tests/fuzz.py` mutates the test scripts — byte flips, deletions, inserted
 shell tokens — and runs `hibr -n` on each result, reporting crashes, sanitizer

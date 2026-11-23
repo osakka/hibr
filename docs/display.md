@@ -85,10 +85,10 @@ and the flush cost shown live. Run it and press things.
 | `console imgfd [hold\|off\|auto]` | whether a window's picture goes to Blit by descriptor (Blit ADR 0202): its pixels as a sealed memfd over the Blit session's frame socket, and only the placement (`a=p`) on the terminal. `auto`, the default, does it where `BLIT_FRAME_SOCKET` and `BLIT_FRAME_TOKEN` name a session that takes the hello and nothing is between the console and Blit; inside `hold` the desktop says `hold` when `hold descriptors` says every display can take frames, and `off` otherwise. Leaving it, or a frame failing to go, places each such picture again on the terminal. The wallpaper never goes this way. Linux only |
 | `console hud` | `on` while Blit's performance panel asks for this desktop's status (Blit ADR 0203), `off` otherwise: read off the frame socket where nothing is between the console and Blit, and asked of hold's server inside `hold`, which keeps what each display's Blit said. A Blit that speaks only the frame socket's wire version 1 never asks, and nothing without a frame socket ever does |
 | `console status line...` | send the panel its status, each argument a line -- at most eight, each cut to 64 bytes on a character, a control character made a space -- as `STA1` on the frame socket, or through hold's server to every display whose Blit asked. Fails, sending nothing, while the panel is not asking. The desktop sends its eight lines once a second while it asks (`wm/hud.hibr`) |
-| `console imgedit [on\|whole\|off\|auto]` | whether a window's picture that changed only in part is sent as that part, edited into the one already on the terminal with kitty's `a=f,r=1` (Gitea #404), rather than as a whole picture again. `auto`, the default, edits where the terminal answered the display's own probe; inside `hold` the desktop sets it from `hold edits`. A change over most of the picture, or edits adding up to more than a whole one, goes out whole: as a new picture with the old one deleted behind it, or, under `whole`, as an edit of all of it into the same picture, which is what a film's every frame then is. `auto` takes `whole` wherever the terminal can edit and nothing is between them; inside `hold` the desktop sets it from `hold frames`. One cell changing in a 640x400 picture is 2.2 kB a frame this way against 999 kB whole. Turned off, every picture that was edited goes out whole on its next placement |
+| `console imgedit [on\|whole\|off\|auto]` | whether a window's picture that changed only in part is sent as that part, edited into the one already on the terminal with kitty's `a=f,r=1` (Gitea #404), rather than as a whole picture again. `auto`, the default, edits where the terminal answered the display's own probe; inside `hold` the desktop sets it from `hold edits`. A change over most of the picture, or edits adding up to more than a whole one, goes out whole: as a new picture with the old one deleted behind it, or, under `whole`, as an edit of all of it into the same picture, which is what a film's every frame then is. `auto` takes `whole` wherever the terminal can edit and nothing is between them; inside `hold` the desktop sets it from `hold frames`. One cell changing in a 640x400 picture is 2.2 kB a frame this way against 999 kB whole. Turned off, every picture that was edited goes out whole on its next placement. With no argument, which is in force, with `(auto)` after it when that is where it came from |
 | `console imgcomp [zlib\|png\|off]` | how a still picture's payload is compressed: `zlib` is the kitty protocol's own `o=z`, `png` is `f=100` and smaller again, `off` sends the pixels. `zlib` by default, because a terminal that takes `f=24` and not `f=100` draws nothing and `q=2` means it cannot say so. A film's frame is never compressed, whatever this says: there the cost would be encoding rather than bytes |
 | `console resized` | true once after the terminal changed size |
-| `console clear` | blank the back buffer with the current pen |
+| `console clear` | blank the back buffer with the current pen, and forget every picture on the screen; whatever still wants one places it again |
 | `console pen [fg [bg [attr…]]]` | the colours and attributes later writes use |
 | `console pen -s`, `console pen -r` | keep the pen as it is, and put it back -- one slot, for drawing something lit without losing the caller's pen |
 | `console pen fg under:COLOUR` | a background that keeps whatever colour each cell already has, or COLOUR where it has none (the terminal's default) -- for a glyph that draws only part of its cell, such as a frame's edge |
@@ -114,7 +114,7 @@ and the flush cost shown live. Run it and press things.
 | `console pointer can` | whether the terminal can hide its pointer, as it answered OSC 22's `?none`: `yes`, `no` (it knows shapes and cannot), or `unknown` (it does not know OSC 22, or has not answered) |
 | `console pointer` | the shape asked for, `default` for none |
 | `console pointer can lock` | whether the terminal can hold the pointer (Blit 0.2.42's `?7701`, Gitea #379), as it answered the mode request: `yes`, `no` or `unknown` |
-| `console pointer lock on\|off` | hold the pointer, or give it back: `CSI ? 7701 h` or `l`. While it is held every mouse report is movement, `mouse rel ACT BTN DX DY` with the deltas signed in the terminal's raw counts -- `move none` for motion, `drag` with a button held, and a press, release or wheel with whatever movement came with it -- and the terminal giving it back, refused or on its own, arrives as the event `pointer unlocked`. Given back when the display closes, and on a fatal signal |
+| `console pointer lock on [row col]\|off` | hold the pointer, or give it back: `CSI ? 7701 h` or `l`, asked from the cell given -- the window that wants it -- so that inside `hold` the display showing that cell is the one asked. While it is held every mouse report is movement, `mouse rel ACT BTN DX DY` with the deltas signed in the terminal's raw counts -- `move none` for motion, `drag` with a button held, and a press, release or wheel with whatever movement came with it -- and the terminal giving it back, refused or on its own, arrives as the event `pointer unlocked`. Given back when the display closes, and on a fatal signal |
 | `console pointer lock` | `on` or `off` |
 | `console colours [auto\|24\|256\|16\|8]` | how many colours to send: as the terminal answered (XTGETTCAP `RGB` and `colors`, then `COLORTERM`, then its name -- `HIBR_COLOURS` says outright), or forced; with no argument, the depth in force. A colour is sent as the nearest the terminal takes |
 | `console sent` | how many bytes the display's flushes have written to the terminal since it opened |
@@ -131,7 +131,7 @@ and the flush cost shown live. Run it and press things.
 | `console shadow [-p pane] row col h w kind width inset [colour]` | a shadow the terminal draws itself (Blit's SGR 66, ADR 0211): each cell keeps what it holds and gains a line along its edge, kind 1 right, 2 right from a box's first row, 3 under, 4 under from its first cell, 5 the corner; width 1 or 2 pixels; inset 1 on a Blit frame glyph, 0 beyond a box-drawn frame. In `colour`, or the foreground. Any ordinary write clears it, so it can be cast on every frame |
 | `console darkdefault fg bg` | the colours `darken` takes a cell drawn in the terminal's own default colours to be, so a shadow over it still darkens |
 | `console iconpen colour\|auto\|black\|white` | how Blit draws its colour icons in what is written next, SGR 68, until this says otherwise or the frame is flushed. Other terminals are never sent it through `hold` |
-| `console translucent pct [colour [match]]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own -- or in `match`, a window's own face -- takes the picture's own colour there at `pct` over `colour`, a tint of it, scaled towards black with no `colour`, or `colour` itself where there is no picture. `off` ends it, and so does the next flush |
+| `console translucent pct [colour [match]]` | how much of a picture drawn under the text shows through the writes that follow: a cell written with no background of its own -- or in `match`, a window's own face -- takes the picture's own colour there at `pct` over `colour`, a tint of it, scaled towards black with no `colour`, or `colour` itself where there is no picture. `off` ends it, and so does the next flush; with no argument, the percentage in force |
 | `console termbg` | what the terminal says its own background is, and whether it said it: `#101418 answered`, or `#000000 assumed` by a terminal that answers nothing |
 | `console shade colour [pct]` | the colour `darken` would make of a `#rrggbb` |
 | `console clip text` | put text on the terminal's clipboard (OSC 52) |
@@ -145,7 +145,11 @@ and the flush cost shown live. Run it and press things.
 | `console watching` | the watched descriptors, a muted one marked `:muted` |
 | `console woke fd...` | which of the descriptors named a wait has found readable since this was last asked about them, each cleared as it is told -- so a loop reads only what has something to say, one call for any number of descriptors; one not named is left for whoever asks about it |
 | `console consumed` | how many bytes of input have become keys |
-| `console keyphases [on\|off]` | whether this terminal can report key events; on for a key's press, repeat and release (kitty flags 1, 2, 4 and 8), off for escapes alone |
+| `console keep chord...` | tell Blit the chords the desktop keeps from programs' windows, the whole set each time; status 1 where no Blit is there to tell -- see [mods/console/README.md](../mods/console/README.md) |
+| `console imekeys action=chord...` | tell Blit which chords are an input method's actions (`cycle`, `back`, `teach`) in programs' windows, the whole set each time, none clearing it |
+| `console keyboard [list\|current n\|gen]` | Blit's keyboards: `list` asks for them, `current n` switches, `gen` counts the lists received; with no word, the list as last received, status 1 before any has come |
+| `console rate [ask\|gen]` | each display's refresh rate as Blit says it: `ask` asks, `gen` counts the answers; with no word, a line a display, `row col mhz` (`* * mhz` with one display), status 1 before any has come |
+| `console keyphases [on\|off]` | with no argument, status 0 when this terminal speaks the kitty keyboard protocol and can report a key's events. `on` has `console key` report every event of a key -- a repeat and a release as well as the press, `console keyinfo` saying which; a modifier on its own, as `left-shift`, `right-ctrl` and the like; and `focus out` when the terminal takes the keyboard away -- and `off` the press alone. Status 1 where the terminal does not speak the protocol |
 | `console keyinfo` | the phase, code, base-layout key and modifier bits of the key just read |
 | `console pane name row col h w` | define a region, or move one; a place or size that is not a whole number is refused |
 | `console pane name` | its row, column, height and width |
@@ -219,7 +223,7 @@ difference but `super-`; a key that carries text with no ctrl, alt or
 super held is that text, so AltGr's characters, a capital under caps lock
 and a keypad digit are what the layout says rather than a guess from a US
 table; caps lock and num lock never change a name, and a key's release is
-not reported. A chord is named by its base key where the terminal gives one,
+not reported unless `console keyphases on` asks for it. A chord is named by its base key where the terminal gives one,
 so Ctrl+C is `ctrl-c` on any layout. A Super pressed and let go with nothing between is a key of
 its own, `super` (Gitea #516); with a key or another modifier between it is
 that chord's. A printable character
@@ -345,8 +349,10 @@ on` asks, `console pointer can lock` says whether the terminal can -- only
 Blit, from 0.2.42 -- and the reports that follow are `mouse rel ...` until
 `console pointer lock off` or the event `pointer unlocked`, which is the
 terminal ending it: it refuses one while the session does not have its
-focus, and may take the pointer back on its own. Inside `hold` the lock goes to the one display that can
-hold a pointer and was used last, `hold locks` says which displays can, and
+focus, and may take the pointer back on its own. Inside `hold` the lock goes
+to the display that can hold a pointer and shows the cell `console pointer
+lock on row col` named -- the window that asked -- or, with no cell, the one
+used last; `hold locks` says which displays can, and
 a held display's movement reaches the program with no offset added.
 
 A held pointer's report carries signed offsets, which no ordinary key or
@@ -454,7 +460,8 @@ after it is not shifted.
 ## Getting the terminal back
 
 This is the part that matters more than the drawing. `SIGINT`, `SIGTERM` and
-`SIGHUP` restore the terminal — alternate console off, cursor back, raw mode
+`SIGHUP`, and a crash -- `SIGSEGV`, `SIGBUS`, `SIGABRT`, `SIGFPE`, `SIGILL` --
+restore the terminal — alternate screen off, cursor back, raw mode
 undone — and then re-raise the signal, so the shell still dies of whatever
 killed it. `mod drop console` and shell exit do the same. Only the process
 that opened the console does this: a child forked from it inherits the
@@ -477,9 +484,10 @@ needs a terminal
 
 ## What it does not do
 
-There is no terminfo and no `TERM` lookup — see
+There is no terminfo — see
 [0019](adr/0019-the-console-display-assumes-xterm.md) for why, and what that
-costs. There is no scrolling region, no line-drawing character set beyond
+costs. `TERM` is read only as a last resort, after the terminal has been
+asked, for how many colours to send and which picture protocol it speaks. There is no scrolling region, no line-drawing character set beyond
 whatever Unicode you write yourself, and no input line editing: that is the
 line editor's job, and a full-console program that wants a prompt should draw
 one itself.

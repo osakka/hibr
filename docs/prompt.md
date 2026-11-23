@@ -108,8 +108,8 @@ prompt object <sha>          # type and size
 prompt object -p <sha>       # the object's contents
 ```
 
-Objects are read lazily and bounded — `PROMPT[git][max_object]` (4 MB by
-default) caps how far one will inflate, so a crafted object cannot make your
+Objects are read lazily and bounded — `PROMPT[git][max_object]`, in kB
+(4096, 4 MB, by default), caps how far one will inflate, so a crafted object cannot make your
 prompt allocate hundreds of megabytes. Object names are not re-verified against
 their contents, the same as git on an ordinary read.
 
@@ -132,17 +132,22 @@ combined `$status` and `$ahead_behind` — so the layout is yours. On a branch
 with no commits yet, everything in the index counts as staged, as git does.
 A file moved without being edited is one rename, not an add and a delete.
 
+What the segment works out can be asked for directly, which is how it is
+checked against git: `prompt status` gives the counts in one line
+(`staged 0 modified 2 deleted 0 ...`), `prompt index` lists the index as
+`git ls-files -s` does, and `prompt hash file...` names each file as
+`git hash-object` would.
+
 Three switches decide what it costs: `PROMPT[git][untracked]`,
 `PROMPT[git][staged]` and `PROMPT[git][track]`, all on by default, and
 `PROMPT[git][max_walk]` (512) caps the commit walk — past that the distance is
 simply not shown.
 
-**What it costs.** In a 2,600-file repository a full prompt takes about 35 ms,
-against 32 ms for `git status --porcelain=v2 --branch` alone — and hibr pays no
-fork on top. Walking for untracked files is most of that for both: turning
-`PROMPT[git][untracked]` off takes the prompt to about 11 ms. Small
-repositories are a few milliseconds, and a directory outside any repository is
-about 1.4 ms.
+**What it costs.** In a repository, a full prompt costs about what
+`git status --porcelain=v2 --branch` alone does there -- and hibr pays no
+fork on top. Walking for untracked files is a large part of it: turning
+`PROMPT[git][untracked]` off makes the prompt markedly cheaper. A directory
+outside any repository costs next to nothing.
 
 **Where it differs from git.** Renames are matched only when the content is
 byte-identical, so an edited-and-moved file still counts as two changes. A
@@ -243,7 +248,7 @@ A colour given as `#rrggbb` or as a number from 0 to 255 is drawn as near as
 the terminal can show it: in full where `COLORTERM` says `truecolor` or
 `24bit`, as the nearest of 256 where `TERM` contains `256color`, and as the
 nearest of the sixteen on the Linux console, `screen` and the old `vt`
-terminals. `HIBR_COLOURS=24`, `256`, `16` or `8` says which outright. A terminal
+terminals; any other is sent full colour. `HIBR_COLOURS=24`, `256`, `16` or `8` says which outright. A terminal
 window of the desktop says `truecolor` for its programs, and the desktop then
 sends each display what it can show (Control Panel > Pictures > Colours). A
 named colour -- `red`, `bright-blue` -- is one of the sixteen everywhere.
