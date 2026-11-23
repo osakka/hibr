@@ -35,6 +35,7 @@ Where hibr is deliberately different:
 | unquoted expansions split and glob | the same by default; `set -S` or `strict expansion` stops it |
 | `"${x:-the machine's zone}"` does not parse | an apostrophe inside `${…}`'s own text is just a character |
 | `echo a=~` expands the tilde | only a real assignment does: `x=~`, `PATH=~/bin:~/x` |
+| `declare d` leaves `d` unset until assigned | a declared name is set at once, to the empty string, so `${d-x}` is empty and `[[ -v d ]]` true; `local x` alone still leaves it unset |
 
 A script runs a command at a time, as it is read, as in bash: a syntax
 error late in a file stops it there, after the lines before it have run.

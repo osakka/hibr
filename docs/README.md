@@ -80,6 +80,7 @@ Every divergence has a record. The short version:
 | [A module may answer a command](adr/0040-a-module-may-answer-a-command.md) | `HIBR_MODULES` says whether a module is loaded for a command, and before or after `PATH` |
 | [`source` honours a local scheme](adr/0043-source-honours-a-local-scheme.md) | `. /dev/archive/…` works; a scheme that fetches, like `/dev/http`, is refused |
 | [`read` takes a datagram whole](adr/0051-read-takes-a-datagram-whole.md) | on `/dev/udp` a line or `-n` gets the line, where bash keeps its first byte |
+| [A declared variable is set](adr/0063-a-declared-variable-is-set.md) | `declare d` holds the empty string at once, where bash calls it unset until assigned |
 
 ## Reading these pages in a browser
 

@@ -42,7 +42,12 @@ shell's own type names: `declare int n`, `declare num f`, `declare path p`.
 A flagged `-i` coerces the way bash does,
 turning anything unreadable into `0`; a declared type *validates*, with the same
 check that guards typed function parameters, and a bad value fails loudly and
-stops. `readonly` and `export -p` round out the set.
+stops. `readonly` and `export -p` round out the set. **[hibr]** A declared
+variable is set from the moment it is declared, holding the empty string:
+`declare d` then `${d-unset}` is empty and `[[ -v d ]]` is true, where bash
+calls it unset until something is assigned. `local x` alone is the exception,
+in both shells -- it hides the outer name and leaves this one unset -- see
+[0063](adr/0063-a-declared-variable-is-set.md).
 
 **Options.** One namespace, reached either way: `set -o nullglob` and
 `shopt -s errexit` both work, and `shopt` alone lists everything. Extended
@@ -94,6 +99,34 @@ an arithmetic error (`try` keeps it to the command). bash crashes on the
 first unless `FUNCNEST` is set; hibr honours `FUNCNEST` as bash does, and
 stops at three quarters of the stack whether it is set or not. Under `set -o
 keepgoing` it, and an arithmetic error, fail only the command.
+
+**Diagnostics.** What the shell and its modules write to standard error is
+governed by one setting, the log level: `error`, `warning` (the default),
+`info`, `debug` or `trace`, or 0 to 4. `hibr -d level`, `set -d level` and
+`HIBR_LOGLEVEL` are three ways to say it, and a prefix
+(`HIBR_LOGLEVEL=debug cmd`) raises it for one command. A value that is not a
+level is refused and the level stays:
+
+```sh
+echo "$HIBR_LOGLEVEL"
+set -d info
+echo "$HIBR_LOGLEVEL"
+HIBR_LOGLEVEL=loud
+echo "still $HIBR_LOGLEVEL"
+```
+
+```output
+warning
+hibr: log level info
+info
+hibr: HIBR_LOGLEVEL: loud is not a level: error, warning, info, debug, trace, or 0 to 4
+still info
+```
+
+Under `set -o logtime` a line below `error` carries its level after `hibr:`,
+so a warning in a log is never read as an error, and a line that repeats
+from one place is written once and then counted. `HIBR_DEBUG`, which the
+level replaced in 0.99.557, is no longer read.
 
 **Special variables.** `$@ $* $# $? $$ $! $- $0–$9 $RANDOM $SECONDS $EPOCHSECONDS
 $EPOCHREALTIME $LINENO $PPID $UID $EUID $HOSTNAME $OSTYPE $HOSTTYPE $MACHTYPE
@@ -154,8 +187,9 @@ esac
 running a script
 ```
 
-hibr's letters are its own options, so there is no `h` or `B` in them: bash
-reports those because it has options to turn them off and hibr has not. `$HIBR_VERSION` holds the version and nothing else does, so it is
+`h` and `B` are always among them, as bash reports them by default: hibr
+always remembers commands and always expands braces, and takes `-h` and `-B`
+as options that are already on. `$HIBR_VERSION` holds the version and nothing else does, so it is
 the way to ask which shell is running. It is set at startup over anything
 inherited, so a planted `HIBR_VERSION` in the environment cannot claim a shell
 is hibr when it is not, and it is not exported, so a child shell does not
@@ -363,11 +397,11 @@ One syntax serves two purposes, so there is a rule:
 
 | subscript | read as |
 |---|---|
-| all digits — `a[2]` | the literal key `2` |
+| all digits — `a[2]` | the literal key `2`, leading zeros and all: `a[010]` is the key `010`, where bash reads 8 ([0006](adr/0006-arrays-are-sparse-maps.md#amendment--a-leading-zero-is-part-of-the-key)) |
 | contains an operator — `a[i+1]` | arithmetic |
 | a bare name — `cfg[host]` | its value when that is a number, the literal key otherwise |
 | **quoted** — `h["content-type"]` | **always the literal key** |
-| negative — `a[-1]` | counted back from the highest key |
+| negative — `a[-1]` | counted back from the highest key; on a scalar, bash's `bad array subscript` |
 | any subscript of an array made with `declare -A` | the literal key, after expansion, as in bash |
 
 The quoted form is the escape hatch, and it is the one quoting already implies

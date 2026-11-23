@@ -1,9 +1,8 @@
 # Builtins
 
-Every builtin the shell carries, seventy-seven of them, and the ones its
-modules add, listed under [Modules](#modules). `help` lists the shell's own
-set at runtime, `mod avail` names each module's, and `type name` says what a
-name resolves to.
+Every builtin the shell carries, and the ones its modules add, listed under
+[Modules](#modules). `help` lists the shell's own set at runtime, `mod avail`
+names each module's, and `type name` says what a name resolves to.
 
 Builtins marked **[hibr]** have no bash equivalent, or differ from it on
 purpose. Everything else behaves as bash does unless the entry says otherwise.
@@ -108,7 +107,7 @@ hibr: source: /dev/tcp/example.com/80: No such file or directory
 | `export [-p] [-n] [name[=v]…]` | mark variables for export; `-p` lists them; `-n` takes them out of the environment and keeps their values |
 | `unset [-f\|-v] [-n] [--] name…` | remove variables, array elements or functions: `-v` only a variable, `-f` only a function, and with neither the variable, or the function when no variable has that name -- never both; a nameref is followed to what it names, and `-n` removes the nameref itself (and nothing, for a name that is not one); a readonly variable is refused with status 1, and so is a name that is not an identifier under `-v`, as in bash |
 | | `unset a[1]`, `a[-1]` and `h["a-b"]` all reach what they name |
-| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line: `-e` errexit, `-f` noglob (a word with pattern characters stays the word), `-u` nounset, `-x` xtrace, `-C` noclobber, `-H` histexpand, `-S` strict, `-n` noexec, `-a` allexport (every variable assigned is exported), and `-B`, `-h` accepted as always on; an `o` in a bundle takes the next word (`set -eo nounset`), and `set -` alone ends the options and turns xtrace off |
+| `set [-/+flags] [--] [args…]` | set options, or replace the positional parameters; letters bundle (`set -ex`) and `hibr` takes the same ones on its command line: `-e` errexit, `-f` noglob (a word with pattern characters stays the word), `-u` nounset, `-x` xtrace, `-C` noclobber, `-H` histexpand, `-S` strict, `-n` noexec, `-a` allexport (every variable assigned is exported), and `-B`, `-h` accepted as always on; **[hibr]** `-d level` sets the log level, the same setting as `HIBR_LOGLEVEL` (see [the language guide](language.md#everything-you-expect-from-a-shell)); an `o` in a bundle takes the next word (`set -eo nounset`), and `set -` alone ends the options and turns xtrace off |
 | `set` | list every variable, then every function, in a form that reads back in |
 | `set -o` / `set +o` | every option as a table, or as the `set -o`/`set +o` lines that put it back |
 | `shopt [-s\|-u\|-q\|-p] [name…]` | read or set shell options; `-p` prints the `shopt -s`/`-u` lines that put them back |
@@ -292,6 +291,7 @@ echo "$sum"
 | `fg [%job]` / `bg [%job]` | resume a job in the foreground or background |
 | `wait [%job\|pid ...]` | wait for jobs to finish: with none, for all of them, answering 0; with several, for each, answering the last one's status; 127 for a pid that is not a child; a trapped signal ends the wait with 128 plus its number |
 | `wait -n [-p var]` | wait for the next one, and name which it was |
+| `wait -p var pid…` | wait for every one, answering the last one's status, and name the last in `var`, as bash does |
 | `kill [-sig\|-s sig\|-n num] %job\|pid` | signal a job or process; `kill -l` lists the signals (the real-time ones bash also lists are left out), `kill -l 9` and `kill -l TERM` translate, and an exit status above 128 names its signal |
 | `disown [%job]` | forget a job without signalling it |
 | `coproc [name] cmd args…` | **[hibr]** run a command as a coprocess, a background job the shell reaps; the first word is a name only when the word after it is a command, so `coproc ls -l` is `ls` |
@@ -480,7 +480,7 @@ inside a function or a `try` it returns 2 —
 | `pim ics events\|expand\|build\|reply\|vtimezone ...`, `pim vcf cards\|build ...` | **[module]** calendars and contacts: iCalendar and vCard read and written, recurring events expanded into their occurrences, invitations answered — see [mods/pim](../mods/pim/README.md) |
 | `hcal list\|date\|greg\|month\|name\|info [-c cal] [-a days] ...` | **[module]** calendar systems as data: the Hijri date of a day in Umm al-Qura or a tabular calendar, and back, adjusted by whole days for local sighting; calendars are JSON files in a folder, so another can be added -- see [mods/hcal](../mods/hcal/README.md) |
 | `salat list\|times\|info [-m method] [-a shafi\|hanafi] [-r middle\|seventh\|angle] [-j minutes] lat lon [date]` | **[module]** prayer times for a place and day: the sun's place computed, the method's angles and offsets read from a JSON file in a folder, so another method can be added -- see [mods/salat](../mods/salat/README.md) |
-| `archive open\|close\|list\|ls\|stat\|cat ...` | **[module]** a tarball as a folder: `.tar` and `.tar.gz` read (never written), the index taken at open, and `/dev/archive/NAME/path` a filename anywhere one goes -- see [mods/archive](../mods/archive/README.md) |
+| `archive open\|close\|list\|ls\|stat\|cat\|extract\|create ...` | **[module]** an archive as a folder: a `.tar` or `.tar.gz`, a zip (stored or deflated) or an ISO 9660 disc image (Rock Ridge and Joliet names, a CUE sheet's data track) read, the index taken at open, and `/dev/archive/NAME/path` a filename anywhere one goes; `extract` unpacks one, refusing the whole of it when any name would land outside the folder, and `create` writes a tar, or with `-z` a `.tar.gz` -- see [mods/archive](../mods/archive/README.md) |
 | `vwk hash\|open\|dec\|enc\|session\|pin\|totp\|form\|lock\|state\|idle ...` | **[module]** a Bitwarden vault's keys and crypto, in memory only, never printed: the master password's KDF, the account key, EncStrings, session and PIN wrapping, TOTP; libcrypto loaded at run time. The `vw` command is built on it -- see [mods/vw](../mods/vw/README.md) |
 | `email account set\|mv\|rm ...`, `email accounts\|open\|close\|folders\|select\|headers\|fetch\|store\|label\|move\|idle\|list\|delete\|send\|parse\|part\|build ...` | **[module]** mail: IMAP with IDLE and Gmail's labels, POP3, SMTP, accounts in a private file, and MIME decoding and building — see [mods/email](../mods/email/README.md) |
 | `ls [-laAhtSrd1FGq] [path…]` | **[module]** `ls` in this process, with columns, `-l`, sorting and colour; the names also land in `$RET` |
@@ -500,6 +500,10 @@ inside a function or a `try` it returns 2 —
 | `csv read\|split\|line\|open\|row\|close ...` | **[module]** CSV as RFC 4180 says, read whole into a map or a row at a time |
 | `db create\|open\|insert\|import\|query\|count\|sum\|min\|max\|avg\|set\|update\|delete\|compact ...` | **[module]** a small column store: typed columns in one file, filters and aggregates over zone maps — see [mods/db](../mods/db/README.md) |
 | `lines show\|grep\|count\|edit ...` | **[module]** files by line: slices, tree search and exact multi-line edits |
+| `inspect functions\|calls\|refs\|vars\|check [-j] FILE ...` | **[module]** what a script defines, calls, names and reads, as records with their exact place in the source, from the parser's own view and without running anything -- see [Source inspection](inspect.md) |
+| `dirwatch add PATH\|drop N\|fd\|read\|list` | **[module]** folders and files watched by the kernel (inotify, Linux only): one descriptor to wait on, and `read` names each watch something happened under, once |
+| `varwatch add\|drop NAME...`, `varwatch seq\|moved\|list\|guard on\|off\|apply on\|off` | **[module]** which watched variables changed, told by the variable table itself, for sharing state between processes; `guard on` makes them read only -- see [mods/README.md](../mods/README.md) |
+| `zygote pair\|send\|recv\|close\|fork\|reaped\|kids\|end ...` | **[module]** a prepared process's fork, and messages carrying descriptors: what the desktop's host for app processes needs and a script cannot do -- see [mods/README.md](../mods/README.md) |
 | `copy run [-m] [-i ms] [-s statusfile] [-k stopfile] dst src...`, `copy rename dst src...` | **[module]** copy, or with `-m` move, trees into the folder `dst`, each item written under a hidden `.hibr-part` name and renamed when whole; progress goes to a one-line status file and a stop file appearing ends it cleanly. `copy rename` does only the moves that are a rename and answers the rest. Files' copy window runs it as a job — see [mods/README.md](../mods/README.md) |
 | `proctab` | **[module]** every process under `/proc` in one call, `pid utime stime uid rss name` a line; fails where there is no `/proc` |
 | `frames serve\|place\|input\|info\|stop\|list\|events\|window\|quit ...` | **[module]** a socket that speaks Blit's frame wire to a program drawing into buffers: `serve` answers `N SOCKET TOKEN` for its `BLIT_FRAME_SOCKET` and `BLIT_FRAME_TOKEN`, `place N PANE ROW COL H W`, from a window's drawing, keeps its picture there, and `input N on\|off`, from its `_focus`, turns the program's input route at Blit on and off (a route is a socket Blit writes to, `INPUT sock`; the gamescope bridge's EIS route went with it in 0.99.483); frames by dmabuf pass to every display without a pixel being read (Gitea #486). `serve -w [-n NAME -t TOKEN]` is a socket for a compositor's windows (blit-compositor, Blit ADR 0228, Gitea #494): each window it opens is a number of its own that `place`, `input` and `info` take like a single picture's; `events N` hands over what it has said since last asked, a line each (`display`, `new`, `popup`, `title`, `appid`, `limits`, `decor`, `fullscreen`, `maximize`, `minimize`, `hide`, `parent`, `cursor`, `gone`), `window W size PW PH [states]\|close\|output PW PH MHZ` tells it, `input W member P X Y` joins a popup's or a subsurface's picture to its window's input route, `clip N offer\|clear\|get clipboard\|primary [-s] [TEXT]` is the desktop's side of the clipboard with the programs, `clip N drag\|drop WIN X Y PATH...` and `clip N leave` offer files dragged over or let go on a program's window (Blit 0.3.114, 0.3.118) as a uri-list it may read as often as it asks, its answers coming as `clip hover SEQ copy\|none` and `clip drop SEQ taken\|refused`, and `clip N odrag\|odrop\|oleave\|oread\|oend` carry a program's own drag out (Blit 0.3.120; news `clip dragout`, `clip odata`, `clip dragclear`), and `quit N` ends it. The news also has `sub` (a subsurface, placed by `place` with its window's body), `geometry` (the window within its buffer, which its picture is cut to), `move`, `resize` and `menu` (its own title bar asking), and `clip` (a program's selection) |
@@ -532,8 +536,8 @@ A module already loaded is already a builtin and shadows PATH whatever this
 says: that is what `mod load` means, and the setting governs *autoloading*.
 `before` keeps an index of every builtin the module path declares, built once
 on first use, because finding one otherwise means opening every candidate
-module (about 4 ms for the 40 a build carries, on 0.99.416) and `before` is asked on every command that is
-not a builtin or a function. A `--plan` run never autoloads; `mod find` is
+module, and `before` is asked on every command that is not a builtin or a
+function. A `--plan` run never autoloads; `mod find` is
 still there to do it by hand.
 
 ## Interactive
