@@ -10,7 +10,7 @@ since 0.99.363 is the fetch module's HTTP client underneath.
 ```text
 vw server URL [-k]          the server: https://vault.example.com (-k: its
                             certificate is not checked)
-vw login EMAIL              log in, sync, and unlock
+vw login EMAIL [--recovery] log in, sync, and unlock
 vw unlock [--pin]           unlock -- offline, from the vault kept here
 vw lock                     forget the key
 vw sync                     fetch the vault again
@@ -117,7 +117,7 @@ needs both.
 A window of the desktop's own with a sign-in form fills the same way
 (Gitea #474): its app answers `<app>_signin ID` with the host the form is
 for, and takes the chosen login in `<app>_signfill ID USER PASS`. The
-desktop does the rest -- Fill Sign-In (mod-l, and a row on the Edit menu of
+desktop does the rest -- Fill Sign-In (alt-l, and a row on the Edit menu of
 such a window), and `dt_signmark ID ROW COL`, a key mark the form draws
 beside its password field, which a click on fills it. The Server dialog and
 Mail's account dialog are the two so far.

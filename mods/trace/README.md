@@ -81,7 +81,7 @@ sockets, and everything above it is text handling that hibr does in-process
 anyway.
 
 Places come from `/usr/share/zoneinfo/zone1970.tab` — public domain, already on
-every Unix, 312 coordinates — so there is no geolocation database to ship, pay
+every Unix — so there is no geolocation database to ship, pay
 for, or watch go stale. A hop is placed when its reverse DNS carries a city
 name or an airport code, which is how backbone routers are usually named.
 

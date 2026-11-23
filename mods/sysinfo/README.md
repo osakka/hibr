@@ -54,7 +54,7 @@ quietly go stale.
 
 ## Pictures
 
-Fifteen: Arch, Ubuntu, Fedora, Mint, openSUSE, Gentoo, NixOS, Void, RHEL and
+Arch, Ubuntu, Fedora, Mint, openSUSE, Gentoo, NixOS, Void, RHEL and
 CentOS, FreeBSD, Debian and Raspbian, Alpine, CIX, macOS, and hibr's own.
 macOS has no `/etc/os-release`, so a Darwin kernel picks its picture from
 `uname`.
@@ -66,7 +66,7 @@ get RHEL's, and Raspbian gets Debian's, without any of them needing one of
 their own. hibr's own picture is the fallback for a system that says nothing
 either way.
 
-`-l name` forces one, which exists so the other fourteen can be tested on a
+`-l name` forces one, which exists so the others can be tested on a
 machine that is only ever one distribution. It is not a normal way to run it:
 a CIX picture beside `OS: Debian GNU/Linux` is not a thing that should happen.
 The desktop's About window did exactly that until 0.99.116 -- `-l hibr`, so
@@ -74,8 +74,9 @@ every machine showed hibr's picture beside its own name -- and now passes no
 `-l` at all. Reported as "show the actual operating system sysinfo"
 (Gitea #139).
 
-`tests/sysinfo-id.c` checks the identification directly — 21 cases including
-every derivative above and three that should fall through to hibr — because
+`tests/sysinfo-id.c` (built and run by `tests/710-sysinfo-id.t`) checks the
+identification directly — every derivative above, and three that should fall
+through to hibr — because
 that logic is what makes a host show the right picture and it is easy to break
 quietly.
 

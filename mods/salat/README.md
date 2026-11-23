@@ -51,8 +51,8 @@ Diyanet (approximate), with the parameters adhan-js gives them.
 ## Checked
 
 `tests/salat_adhan.py` compares every bundled method with adhan-js, an
-independent implementation, at sixteen places from the equator to inside
-the Arctic circle on every third day of a year, with both Asr schools:
+independent implementation, at places from the equator to inside the
+Arctic circle on every third day of a year, with both Asr schools:
 every time to the minute, and a missing time where adhan-js has none. It
 skips without node and adhan-js (`npm install --prefix
 ~/.cache/hibr/adhan adhan@4`). `tests/999-salat.t` records the command.

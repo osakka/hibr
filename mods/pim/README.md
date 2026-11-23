@@ -31,14 +31,26 @@ item; with it, the maps below.
 `summary`, `location`, `description`, `status`, `start`, `end` (DTEND, or
 DTSTART plus DURATION, or DUE for a task), `allday`, `tzid`, `rrule`,
 `exdate` and `rdate` (instants, space-separated), `recurid` for an override,
-`seq`, `org` and `orgname`, `att[j]` with `addr`, `name`, `partstat`,
+`completed` (an instant), `transp`, `class`, `url`, `categories`,
+`priority`, `percent` (PERCENT-COMPLETE), `color`, `seq`, `org` and
+`orgname`, `att[j]` with `addr`, `name`, `partstat`,
 `role` and `rsvp`, and `alarm[j]` with `trigger` (seconds from the start,
 negative before it), `action` and `desc`. Text is unescaped and unfolded.
 `PIM_METHOD` is the calendar's METHOD: REQUEST, REPLY or CANCEL for an
 invitation, empty otherwise.
 
-```text
-$ pim ics events standup.ics
+<!-- setup
+printf '%s\r\n' BEGIN:VCALENDAR VERSION:2.0 PRODID:-//example//EN BEGIN:VEVENT UID:standup-1 \
+  'DTSTART;TZID=Europe/London:20261005T090000' 'DTEND;TZID=Europe/London:20261005T091500' \
+  'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=6' 'EXDATE;TZID=Europe/London:20261007T090000' \
+  SUMMARY:Stand-up END:VEVENT END:VCALENDAR > standup.ics
+-->
+```sh
+need pim
+pim ics events standup.ics
+```
+
+```output
 VEVENT	1791187200	1791188100	0	Stand-up
 ```
 
@@ -54,7 +66,23 @@ would have had), `item` (its event's number in `pim ics events`), `uid`,
 A rule given `DTSTART;TZID=Europe/London:20261005T090000`,
 `RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=6` and one EXDATE (the 7th):
 
-```text
+<!-- setup
+printf '%s\r\n' BEGIN:VCALENDAR VERSION:2.0 PRODID:-//example//EN BEGIN:VEVENT UID:standup-1 \
+  'DTSTART;TZID=Europe/London:20261005T090000' 'DTEND;TZID=Europe/London:20261005T091500' \
+  'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=6' 'EXDATE;TZID=Europe/London:20261007T090000' \
+  SUMMARY:Stand-up END:VEVENT END:VCALENDAR > standup.ics
+-->
+```sh
+need pim
+from=$(pim when epoch 2026 10 1 -z Europe/London)
+to=$(pim when epoch 2026 11 1 -z Europe/London)
+r := pim ics expand standup.ics "$from" "$to"
+for i in "${!r[@]}"; do
+  TZ=Europe/London printf '%(%a %d %b %H:%M)T  %s\n' "${r[$i]["start"]}" "${r[$i]["summary"]}"
+done
+```
+
+```output
 Mon 05 Oct 09:00  Stand-up
 Fri 09 Oct 09:00  Stand-up
 Mon 12 Oct 09:00  Stand-up
@@ -74,7 +102,7 @@ walk is bounded: `PM_MAXSTEPS` periods and `PM_MAXINST` occurrences.
 
 `tests/pim_rrule.py` expands every example in RFC 5545 section 3.8.5.3, and
 some daylight saving edges, and compares each occurrence with what
-python-dateutil makes of the same rule: 46 of 46. dateutil's answers are
+python-dateutil makes of the same rule, and agrees on every one. dateutil's answers are
 kept in `tests/pim/rrule.txt`, so the suite runs without it; `--regen`
 writes them again where it is installed.
 
@@ -127,7 +155,7 @@ system does not know is refused.
 
 `pim vcf cards` gives, for each card: `uid`, `fn`, `given` and `family`
 (from N), `nick`, `org`, `title`, `bday`, `note`, `url`, `version`,
-`categories`, `photo` (1 when it has one; the picture itself is not
+`categories`, `rev`, `photo` (1 when it has one; the picture itself is not
 copied out), and lists `email[j]`, `tel[j]` and `adr[j]`, each with `v` and
 `type` (every TYPE, lower case, comma-joined). It reads 3.0's groups
 (`item1.EMAIL`), 2.1's bare types (`EMAIL;WORK;INTERNET:`) and
@@ -140,9 +168,15 @@ or 4.0 with `-V 4.0`, from `-u` uid, `-f` full name, `-n "family;given"`,
 (each repeatable), `-o`, `-T` title, `-b` birthday, `-N` note, `-U` url,
 `-k` nickname and `-C` categories.
 
-```text
-$ pim vcf build ana.vcf -u ana-1 -f "Ana Smith" -n "Smith;Ana" -e "ana@example.org;work" -t "+44 20 7946 0000;cell"
-$ cat ana.vcf
+```sh
+need pim
+pim vcf build ana.vcf -u ana-1 -f "Ana Smith" -n "Smith;Ana" -e "ana@example.org;work" -t "+44 20 7946 0000;cell"
+tr -d '\r' < ana.vcf       # its lines end in CRLF
+c := pim vcf cards ana.vcf
+echo "${c[0]["fn"]} <${c[0]["email"][0]["v"]}> (${c[0]["email"][0]["type"]})"
+```
+
+```output
 BEGIN:VCARD
 VERSION:3.0
 PRODID:-//hibr//pim//EN
@@ -152,8 +186,6 @@ N:Smith;Ana;;;
 EMAIL;TYPE=work:ana@example.org
 TEL;TYPE=cell:+44 20 7946 0000
 END:VCARD
-$ c := pim vcf cards ana.vcf
-$ echo "${c[0]["fn"]} <${c[0]["email"][0]["v"]}> (${c[0]["email"][0]["type"]})"
 Ana Smith <ana@example.org> (work)
 ```
 

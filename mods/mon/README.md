@@ -16,6 +16,7 @@ sorted heaviest first, or by size with `m` (`c` goes back to processor).
 | `mn.h` | one reading of the machine |
 | `sample.c` | reading `/proc`, and turning counters into rates |
 | `mon.c` | bars, histories and the loop |
+| `../procs.c` | the process table's one reader, shared with `proctab` (Task Manager's scan) |
 
 ## Everything in /proc is a counter
 
@@ -28,9 +29,10 @@ second shows everything.
 **The field offsets in `/proc/[pid]/stat` are the trap.** Field three is the
 process state and it is a *letter*, so a loop that skips fields by reading
 numbers never gets past it and every later field is wrong — quietly, as zero.
-Every process reporting 0.0% and 0 bytes is what that looks like. The order is:
-skip the state, then ten numbers, then `utime` and `stime`, then eight more,
-then `rss` in pages.
+Every process reporting 0.0% is what that looks like. The order is:
+skip the state, then ten numbers, then `utime` and `stime`. The resident size
+is not taken from `stat`, whose `rss` proc(5) calls inaccurate, but from
+`VmRSS` in `/proc/[pid]/status`, in kB -- none at all for a kernel thread.
 
 The other trap is the command name. It is in brackets and may itself contain
 brackets and spaces, so it is found from the *last* `)` in the line, never the

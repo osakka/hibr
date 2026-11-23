@@ -73,5 +73,5 @@ scrolling back needs it; what has not is not waited for.
 `tests/most.py`, through a pseudo terminal. It reassembles the screen from the
 escape stream rather than grepping it — the display sends only the cells
 that changed, so a search of the raw bytes finds `78-200/200` where the display
-reads `178-200/200`. Twenty-three checks; the one worth keeping is that `seq | most`
-pages correctly, because that is the shape real use takes.
+reads `178-200/200`. The check worth keeping is that `seq | most` pages
+correctly, because that is the shape real use takes.

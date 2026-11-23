@@ -8,8 +8,14 @@ and weights, over a half-block picture of its backgrounds and images.
 browsh had the idea; this is the same picture with no Go process and no
 WebSocket between.
 
+Two modules answer to `web`: this one, and hibr-browser's WebKit module,
+which offers the `web` interface and the same verbs. Where that is
+installed, a bare `web` and `need web` load WebKit (0.99.475; the rule is
+`need`'s, in [docs/modules.md](../../docs/modules.md)); `mod load web`
+names this one.
+
 ```text
-mod load web                    # or need web
+mod load web                    # or need web, without hibr-browser installed
 t := web open https://example.com
 web wait $t                     # until it has loaded (15 s at most)
 web title $t; web url $t
@@ -128,12 +134,15 @@ A dialog the page opens (`alert`, `confirm`) is accepted at once.
 
 ## Taking a page's media
 
-`web tap` is how the YouTube app plays YouTube: the page's own player
-fetches, at whatever quality it is told, and each chunk it appends to its
-media source is copied as it goes in -- ordinary fragmented MP4 or WebM,
-which the media module decodes (`media feed` and `media pipe`). Nothing
-about it is YouTube's: any page that plays through a media source can be
-taken from the same way.
+`web tap` was how the YouTube app played YouTube, until that app left the
+catalogue in 0.99.536 (its replacement, Video, plays through WebKit): the
+page's own player fetches, at whatever quality it is told, and each chunk
+it appends to its media source is copied as it goes in -- ordinary
+fragmented MP4 or WebM, which the media module decodes (`media feed` and
+`media pipe`). Nothing about it is YouTube's: any page that plays through a
+media source can be taken from the same way. Nothing in the catalogue uses
+it now, and no suite reaches `tap`, `take` or `tapseek` since
+`tests/youtube.py` went with the app.
 
 ## Where things are kept
 
@@ -210,8 +219,8 @@ Accepting a tab's capture of itself without asking would let any page
 take the pixels of whatever it frames, so every tab, from its opening and
 in every frame, has a page's own `getDisplayMedia` refused
 (`NotAllowedError`); only the module's script holds the real one. A tab
-the tap is installed in has every media element muted, so the YouTube
-player's own page stays silent at the browser. A tab neither recorded nor
+the tap is installed in has every media element muted, so a tapped page
+stays silent at the browser. A tab neither recorded nor
 tapped would play on the machine Chromium runs on: the Browser records
 every tab it opens.
 
@@ -229,7 +238,9 @@ every tab it opens.
 | `tap.c` | the tap that copies what a page appends to its media buffers, for the shell to take |
 
 `png.c` from the img module is built in as well (`WEB_SRC` in the Makefile):
-it decodes the screenshot the browser hands back as a PNG (`page.c`).
+it decodes the screenshot the browser hands back as a PNG (`page.c`). So
+are the shared `../b64.c`, which decodes what the browser sends in base64,
+and `../boxscale.c`, which `png.c` scales with.
 
 ## What it does not do
 
@@ -242,5 +253,5 @@ it decodes the screenshot the browser hands back as a PNG (`page.c`).
 - **No file uploads**, and no downloads unless `web downloads` gives them
   a folder. A page's video is the picture its frames are drawn from; its
   sound comes out only through `web sound` or the tap.
-- It loads only by name under `--plan`: a browser reaches the network,
-  which a plan refuses.
+- It is refused under `--plan`: a browser reaches the network, which a
+  plan refuses.
