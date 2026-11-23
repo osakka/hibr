@@ -206,6 +206,10 @@ fn dt_rvbind(int id) {
 fn dt_rvstashall(dir) {
 	local id c n=0 x
 
+	# A new restart asks its processes to stay, so an earlier one that
+	# failed (dt_rsuncarry) no longer makes this desktop refuse a rejoin
+	# as "not kept" -- which would end a process this restart keeps.
+	DT_RSNOTKEPT=
 	# Kept, or replaced: decided per process, by one rule (the owner,
 	# 2026-11-22) -- one whose code is what is on disk stays, its
 	# connection to join the desktop after the exec (`call SEQ - carry

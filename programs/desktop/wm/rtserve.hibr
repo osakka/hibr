@@ -862,14 +862,18 @@ dt_rtclose() {
 	local c
 
 	[ -n "$DT_RTLFD" ] || return 0
-	for c in "${!DT_RTC[@]}"; do
-		dt_rtdrop "$c" closing
-	done
+	# The listener goes first: a kept process told to join the restarted
+	# desktop reconnects at once, and one that reached this desktop before
+	# its exec was taken in and then cut off by it. With nothing listening
+	# its try is unanswered, and tried again until the new one listens.
 	command -v console > /dev/null && console unwatch "$DT_RTLFD" 2> /dev/null
 	exec {DT_RTLFD}>&-
 	DT_RTLFD=
 	[ -n "$DT_RTPATH" ] && command rm -f -- "$DT_RTPATH"
 	DT_RTPATH=
+	for c in "${!DT_RTC[@]}"; do
+		dt_rtdrop "$c" closing
+	done
 	return 0
 }
 
