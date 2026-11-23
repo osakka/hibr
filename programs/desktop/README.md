@@ -569,7 +569,7 @@ forms in unicode and nerd, the character and a space in ascii. A slider's
 parts are `slidercapl`, `sliderfill`, `sliderknob`, `slidertrack` and
 `slidercapr`, a fader's `fadercapt`, `fadertrack`, `faderknob`,
 `faderfill` and `fadercapb` (━ ● ─ and │ ● ┃, `= o -` and `: o |` in
-ascii, Blit's own pieces in blit), and a key cap's ends `keyl`, `keyr`,
+ascii, Blit's own pieces in blit) in the Classic Slider Style, and a key cap's ends `keyl`, `keyr`,
 `keypl` and `keypr`, which only the blit set fills.
 **blit** is for Blit's own Retro and Modern fonts (Gitea #330). Those carry
 the whole Nerd catalogue, so it is the nerd set, plus the colour icons Blit
@@ -598,6 +598,16 @@ onto a display beside it (Gitea #324).
 
 Checkboxes (Appearance > Controls > Checkboxes) are a box `[x]`, a knob,
 a block, or a tick `[✓]`, or what the theme suggests.
+
+Sliders and faders (Appearance > Controls > Slider Style, `DT_SLIDERSTYLE`)
+are Classic, Circle or Groove: the style chooses which family of their
+parts' glyphs is drawn, and the glyph set how each family looks -- Blit's
+own slider pieces of that family in the blit set, and in unicode and nerd
+━●─ (Classic), ╺━◉─╴ (Circle) or ╞═◆─┤ (Groove), with ascii's own of each.
+Every set fills `GL["<part>-<style>"]` for every style, and
+`dt_glyphstyles` (wm/glyphs.hibr) puts the chosen one's into the names a
+widget reads; a control is one entry of `DT_STYLED`, so another control's
+style is one more entry and one more row.
 
 ## The wallpaper
 

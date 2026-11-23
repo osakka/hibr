@@ -175,13 +175,18 @@ dt_bidion() {
 # What a batch of settings derives, rebuilt once it has arrived -- in the
 # desktop as it loads its settings, and in an app's own process as the
 # desktop sends them (ADR 0050): the glyph table from DT_GLYPHSET when the
-# set has moved since it was filled, and the language, once it has been put
+# set has moved since it was filled, each control's style (Slider Style,
+# dt_glyphstyles) when the set or a style has, and the language, once it has been put
 # into effect in this process, when the language, bidi or mirroring has
 # moved -- never on a batch that changed neither, or a focus change would
 # refill every app's table. One function for both ends, so
 # what is derived cannot differ between them.
 dt_derive() {
+	local sig
+
 	[ "$DT_GLYPHSET" = "${HIBR_GLYPHS-}" ] || dt_glyphs "$DT_GLYPHSET"
+	sig := dt_stylesig
+	[ "$sig" = "$DT_STYLESIG" ] || dt_glyphstyles
 	[ -n "$DT_LANGSIG" ] || return 0
 	[ "$DT_LANG|$DT_BIDI|$DT_MIRROR" = "$DT_LANGSIG" ] && return 0
 	dt_langapply

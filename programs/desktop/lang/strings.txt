@@ -1083,6 +1083,7 @@ Size: %s
 Skip
 Sleep
 Sleep, Restart, Shut Down
+Slider Style
 Small
 Small Icons
 Smallest Height

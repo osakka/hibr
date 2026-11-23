@@ -1,6 +1,6 @@
 {
  "dir": "rtl",
- "version": "3.99.21",
+ "version": "3.99.22",
  "language": "ar",
  "name": "العربية",
  "plural": "ar",
@@ -1262,6 +1262,7 @@
   "Shut down the computer?": "إيقاف تشغيل الحاسوب؟",
   "Sleep": "نوم",
   "Sleep, Restart, Shut Down": "النوم، إعادة التشغيل، الإيقاف",
+  "Slider Style": "نمط المنزلق",
   "The computer did not do it: logind refused": "لم يفعل الحاسوب ذلك: رفض logind",
   "This desktop is not the computer's own": "سطح المكتب هذا ليس سطح مكتب الحاسوب نفسه",
   "charging": "قيد الشحن",

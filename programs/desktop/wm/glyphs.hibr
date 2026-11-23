@@ -29,6 +29,20 @@ declare -gA GL
 declare -gA DT_FRAMES
 DT_GLYPHSET="${DT_GLYPHSET-unicode}"
 DT_GLYPHSETS=(unicode ascii nerd blit)
+# How a control is drawn, beside the glyph set: one kept setting per
+# control, each choosing a family of its parts, and the glyph set choosing
+# how every family is drawn -- one path, so a style is never a second set.
+# Every set fills GL["<part>-<style>"] for each style of each control, and
+# dt_glyphstyles puts the chosen style's into GL["<part>"], which is all a
+# widget reads. A control is one entry of DT_STYLED: its setting, the list
+# of its styles (the first the default, and what an unknown value draws),
+# then its parts. A part called <control>blit is filled only where Blit's
+# own piece of that style is in force (dt_trackcolours asks it).
+DT_SLIDERSTYLE="${DT_SLIDERSTYLE-classic}"
+DT_SLIDERSTYLES=(classic circle groove)
+declare -gA DT_STYLED
+DT_STYLED["slider"]="DT_SLIDERSTYLE DT_SLIDERSTYLES slidercapl slidertrack sliderfill sliderknob slidercapr fadercapt fadertrack faderfill faderknob fadercapb sliderblit"
+DT_STYLESIG="${DT_STYLESIG-}"
 # The window chrome's parts in Blit's Chalk and Slate glyph sets (Blit ADR
 # 0210), in Blit's own order: GL["chalk-<part>"] and GL["slate-<part>"].
 # Slate takes its colours from the cell, so a dark scheme makes it dark;
@@ -63,6 +77,8 @@ fn dt_glyphs(set = "unicode") {
 	# And a key cap's ends, raised and pressed (Blit 0.3.127): an icon
 	# button draws its bevel only while these are set (dt_button).
 	GL["keyl"]=; GL["keyr"]=; GL["keypl"]=; GL["keypr"]=
+	# And whether a slider's style is Blit's own piece, per style.
+	GL["sliderblit-classic"]=; GL["sliderblit-circle"]=; GL["sliderblit-groove"]=
 	# And the window chrome's frame, Chalk and Slate parts.
 	GL["chalk-check-on"]=; GL["chalk-check-off"]=; GL["slate-check-on"]=; GL["slate-check-off"]=
 	GL["capsule-on"]=; GL["capsule-off"]=
@@ -170,11 +186,20 @@ fn dt_glyphs(set = "unicode") {
 		GL["lcdcolon"]=": "; GL["lcdminus"]="- "; GL["lcdblank"]="  "
 		# A slider's parts, left to right -- its left end, the filled
 		# track, the knob, the track ahead, its right end -- and a
-		# fader's, top to bottom: dt_slider and dt_fader draw them.
-		GL["slidercapl"]="="; GL["sliderfill"]="="; GL["sliderknob"]="o"
-		GL["slidertrack"]="-"; GL["slidercapr"]="-"
-		GL["fadercapt"]=":"; GL["fadertrack"]=":"; GL["faderknob"]="o"
-		GL["faderfill"]="|"; GL["fadercapb"]="|"
+		# fader's, top to bottom: dt_slider and dt_fader draw them, in
+		# each Slider Style (DT_SLIDERSTYLE): classic, circle, groove.
+		GL["slidercapl-classic"]="="; GL["sliderfill-classic"]="="; GL["sliderknob-classic"]="o"
+		GL["slidertrack-classic"]="-"; GL["slidercapr-classic"]="-"
+		GL["fadercapt-classic"]=":"; GL["fadertrack-classic"]=":"; GL["faderknob-classic"]="o"
+		GL["faderfill-classic"]="|"; GL["fadercapb-classic"]="|"
+		GL["slidercapl-circle"]="("; GL["sliderfill-circle"]="="; GL["sliderknob-circle"]="O"
+		GL["slidertrack-circle"]="-"; GL["slidercapr-circle"]=")"
+		GL["fadercapt-circle"]="."; GL["fadertrack-circle"]=":"; GL["faderknob-circle"]="O"
+		GL["faderfill-circle"]="|"; GL["fadercapb-circle"]="'"
+		GL["slidercapl-groove"]="["; GL["sliderfill-groove"]="#"; GL["sliderknob-groove"]="H"
+		GL["slidertrack-groove"]="_"; GL["slidercapr-groove"]="]"
+		GL["fadercapt-groove"]="-"; GL["fadertrack-groove"]=":"; GL["faderknob-groove"]="="
+		GL["faderfill-groove"]="#"; GL["fadercapb-groove"]="-"
 		GL["reload"]="@"; GL["plus"]="+"; GL["larr"]="<"; GL["rarr"]=">"
 		GL["arrowup"]="^"; GL["hook"]=">"
 		GL["file"]="-"; GL["folder"]="+"; GL["bundle"]="#"
@@ -267,17 +292,41 @@ fn dt_glyphs(set = "unicode") {
 		GL["lcdcolon"]=$'：'  # FULLWIDTH COLON
 		GL["lcdminus"]=$'－'  # FULLWIDTH HYPHEN-MINUS
 		GL["lcdblank"]=$'　'  # IDEOGRAPHIC SPACE
-		# A slider's parts, left to right, and a fader's, top to bottom.
-		GL["slidercapl"]=$'━'   # BOX DRAWINGS HEAVY HORIZONTAL
-		GL["sliderfill"]=$'━'   # BOX DRAWINGS HEAVY HORIZONTAL
-		GL["sliderknob"]=$'●'   # BLACK CIRCLE
-		GL["slidertrack"]=$'─'  # BOX DRAWINGS LIGHT HORIZONTAL
-		GL["slidercapr"]=$'─'   # BOX DRAWINGS LIGHT HORIZONTAL
-		GL["fadercapt"]=$'│'    # BOX DRAWINGS LIGHT VERTICAL
-		GL["fadertrack"]=$'│'   # BOX DRAWINGS LIGHT VERTICAL
-		GL["faderknob"]=$'●'    # BLACK CIRCLE
-		GL["faderfill"]=$'┃'    # BOX DRAWINGS HEAVY VERTICAL
-		GL["fadercapb"]=$'┃'    # BOX DRAWINGS HEAVY VERTICAL
+		# A slider's parts, left to right, and a fader's, top to bottom,
+		# in each Slider Style. Classic: a heavy line filled, a light one
+		# ahead, a disc for the knob.
+		GL["slidercapl-classic"]=$'━'   # BOX DRAWINGS HEAVY HORIZONTAL
+		GL["sliderfill-classic"]=$'━'   # BOX DRAWINGS HEAVY HORIZONTAL
+		GL["sliderknob-classic"]=$'●'   # BLACK CIRCLE
+		GL["slidertrack-classic"]=$'─'  # BOX DRAWINGS LIGHT HORIZONTAL
+		GL["slidercapr-classic"]=$'─'   # BOX DRAWINGS LIGHT HORIZONTAL
+		GL["fadercapt-classic"]=$'│'    # BOX DRAWINGS LIGHT VERTICAL
+		GL["fadertrack-classic"]=$'│'   # BOX DRAWINGS LIGHT VERTICAL
+		GL["faderknob-classic"]=$'●'    # BLACK CIRCLE
+		GL["faderfill-classic"]=$'┃'    # BOX DRAWINGS HEAVY VERTICAL
+		GL["fadercapb-classic"]=$'┃'    # BOX DRAWINGS HEAVY VERTICAL
+		# Circle: the same lines tapered at each end, and a ringed knob.
+		GL["slidercapl-circle"]=$'╺'    # BOX DRAWINGS HEAVY RIGHT
+		GL["sliderfill-circle"]=$'━'    # BOX DRAWINGS HEAVY HORIZONTAL
+		GL["sliderknob-circle"]=$'◉'    # FISHEYE
+		GL["slidertrack-circle"]=$'─'   # BOX DRAWINGS LIGHT HORIZONTAL
+		GL["slidercapr-circle"]=$'╴'    # BOX DRAWINGS LIGHT LEFT
+		GL["fadercapt-circle"]=$'╷'     # BOX DRAWINGS LIGHT DOWN
+		GL["fadertrack-circle"]=$'│'    # BOX DRAWINGS LIGHT VERTICAL
+		GL["faderknob-circle"]=$'◉'     # FISHEYE
+		GL["faderfill-circle"]=$'┃'     # BOX DRAWINGS HEAVY VERTICAL
+		GL["fadercapb-circle"]=$'╹'     # BOX DRAWINGS HEAVY UP
+		# Groove: a double line filled in a closed channel, a diamond knob.
+		GL["slidercapl-groove"]=$'╞'    # BOX DRAWINGS VERTICAL SINGLE AND RIGHT DOUBLE
+		GL["sliderfill-groove"]=$'═'    # BOX DRAWINGS DOUBLE HORIZONTAL
+		GL["sliderknob-groove"]=$'◆'    # BLACK DIAMOND
+		GL["slidertrack-groove"]=$'─'   # BOX DRAWINGS LIGHT HORIZONTAL
+		GL["slidercapr-groove"]=$'┤'    # BOX DRAWINGS LIGHT VERTICAL AND LEFT
+		GL["fadercapt-groove"]=$'┬'     # BOX DRAWINGS LIGHT DOWN AND HORIZONTAL
+		GL["fadertrack-groove"]=$'│'    # BOX DRAWINGS LIGHT VERTICAL
+		GL["faderknob-groove"]=$'◆'     # BLACK DIAMOND
+		GL["faderfill-groove"]=$'║'     # BOX DRAWINGS DOUBLE VERTICAL
+		GL["fadercapb-groove"]=$'╨'     # BOX DRAWINGS UP DOUBLE AND HORIZONTAL SINGLE
 		GL["reload"]=$'\u21bb'  # CLOCKWISE OPEN CIRCLE ARROW
 		GL["plus"]="+"
 		GL["larr"]=$'\u2190'    # LEFTWARDS ARROW
@@ -355,6 +404,46 @@ fn dt_glyphs(set = "unicode") {
 	DT_FRAMES["rounded"]["tl"]=${GL["rtl"]}; DT_FRAMES["rounded"]["tr"]=${GL["rtr"]}
 	DT_FRAMES["rounded"]["bl"]=${GL["rbl"]}; DT_FRAMES["rounded"]["br"]=${GL["rbr"]}
 	DT_FRAMES["rounded"]["h"]=${GL["hline"]}; DT_FRAMES["rounded"]["v"]=${GL["vline"]}
+	dt_glyphstyles
+}
+
+# Each control's chosen style into the names a widget reads, from the set
+# just filled (DT_STYLED says what a control is). DT_STYLESIG remembers the
+# set and the styles this was done for, so dt_derive does it again only
+# when one of them has moved.
+dt_glyphstyles() {
+	local f p s v
+	local -a w
+
+	for f in "${!DT_STYLED[@]}"; do
+		read -ra w <<< "${DT_STYLED["$f"]}"
+		local -n sv=${w[0]} sl=${w[1]}
+		s=${sl[0]}
+		for v in "${sl[@]}"; do
+			[ "$v" = "$sv" ] && s=$v
+		done
+		unset -n sv sl
+		for p in "${w[@]:2}"; do
+			GL["$p"]=${GL["$p-$s"]-}
+		done
+	done
+	s := dt_stylesig
+	DT_STYLESIG=$s
+}
+
+# The set in force and every control's style setting as it stands: what
+# DT_STYLESIG is compared with.
+dt_stylesig() {
+	local f s=${HIBR_GLYPHS-}
+	local -a w
+
+	for f in "${!DT_STYLED[@]}"; do
+		read -ra w <<< "${DT_STYLED["$f"]}"
+		local -n sv=${w[0]}
+		s+="|$sv"
+		unset -n sv
+	done
+	ret "$s"
 }
 # The nerd set: unicode, with the names a Nerd Font has a real icon for --
 # folders and files, home, disks, the trash, marks and flags -- taken from
@@ -892,16 +981,41 @@ dt_glyphsblit() {
 	# A slider's and a fader's parts, which join edge to edge across
 	# cells, and a key cap's ends, raised and pressed (0.3.126, 0.3.127,
 	# Blit ADR 0237), each in the cell's own pens.
-	dt_bg slidercapl slider-cap-left
-	dt_bg sliderfill slider-track-filled
-	dt_bg sliderknob slider-knob
-	dt_bg slidertrack slider-track
-	dt_bg slidercapr slider-cap-right
-	dt_bg fadercapt fader-cap-top
-	dt_bg fadertrack fader-track
-	dt_bg faderknob fader-knob
-	dt_bg faderfill fader-track-filled
-	dt_bg fadercapb fader-cap-bottom
+	# In each Slider Style, Blit's own family of it (0.3.136), named by id:
+	# sliderblit-<style> is set only where this Blit has that family.
+	dt_bg slidercapl-classic slider-cap-left
+	dt_bg sliderfill-classic slider-track-filled
+	dt_bg sliderknob-classic slider-knob
+	dt_bg slidertrack-classic slider-track
+	dt_bg slidercapr-classic slider-cap-right
+	dt_bg fadercapt-classic fader-cap-top
+	dt_bg fadertrack-classic fader-track
+	dt_bg faderknob-classic fader-knob
+	dt_bg faderfill-classic fader-track-filled
+	dt_bg fadercapb-classic fader-cap-bottom
+	dt_bg sliderblit-classic slider-track
+	dt_bg slidercapl-circle slider-circle-cap-left
+	dt_bg sliderfill-circle slider-circle-track-filled
+	dt_bg sliderknob-circle slider-circle-knob
+	dt_bg slidertrack-circle slider-circle-track
+	dt_bg slidercapr-circle slider-circle-cap-right
+	dt_bg fadercapt-circle fader-circle-cap-top
+	dt_bg fadertrack-circle fader-circle-track
+	dt_bg faderknob-circle fader-circle-knob
+	dt_bg faderfill-circle fader-circle-track-filled
+	dt_bg fadercapb-circle fader-circle-cap-bottom
+	dt_bg sliderblit-circle slider-circle-track
+	dt_bg slidercapl-groove slider-groove-cap-left
+	dt_bg sliderfill-groove slider-groove-track-filled
+	dt_bg sliderknob-groove slider-groove-knob
+	dt_bg slidertrack-groove slider-groove-track
+	dt_bg slidercapr-groove slider-groove-cap-right
+	dt_bg fadercapt-groove fader-groove-cap-top
+	dt_bg fadertrack-groove fader-groove-track
+	dt_bg faderknob-groove fader-groove-knob
+	dt_bg faderfill-groove fader-groove-track-filled
+	dt_bg fadercapb-groove fader-groove-cap-bottom
+	dt_bg sliderblit-groove slider-groove-track
 	dt_bg keyl key-left
 	dt_bg keyr key-right
 	dt_bg keypl key-pressed-left

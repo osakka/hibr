@@ -1862,6 +1862,22 @@ check("button shadow is its own setting, on until switched off here",
 sc = cprun(reach("appearance", "Dialog Buttons") + [b"\x1b[C"])
 check("the dialog button style steps to brackets",
       "brackets" in brow(sc, "Dialog Buttons"), sc)
+sc = cprun(reach("appearance", "Slider Style"))
+check("Slider Style is a row of Controls, beside Dialog Buttons, starting Classic",
+      "Classic" in brow(sc, "Slider Style"), sc)
+sc = cprun(reach("appearance", "Slider Style") + [b"\x1b[C"])
+check("and it steps to Circle",
+      "Circle" in brow(sc, "Slider Style"), sc)
+# Chosen in Appearance, the style reaches a pane's own slider: back to the
+# picker, down to Desktop, and its Redraw Skip is drawn in groove.
+d = downs("desktop") - downs("appearance")
+sc = cprun(reach("appearance", "Slider Style") + [b"\x1b[C", b"\x1b[C", b"\t"] +
+           ([b"\x1b[B"] * d if d > 0 else [b"\x1b[A"] * -d) + [b"\x1b[C"])
+skiprow = sc.find("Redraw Skip")
+check("and a slider in another pane is then drawn in that style: groove's "
+      "diamond knob and closed channel",
+      skiprow is not None and "◆" in sc.row(skiprow[0]) and
+      "┤" in sc.row(skiprow[0]) and "●" not in sc.row(skiprow[0]), sc)
 
 # What a double click on a title bar does belongs with the Mouse.
 sc = cprun(reach("mouse", "Titlebar Click"))
@@ -6705,4 +6721,4 @@ os.rmdir(D)
 os.unlink(os.path.join(S, "session.hibr"))
 os.rmdir(S)
 
-report(834)
+report(838)

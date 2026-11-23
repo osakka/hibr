@@ -191,4 +191,57 @@ try:
     os.unlink(conf)
 except OSError:
     pass
-report(16)
+
+# Slider Style (DT_SLIDERSTYLE): each style a family of the parts' glyphs,
+# chosen through dt_set as the Control Panel row does, each drawn as the glyph
+# set draws it -- the unicode set's own, and Blit's family by id from the
+# tree's table. Classic is what every check above already drew.
+UNI = {"circle": ("╺━━━◉────╴", "╷││◉┃╹"),
+       "groove": ("╞═══◆────┤", "┬││◆║╨")}
+
+
+def gone(path):
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def styled(sc):
+    at = sc.find("@")
+    r, c = at if at else (0, 0)
+    return ("".join(cells(sc, r, c + 1, 10)),
+            "".join(sc.at(r + i, c + 13) for i in range(6)),
+            [sc.style(r, c + 1 + i)["fg"] for i in range(10)])
+
+
+for st, (s, f) in UNI.items():
+    conf = scratch("widgetroles-style.json")
+    got = styled(run(dict(ROLES, DT_CONF=conf), pre="dt_set DT_SLIDERSTYLE %s\n" % st))
+    check("Slider Style %s draws its own family in the unicode set, a slider and "
+          "a fader, the track ahead still in track" % st,
+          got == (s, f, ["#102030"] * 4 + ["#708090"] + ["#405060"] * 5), got)
+    gone(conf)
+for st in ("circle", "groove"):
+    conf = scratch("widgetroles-style.json")
+    got = styled(run(dict(ROLES, DT_GLYPHSET="blit", DT_CONF=conf),
+                     pre="dt_set DT_SLIDERSTYLE %s\n" % st))
+    s = "".join([bg("slider-%s-cap-left" % st)] + [bg("slider-%s-track-filled" % st)] * 3 +
+                [bg("slider-%s-knob" % st)] + [bg("slider-%s-track" % st)] * 4 +
+                [bg("slider-%s-cap-right" % st)])
+    f = "".join([bg("fader-%s-cap-top" % st)] + [bg("fader-%s-track" % st)] * 2 +
+                [bg("fader-%s-knob" % st)] + [bg("fader-%s-track-filled" % st),
+                                              bg("fader-%s-cap-bottom" % st)])
+    check("Slider Style %s in the blit set is Blit's %s family, slider and fader"
+          % (st, st), got[:2] == (s, f),
+          [[hex(ord(x)) for x in y] for y in got[:2]])
+    gone(conf)
+
+# Kept: chosen in one session, the next one draws it, the glyph set unmoved.
+conf = scratch("widgetroles-style.json")
+run({"DT_CONF": conf}, pre="dt_set DT_SLIDERSTYLE groove\n")
+got = styled(run({"DT_CONF": conf}))
+check("the Slider Style chosen is kept: the next session draws groove",
+      got[:2] == UNI["groove"], got)
+gone(conf)
+report(21)

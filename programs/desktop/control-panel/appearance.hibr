@@ -12,7 +12,7 @@
 strict
 
 
-app appearance "The Control Panel pane for how the desktop looks" 2.17.4
+app appearance "The Control Panel pane for how the desktop looks" 2.17.5
 command -v cp_pane > /dev/null && cp_pane appearance "Appearance" "◐"
 
 CP_THEME="${CP_THEME-classic}"
@@ -547,6 +547,11 @@ fn appearance_rows(int w) {
 	cp_choice "$w" "$n" "$DT_DLGBTN" cp_set_dlgbtn "${DT_DLGBTNS[@]}"
 	CP[$w][$n]["dims"] := dt_chromeoff "${DT_DLGBTNS[@]}"
 	CP[$w][$n]["vname"]=dt_chromename; n=$((n + 1))
+	v=${DT_SLIDERSTYLES[0]}
+	case " ${DT_SLIDERSTYLES[*]} " in *" $DT_SLIDERSTYLE "*) v=$DT_SLIDERSTYLE ;; esac
+	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Slider Style"; CP[$w][$n]["key"]=sliderstyle
+	cp_choice "$w" "$n" "$v" cp_set_sliderstyle "${DT_SLIDERSTYLES[@]}"
+	CP[$w][$n]["vname"]=cp_slidername; n=$((n + 1))
 	CP[$w][$n]["kind"]=set; CP[$w][$n]["text"]="Button Shadow"
 	CP[$w][$n]["wtype"]=bool
 	CP[$w][$n]["val"]=off; [ "$DT_BTNSHADOW" = 1 ] && CP[$w][$n]["val"]=on
@@ -608,6 +613,18 @@ fn appearance_do(int w, k, int dir) {
 
 
 fn cp_set_dlgbtn(int? id = "", value = "") { dt_set DT_DLGBTN "$value"; }
+
+# Slider Style's choices, as the row shows them and as DT_SLIDERSTYLE keeps
+# them (DT_SLIDERSTYLES, wm/glyphs.hibr): which family of glyphs a slider
+# and a fader are drawn with, each as the glyph set in force draws it.
+fn cp_slidername(v) {
+	case $v in
+	circle) ret "Circle" ;;
+	groove) ret "Groove" ;;
+	*) ret "Classic" ;;
+	esac
+}
+fn cp_set_sliderstyle(int? id = "", value = "") { dt_set DT_SLIDERSTYLE "$value"; }
 
 # Shadow Shape's choices, as the row shows them and as DT_SHADOWSHAPE keeps
 # them (Gitea #340).

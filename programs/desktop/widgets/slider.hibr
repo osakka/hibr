@@ -8,14 +8,16 @@ strict
 # The colours a slider's and a fader's parts are drawn in, "track fill
 # knob": the scheme's track, trackfill and knob where it gives them (Gitea
 # #604), and otherwise its dim colour, its accent and its ink -- but where
-# the track is Blit's own piece, which Blit draws at 38% of the cell's
-# colour so that a slider is one colour, lighter ahead of its knob (ADR
-# 0237), the track left out is the filled part's colour: the dim colour
-# drawn that faint all but vanished (1.5:1 against Pewter Dark's face).
+# the track is Blit's own piece (GL[sliderblit], set for the Slider Style
+# in force where Blit has its family), which Blit draws at 38% of the
+# cell's colour so that a slider is one colour, lighter ahead of its knob
+# (ADR 0237), the track left out is the filled part's colour: the dim
+# colour drawn that faint all but vanished (1.5:1 against Pewter Dark's
+# face).
 dt_trackcolours() {
 	local fi=${DT_TRACKFILL:-$DT_ACTIVE} tr=$DT_DIM
 
-	[ "${GL[slidertrack]}" != "${GL[hline]}" ] && tr=$fi
+	[ -n "${GL[sliderblit]-}" ] && tr=$fi
 	ret "${DT_TRACK:-$tr} $fi ${DT_KNOB:-$DT_INK}"
 }
 
@@ -23,7 +25,8 @@ dt_trackcolours() {
 # knob, the knob at the position value falls between min and max, the track
 # ahead and its right end, each in its own colour -- in the blit glyph set
 # Blit's own pieces, which join edge to edge across cells (Blit ADR 0237),
-# and elsewhere ━, ● and ─ (= o - in ascii). The knob at either end takes
+# and elsewhere ━, ● and ─ (= o - in ascii), in the family Slider Style
+# chose (DT_SLIDERSTYLE, wm/glyphs.hibr). The knob at either end takes
 # that end's cell, so the knob has w places and dt_slidepos is the exact
 # inverse. Arrow keys change it once the row is selected -- clicking
 # selects it, the same as a dropdown before it is opened. Drawn on the
