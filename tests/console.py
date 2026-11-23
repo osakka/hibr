@@ -20,15 +20,23 @@ if len(sys.argv) > 1:
 MOD = tree("build/mods/console.so")
 
 
-def run(script, feed=(), after=None, wait=2.5, rows=24, cols=80, caps=None):
-    """Run a script under a pty, optionally feeding keys, and return its output."""
+def run(script, feed=(), after=None, wait=2.5, rows=24, cols=80, caps=None, until=None):
+    """Run a script under a pty, optionally feeding keys, and return its output:
+    what came within wait seconds, or, given until (a pattern of bytes), once
+    that has come -- thirty seconds at most -- since a fixed wait is a bet on
+    how loaded the box is."""
     path = "/tmp/hibr-console-%d.hibr" % os.getpid()
     open(path, "w").write("mod load %s\n%s" % (MOD, script))
     t = Term(path, rows=rows, cols=cols, settle=0.4, caps=caps)
     t.keys(feed, settle=0.12, collect=0)
     if after:
         after(t)
-    t.collect(wait)
+    if until is None:
+        t.collect(wait)
+    else:
+        deadline = time.time() + 30
+        while not re.search(until, t.raw) and time.time() < deadline:
+            t.collect(0.1)
     t.close()
     os.unlink(path)
     return t.raw, t.status
@@ -704,7 +712,10 @@ MV = (MVWIN + 'console open\nconsole pen "#c0c0c8" "#203048"\n'
 
 
 def mvrun(caps, pre=""):
-    o, _ = run(MV.replace("@PRE@", pre), caps=caps)
+    # Waits for the R line: under the sanitizers and a full gate's load the
+    # script took past run()'s 2.5 s, and an empty answer read as the copy
+    # refused ('', 0) for two checks (0.99.558's asan --quick).
+    o, _ = run(MV.replace("@PRE@", pre), caps=caps, until=rb"R \d+ \w+")
     sc = Screen()
     sc.feed(o.decode("utf-8", "replace"))
     m = re.search(rb"R (\d+) (\w+)", o)
