@@ -19,9 +19,9 @@ catalogue install apps/
 
 A kind with a trailing slash is every entry of that kind, so
 `catalogue install themes/` is every theme and `catalogue install apps/` is a
-desktop. The twelve kinds are the scan roots the desktop reads, and three that are not: `apps`,
+desktop. Nine kinds are the scan roots the desktop reads, and four more are described below: `apps`,
 `system`, `control-panel`, `control-strip`, `menubar`, `savers`, `themes`,
-`colours`, `lang`, then `mods`, `cli` and `bundles`.
+`colours`, `lang`, then `mods`, `cli`, `lib` and `bundles`.
 
 The whole of it rests on one fact, which is why there is so little machinery
 here: **an app is a folder of plain files, and installing one is placing a
@@ -34,10 +34,10 @@ which is this program's specification.
 ## The catalogue
 
 `catalogue` fetches a catalogue — an **index** — over HTTPS, and defaults to the
-one at <https://osakka.github.io/hibr-apps>: some two dozen applications,
-each a hibr script, each with the description its own `app` line declares,
-beside Control Panel panes, menu bar items, strip modules, savers, themes,
-colour schemes, a language and the bundles that group them. It is a
+one at <https://osakka.github.io/hibr-apps>: applications, each a hibr
+script, each with the description its own `app` line declares, beside
+Control Panel panes, menu bar items, strip modules, savers, themes, colour
+schemes, a language, commands, libraries and the bundles that group them. It is a
 git repository ([osakka/hibr-apps](https://github.com/osakka/hibr-apps))
 served as a page, so it can be read in a browser before anything is fetched,
 and a bundle's address in it is relative — which means any copy of that one
@@ -82,8 +82,10 @@ After hibr itself is upgraded, the desktop runs `catalogue -j update` once,
 as a job, on its first start on the new version -- and only when you have
 installed something from the catalogue -- and tells you in one note what it
 updated, with Restart Desktop a click away. `-j update` answers one JSON
-line per thing done as it happens (`updated`, `replaced`, `shipped`,
-`kept`, `edited`, `yours`). An update of everything also looks for a copy
+line per thing done as it happens (`updated`, `replaced`, `changed`,
+`kept`, `shipped`, `edited`, `yours`). An update of everything keeps a
+copy you changed by hand since it was placed, and names it (`changed`);
+named on the command line, it is updated, since you asked. It also looks for a copy
 in your own scope that hides a newer one hibr ships: one it placed and
 nobody has changed since, with no window open, is removed and said so; one
 you edited, or a file it did not place, is only named, never touched.
@@ -137,7 +139,7 @@ two read as different programs.
 
 ## Where a file lands, and why yours wins
 
-Nine of the twelve kinds are places the **desktop** scans, each in four
+Nine of the kinds are places the **desktop** scans, each in four
 scopes, read in the order of [the table below](#one-copy-for-everybody):
 a folder of **yours** first, then the machine's, then the data folder the
 catalogue writes to, then the shipped copy:
@@ -159,7 +161,7 @@ of the same name, and `catalogue update` cannot overwrite your copy. That
 ordering is the whole protection for your own copy: the catalogue never
 writes in your folder, and nothing it places is read before it.
 
-The tenth is `mods`, and it belongs to the **shell** rather than the
+`mods` belongs to the **shell** rather than the
 desktop: a module lands in `$XDG_DATA_HOME/hibr/mods`, which a non-root
 shell searches when something asks for a module by name — `need NAME`,
 `mod load NAME`, `mod avail`. It is the one kind that is native code, so
@@ -175,7 +177,7 @@ left out of `list`. A module installed there is never loaded by a
 which is deliberate and is the subject of
 [ADR 0044](adr/0044-a-module-can-be-installed.md).
 
-The eleventh is `cli`, and it is a **command**: a script you run from a prompt or a
+`cli` is a **command**: a script you run from a prompt or a
 service, with no window, which an application is not. It lands in
 `$XDG_DATA_HOME/hibr/cli` (`$HIBR_SYSDIR/cli` with `--system`), a folder the desktop
 never reads, so it is never on a menu. Otherwise it is an ordinary script:
@@ -184,15 +186,27 @@ the index's signature are checked as for any other. Whatever runs it -- a
 launcher a package ships, a service -- looks in that folder. `longwire`, a VPN,
 publishes its node and its switchboard this way.
 
-The twelfth is `bundles`, and it is not a place at all: a bundle has no
+`lib` is a **library**: code several apps share and none of them owns,
+such as the video apps' core (0.99.526). It lands in
+`$XDG_DATA_HOME/hibr/lib` (`$HIBR_SYSDIR/lib` with `--system`), an app
+names it in its `# needs:` (`# needs: lib/videocore`), and the desktop
+sources it before the apps, so an app and its library installed together
+need no restart. Libraries are read in an order of their own: the ones hibr
+ships first, then `~/.config/hibr/lib`, the machine's and the data folder,
+the first copy of a name winning -- so a name hibr ships is always hibr's,
+and a copy of it anywhere else is not read at all. A file is a library
+only if it sets its own `*_LIBDONE=1` on a line of its own, which is what
+the desktop looks for.
+
+`bundles` is not a place at all: a bundle has no
 file of its own, only a list of other entries installed together. See
 [A bundle](#a-bundle).
 
-An entry's `kind` decides which of the twelve it goes to, and **the kind
+An entry's `kind` decides which of them it goes to, and **the kind
 decides the extension**: a theme is JSON, not a script
 ([ADR 0028](adr/0028-a-theme-is-data.md)), a translation catalogue is too
 ([ADR 0032](adr/0032-the-desktop-is-translated-at-its-widgets.md)), and a
-module is a `.so`. A kind that is not one of the twelve is refused rather
+module is a `.so`. A kind that is not one of these is refused rather
 than guessed at, and a bundle whose own extension is not its kind's is not
 placed as itself — it would be a file nothing ever reads.
 
@@ -248,7 +262,7 @@ Each refused outright rather than half-done, and each names what it found:
 - **a member whose path is absolute or climbs out of its own folder** —
   `../escaped.hibr` and `/etc/x` are both refused, naming the path;
 - **a symbolic link**, which a bundle has no business carrying;
-- **a part whose kind is not one of the twelve, or whose name is anything
+- **a part whose kind is not one of the kinds, or whose name is anything
   but a plain filename** — a part decides a destination;
 - **an entry whose own name is not a plain filename** — the name decides
   where the file lands, so `../../../climbed` is refused, and that one
@@ -347,7 +361,7 @@ read flat, and a **part** never carries one — a Control Panel pane is
 found by one flat scan, so a folder under `apps` is the app's alone.
 
 A `dir` decides a destination, so it is checked rather than trusted: a
-segment is letters, digits, dashes, underscores and spaces, which is
+segment is letters, digits, dashes, underscores, ampersands and spaces, which is
 what makes `Desk Accessories` a folder and `../../etc` not one. An index
 that says otherwise has the folder **dropped**, not the install refused —
 the entry is still a perfectly good app, and the worst that happens is
@@ -620,7 +634,7 @@ kind under another extension:
 }
 ```
 
-A part's `kind` must be one of the twelve and its own name a plain filename:
+A part's `kind` must be one of the kinds and its own name a plain filename:
 a part decides where a file lands, so the rules a path follows hold for the
 destination too. **Every part is fetched and verified before any is
 placed**, so an entry with one bad part installs nothing at all — not even
@@ -867,7 +881,7 @@ taken from a running desktop:
  [+] Bundles (4)                          │ apps/snake
  [-] Applications (3)                     │
  ├─ ✓ snake                   1.0   user  │ A snake that grows as it eats,
- ├─   retro_car               1.2         │ on a board of your window's own
+ ├─   bricks                  1.0         │ on a board of your window's own
  └─ ↻ mines                   1.1   user  │ size.
  [+] Control Strip (1)                    │
  [+] Themes (3)                           │

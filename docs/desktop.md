@@ -71,12 +71,14 @@ Choose **Catalogue** from the hibr menu.
 
 The Catalogue lists what there is to install -- applications, Control
 Panel panes, menu bar items, strip modules, screen savers, themes, colour
-schemes, languages, modules, and bundles that bring several of them at
+schemes, languages, modules, commands, libraries that several apps share,
+and bundles that bring several of them at
 once, such as Sound: the speaker on the bar and its pane -- each with a
 description and the version it is at. Pick one
 and press **Install**. Each of them but a module is a hibr script or a
 JSON file, so nothing is compiled and nothing needs root: it is put in a
-folder of yours that the desktop already reads.
+folder of yours that the desktop already reads -- or, for a command, one
+it never reads, since a command is run from a prompt and is not on a menu.
 
 The same catalogue is a command, for a shell with no desktop in it:
 
@@ -87,9 +89,9 @@ catalogue install mail snake
 ```
 
 ```text
-apps           contacts      Contacts                  1.8
-apps           calendar      Calendar                  1.9
-apps           mail          Mail                      2.3
+apps           mail          Mail                      2.5.6
+apps           calendar      Calendar                  1.9.4
+apps           contacts      Contacts                  1.8.3
 installed control-panel/mailset.hibr, which mail brings with it
 installed mail as /home/you/.local/share/hibr/apps/Internet/mail.hibr
 installed snake as /home/you/.local/share/hibr/apps/Games/snake.hibr
@@ -213,7 +215,8 @@ One thing waits for a restart: a program that is **already loaded** and
 then changes -- an update, or a copy of your own replacing it. Swapping
 it under its open windows is not safe, so it keeps running what it
 started with, the bar shows ↻ beside the bell, and a note names it;
-**Restart Desktop** on the hibr menu loads the new one and keeps your
+**Restart Desktop** on the hibr menu -- which reads *Restart Desktop to
+Update* while one is waiting -- loads the new one and keeps your
 windows.
 
 So nothing you write is ever overwritten by an install or an update.

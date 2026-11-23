@@ -150,7 +150,8 @@ the one before:
 2. **Snapping.** `dt_snap left|right|top|bottom|center` sets the focused
    window to that half, or centres it, on its own display -- the shape
    `dt_zoom` already has. Each is a `DT_KEYS` action with a default
-   (alt-arrows), and on the Window menu.
+   (alt-arrows; top and bottom moved to ctrl-alt in 0.99.265, when alt-up
+   and alt-down became zoom and minimise), and on the Window menu.
 3. **Virtual workspaces.** `DT[$id]["ws"]` and a current `DT_WS`; switching
    hides what is not on it with the mechanism `dt_min` uses, so a hidden
    window costs nothing. Three by default (`DT_WSN`), `DT_KEYS` for each and
@@ -161,8 +162,9 @@ the one before:
    menu's list are current-only; `dt_appwin` finds a once-app on another
    workspace and switches there rather than open a second; Task Manager's
    `dt_ids` lists all; `--resume` comes back on the workspace it left.
-   Open question for the owner: one workspace number for the whole desktop,
-   or one per display.
+   The open question -- one workspace number for the whole desktop, or one
+   per display -- was settled when it shipped in 0.83: one for the whole
+   desktop.
 4. **Tiling.** The model needs one thing it does not have: windows whose
    geometry the window manager owns. `DT[$id]["tiled"]`, a layout
    (master and stack first, grid second) re-applied on open, close and
@@ -276,8 +278,10 @@ back to hibr's own logo) -- a bitten-apple ASCII picture and an explicit
 `uname`'s own `sysname` says `Darwin`) are added, checked only by eye on
 this Linux machine with `sysinfo -l darwin`.
 
-Still open: `mods/prompt`'s own `/proc/meminfo`/`/proc/loadavg` reads have
-no Darwin equivalent and should report nothing rather than a wrong number.
+Still open: `mods/prompt`'s memory segment reads `/proc/meminfo`, which
+Darwin does not have, so there it shows nothing -- not a wrong number, but
+no number either: the prompt does not ask Darwin's own `host_statistics`,
+as `mods/darwin.c` does for Task Manager and About.
 Job control and the pty line editor are untested rather than known broken.
 The window title-bar centring bug (buttons pushed a centred title
 off-centre, reported from real use) and the redraw-skip slider's own
@@ -405,11 +409,11 @@ and `console hit row col`), the window manager itself
 Dragging, focus, minimise, zoom, close, tab cycling, and keys and clicks
 reaching the focused app all work.
 
-Step 4 is built too: `programs/desktop/desk-accessories/calc.hibr` and `programs/desktop/apps/files.hibr`,
+Step 4 is built too: `programs/desktop/apps/Accessories/calc.hibr` and `programs/desktop/apps/files.hibr`,
 each also a program on its own. The wheel now goes to the window under the
 pointer, and a click is reported in the coordinates the app draws in.
 
-Step 5 is built: `programs/desktop/apps/panel.hibr`, which changes the theme, the
+Step 5 is built: `programs/desktop/system/panel.hibr`, which changes the theme, the
 wallpaper and the refresh rate. The window manager grew a small surface for
 apps that manage other windows — `dt_ids`, `dt_title`, `dt_hidden`,
 `dt_raise` — so that one never reads `DT` directly.
@@ -417,8 +421,10 @@ apps that manage other windows — `dt_ids`, `dt_title`, `dt_hidden`,
 And a menu bar, System 7's: the hibr menu on the left, the active
 application's own menus beside it, the clock and the application menu on the
 right. An app declares menus with `<app>_menus`, the same prefix contract it
-declares `_draw` through. F10 or escape opens the bar; there are no modifier
-shortcuts, because ctrl collides with everything a terminal window will need.
+declares `_draw` through. F10 or escape opens the bar; there were no modifier
+shortcuts then, because ctrl collides with everything a terminal window will
+need. The alt shortcuts came later, every one changeable in Control Panel >
+Shortcuts, and a terminal window still passes ctrl keys to its program.
 
 **The terminal is built.** `mods/term/` parses what a program writes into
 cells and paints them into a window, and `programs/desktop/apps/term.hibr` is a shell
@@ -429,7 +435,7 @@ than Python, see below.
 
 **And three games**, because they were asked for and because each one tests
 something the other apps do not: `snake`, `mines` and `bricks` in
-`programs/desktop/apps/`. Two of them animate, which is what `$EPOCHREALTIME` (bash
+`programs/desktop/apps/Games/`. Two of them animate, which is what `$EPOCHREALTIME` (bash
 5's, now in the core) and `dt_want` (a window asking for its next frame
 sooner, for one frame only) are for. A frame with two windows costs 2.4 ms,
 so a game stepping every 60 ms costs about 4% of a core while it is played
@@ -446,7 +452,9 @@ until enter or escape gives them back, so the desktop can be arranged without
 a mouse.
 
 Not planned: transparency, sub-cell placement, or a widget toolkit before
-three apps have wanted the same widget.
+three apps have wanted the same widget. Two of those came once they were
+wanted: translucent windows and menus, and `programs/desktop/widgets/`, the
+widget library the apps draw with.
 
 ### Arithmetic and quoted subscripts — built
 
@@ -520,9 +528,9 @@ blocked on it. It was called `screen` until that turned out to shadow
 interface in `mods/display.h`, which a framebuffer or other backend could offer
 equally well without the tools noticing. It owns the terminal: alternate screen, a cell grid with two
 buffers and a redraw that emits only the difference, panes, colour, and keys
-decoded into names. 2095 bytes to paint an empty eighty by twenty-four screen,
-8 bytes to change one character on it, and nothing at all for a flush with
-nothing new.
+decoded into names. A blank first paint is one erase per row, a changed
+character costs a few bytes, and a flush with nothing new costs nothing at
+all.
 
 What it deliberately does not do is in
 [0019](adr/0019-the-console-display-assumes-xterm.md): no terminfo, no
@@ -534,9 +542,11 @@ in the same zero-based coordinates as `put`, so a click is a position. It is
 off until a program asks, because reporting takes the terminal's own text
 selection away from the person watching. The pager uses it for the wheel.
 
-Not there yet, and worth adding when something needs it: a scrolling region,
-so a pager can move a screenful without repainting it; and z-ordering for
-panes, which nothing has asked for.
+Not there when this was written, and both have come since: z-ordering for
+panes (`console pane raise|lower`, which the desktop is built on), and a way
+to move a band of the screen without repainting it -- the `"scroll"`
+interface beside `"display"` (0.99.323), which the terminal window uses. The
+pager does not use it yet.
 
 ### A system monitor — built
 
@@ -564,10 +574,10 @@ It follows the cat's rule rather than the monitor's: colour on a terminal and
 nothing at all in a pipe, so `sysinfo | mail` sends text. Everything comes from
 `/proc`, `uname` and `statvfs`, so it forks for nothing.
 
-Fourteen pictures, and a host shows **its own**: `ID` from `/etc/os-release`,
+A set of pictures, and a host shows **its own**: `ID` from `/etc/os-release`,
 then each word of `ID_LIKE`, which is how Mint gets Ubuntu's and Rocky gets
 RHEL's without needing their own. `tests/sysinfo-id.c` checks that chain
-directly over 21 identifications, because it is the part that decides whether
+directly over a list of identifications, because it is the part that decides whether
 the thing on screen is about the machine it is running on.
 
 ### Module autoloading — built
@@ -585,7 +595,7 @@ than naming a module that might not be the right one.
 
 ### A vi — built
 
-`mods/vi`, on the display interface.
+`mods/hvi`, on the display interface.
 
 The two hard calls the entry asked for are made and written down. **The buffer
 is a gap buffer**, not a piece table: a piece table earns its complexity by
@@ -684,9 +694,9 @@ be part of `prompt.so` or do without.
 
 **Why the full-screen suites are in Python, and the honest answer to it.**
 
-Most of the suite is already shell: 75 `.t` files compared against bash, and
-91 assertions in `tests/self.hibr` written in hibr. What is in Python is the
-nine suites that drive a *terminal* — the console, the line editor, the pager,
+Most of the suite is already shell: the `.t` files compared against bash or
+recorded, and the assertions in `tests/self.hibr` written in hibr. What is in
+Python is the suites that drive a *terminal* — the console, the line editor, the pager,
 the editor, the monitor, the traceroute, the cat, the window manager and its
 apps — and they are in Python for one reason, which is not a preference:
 
@@ -701,7 +711,7 @@ program on it with a session and a controlling terminal of its own, and lets
 a script write keys in, read output out, resize, signal and collect the exit
 status — and `tests/750-pty.t` is a *shell* test of terminal handling, run by
 `tests/run.sh` like anything else. What is left before the suites can move is
-the harness itself: a `Screen` equivalent in hibr, and the nine suites
+the harness itself: a `Screen` equivalent in hibr, and the full-screen suites
 rewritten against it.
 
 That capability is **already required** by the last step of
@@ -735,9 +745,9 @@ shipped in 0.50; see `tests/README.md`. What they left:
 
 `uifuzz` leaves out Task Manager, Files, Terminal and the Date & Time pane,
 because random input into them signals real processes, moves real files,
-types into a real shell and runs sudo. They are where fuzzing would find the
+types into a real shell and sets the system clock as root. They are where fuzzing would find the
 most. Doing it needs a sandbox that makes all four harmless -- its own pid
-namespace, a filesystem it cannot damage, no sudo -- and that is a decision
+namespace, a filesystem it cannot damage, no way to root -- and that is a decision
 about what the test machine allows, to be made before it is built.
 
 ## The language
@@ -754,7 +764,8 @@ read and fixed in 0.68, and a re-run on 0.74 found none -- 312 of 312
 invocations over 104 scripts agree (see `CLAUDE.md`'s open items). Keep driving it to zero for anything not deliberately
 different. The largest known one -- bash runs a script a command at a time
 as it reads it, where hibr parsed the whole script first -- is gone in
-0.60 (ADR 0026). And make each deliberate difference loud: a one-line
+0.60 (ADR 0026), and the core audit of 0.99.428 (Gitea #427) brought a long
+list more into line with bash, area by area -- the changelog has it. And make each deliberate difference loud: a one-line
 warning in agent mode the first time a script depends on bash behaviour hibr does
 not have, rather than a silently different result.
 
@@ -783,7 +794,8 @@ the first try, before and after.
 ### Measure the reference, and check the other pages the same way — built
 
 In 0.63. `tests/531-doc-examples.t` runs every example in `docs/llm.md`,
-`docs/cookbook.md` and `docs/data.md` on every build. `tools/llm-measure/`
+`docs/cookbook.md` and `docs/data.md` on every build -- every page under
+`docs/` since 0.99.138. `tools/llm-measure/`
 holds thirteen tasks and a scorer, and its first run
 (`runs/2026-10-01/RESULTS.md`) took Haiku 4.5 from 7/12 trap and 10/18
 feature tasks without the page to all of them with it, and Sonnet 5.5 from
@@ -793,11 +805,12 @@ fixed. What is left: a fresh set of tasks, since the fixes were made from
 these; and the one failure no page can prevent -- every script written
 without the page read `BASH_REMATCH`, 6 of 6, and got nothing. Filling
 `BASH_REMATCH` as well as `M` would make that work; ADR 0004 chose `M`
-alone, so it is a decision, not a fix.
+alone, so it was a decision, not a fix -- and 0.65 made it: `=~` fills
+`BASH_REMATCH` as well as `M`.
 
 ### A linter for the mistakes models make — built
 
-`hibr --explain script`, in 0.59, with its ten rules in `mods/lint/`. The
+`hibr --explain script`, in 0.59, with its rules in `mods/lint/`. The
 `set -e`-in-a-condition rule was left out: hibr's errexit already reaches
 inside those functions (ADR 0002), so there is nothing to warn about. What
 could come next: a rule for a quoted `"$@"` missing in a wrapper, and
@@ -814,7 +827,10 @@ refused program fails, so a plan stops where the script needed its result.
 What remains of the item below is the policy that runs for real; a shell-only
 version is a guard against mistakes, and a real boundary needs Landlock
 (Linux) or a sandbox profile (macOS) on a machine that has them -- this one's
-kernel has Landlock off.
+kernel has Landlock off. The `contain` module (0.99.427, ADR 0052) is that
+boundary for one program -- Landlock and seccomp on Linux, the system sandbox
+on macOS -- and Sheet's formulas run in it; a policy for a whole script
+running for real is not built.
 
 The original item: a dry run, `hibr --plan script`, that runs nothing destructive and lists
 what would have been touched -- files written, removed or moved, commands
