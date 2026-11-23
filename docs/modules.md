@@ -29,7 +29,7 @@ hibr -c 'mod load ./build/mods/hello.so; mod list; mod drop hello'
 | `mod drop <name>` | unload one |
 | `mod drop all` | unload every module, and say how many |
 | `mod find <builtin>` | load whichever module on the search path registers that builtin; status 1 if none does |
-| `need <name>...` | load whatever offers each interface or module name, or fail saying which is missing; one already loaded is met at once, with no search |
+| `need <name>...` | load whatever offers each interface or module name, or fail saying which is missing; one already offered, or a module of that name already loaded, is met at once, with no search -- unless a module on the path offers the interface of that name and the loaded one does not, when that one is loaded (0.99.475) |
 
 A name containing a `/` is a path and is opened directly. Everything else is
 searched for: the current directory, then each entry of `HIBR_MODPATH`, then
@@ -83,28 +83,41 @@ need csv; csv       # asked for by name, and it is there
 
 The reasoning is [0044](adr/0044-a-module-can-be-installed.md).
 
-`mod avail` walks that same search order and reports what it finds, one line
-per module plus its builtins:
+`mod avail` walks that same search order and reports what it finds. On a
+terminal it is one line a module, sorted by name and fitted to the width,
+with the folder most of them are in and the module ABI said once below; a
+module found in another folder says which in its description's place, and a
+narrow terminal loses OFFERS first and then the description rather than
+wrap a row (0.99.520):
 
 ```text
 $ mod load sys; mod avail
-NAME         VERSION  ABI      STATE      PATH
-cat          1.0      abi 16   available  /usr/local/lib/hibr/cat.so
-             cat   offers highlight
-console      1.0      abi 16   available  /usr/local/lib/hibr/console.so
-             console   offers display
+MODULE    VERSION  STATE      OFFERS     DESCRIPTION
 ...
-lint         1.0      abi 16   available  /usr/local/lib/hibr/lint.so
-             offers lint
-ls           1.0      abi 16   available  /usr/local/lib/hibr/ls.so
-             ls
+cat       1.0      available  highlight  cat that is plain in a pipe and usefu…
+console   1.0      available  display    a text display: cells, panes and deco…
 ...
-sys          1.0      abi 16   loaded     /usr/local/lib/hibr/sys.so
-             drop, epoch, sleepms, state, upper
+sys       1.0      loaded                drop, epoch, sleepms, state, upper
+...
 ```
 
-The second line of each entry is its builtins, then the interface it offers,
-if any.
+In a pipe, or bound with `:=`, it is one line of eight tab-separated fields
+a module, for a script to read: name, version, ABI, state, path, the
+interface it offers, its builtins (comma-separated) and its description,
+with `-` wherever there is nothing, so no field is ever empty. `mod list`
+follows the same rule: fitted on a terminal, plain columns in a pipe.
+
+```sh
+mod load sys
+mod avail | while IFS=$'\t' read -r nm ver abi state path prov bi dsc; do
+  case $nm in sys|console) echo "$nm $state offers=$prov builtins=$bi" ;; esac
+done
+```
+
+```output
+console available offers=display builtins=console
+sys loaded offers=- builtins=drop, epoch, sleepms, state, upper
+```
 
 It reads each candidate's descriptor and closes it again; nothing is
 initialised and no builtin is registered, so listing is not loading. The state
@@ -116,7 +129,7 @@ says what would happen to that **file**:
 | `loaded` | this exact file is loaded now |
 | `elsewhere` | a module of this name is loaded, from a different file |
 | `wrong abi` | built against another ABI; `mod load` will refuse it |
-| `no descr` | a shared object with no `hibr_module` symbol |
+| `no descr` | a shared object with no `hibr_module` symbol; on a terminal `not a module`, and not listed at all when it is in the current directory, where it is only some other file |
 | `unreadable` | it would not open at all |
 
 A file that a directory earlier in the search order already supplied under the
@@ -133,6 +146,7 @@ A module can reach everything the language can:
 | `hibr_run` | run shell source |
 | `hibr_dial` | open a TCP or UDP connection |
 | `hibr_conntimeo` | how long a connect may wait, in milliseconds: `HIBR_CONNTIMEO`, or the caller's default |
+| `hibr_uconn` | connect a Unix socket within a bound, retrying the connect while a full queue drains |
 | `hibr_title`, `hibr_title2` | rename the process, as the `title` builtin renames a script: the sentence `ps` shows, and with `hibr_title2` the 15-byte name `top` and `pgrep` read |
 | `hibr_provide`, `hibr_require`, `hibr_unprovide` | offer a table of functions to other modules, ask for one, and withdraw the offer |
 | `hibr_wrall` | write all of a buffer to a descriptor the module owns, without a peer that has gone killing the process |
@@ -141,6 +155,7 @@ A module can reach everything the language can:
 | `hibr_slurp`, `hibr_rdfd` | a whole file, or everything left on a descriptor, appended to a `str`, a signal never taken for the end (0.99.433) |
 | `s_sq`, `s_sqb`, `u8put` | a string as one single-quoted word, or the inside of one; a code point as UTF-8 (0.99.433) |
 | `hibr_tlswrap` | wrap a connected socket in TLS through the shell's relay: the descriptor to use instead, the relay's pid to collect (0.99.434) |
+| `hibr_closerest` | in a helper the module forks, close every descriptor but two and the standard three, so it holds no other connection open |
 | `hibr_jstr`, `hibr_jws` | a quoted JSON string, every escape resolved, and JSON whitespace passed over -- for a module reading a small JSON file of its own (0.99.434) |
 | `lg`, arenas, `str`, `vec` | the shell's own utilities |
 
@@ -273,11 +288,12 @@ lists every one, file by file:
   the picture's own id, Blit's `FRAME release`s come back in the program's ids, and
   none of it wakes the script: the console's wait reads the socket.
   Where no display takes frames by descriptor a memfd of RGB is drawn as
-  any picture is. The program's own input route -- the EIS socket it
-  offers (0.99.469) -- reaches every display's Blit the same way, and
-  `frames input N on|off`, from the window's `_focus`, says whether the
-  route is live, so the keys reach the game only while its window has
-  them. `frames info N` says what has passed; `frames stop N` closes it.
+  any picture is. The producer's input route -- `INPUT sock`, a socket
+  Blit writes the input to -- reaches every display's Blit the same way,
+  and `frames input N on|off`, from the window's `_focus`, says whether the
+  route is live, so the keys reach the program only while its window has
+  them; `frames input N hold confine|relative` says how a held pointer
+  behaves. `frames info N` says what has passed; `frames stop N` closes it.
 - **`contain`** runs a program that may read and compute but not act on
   the world (0.99.427, ADR 0052): `contain exec DIR -- CMD [ARG...]` closes
   every descriptor above 2, lets the program write only under `DIR`, opens

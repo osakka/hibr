@@ -7,7 +7,7 @@ cannot guess from looking at it. A cell holds text, a number, or **`=` and
 then a shell command**; what the command prints is the cell's value.
 
 ```text
- B  I  L  C  R  0  0.00  %  1,000  ƒx
+ B  I  L  C  R  0  0.00  %  1,000  ƒx  Full Access
 ƒx A1│ = then hibr:  =math "A1 * 1.2"   =sum "${B1_B9[@]}"   =$((A1 * 2))
          A         B         C         D         E         F         G
    1
@@ -134,7 +134,7 @@ you can click, read in the formula bar, change, and watch work out again:
 
 ```text
 ┌─┤ Sheet [Tour] ├─────────────────────────────────────────────────────────────┐
-│ B  I  L  C  R  0  0.00  %  1,000  ƒx                                         │
+│ B  I  L  C  R  0  0.00  %  1,000  ƒx  Full Access                            │
 │ƒx A1│ A sheet whose formulas are hibr                                        │
 │         A         B         C         D         E         F         G        │
 │   1 A sheet …                                                                │
@@ -172,7 +172,7 @@ adds more of both.
 ## Format
 
 The toolbar is the Format menu's most-used items, and both run the same
-code:
+code, with one more for full access:
 
 | button | what it does |
 |---|---|
@@ -181,6 +181,7 @@ code:
 | `0` `0.00` | no decimals, two decimals |
 | `%` `1,000` | percent, thousands separators |
 | `ƒx` | Help > How Formulas Work |
+| `Full Access` | Sheet > Run with Full Access, above |
 
 The menu has more: a text colour and a fill from the theme's own roles, a
 currency, a bottom or right border, rows and columns frozen at the top and

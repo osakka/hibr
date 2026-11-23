@@ -50,15 +50,16 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
    | `bin/desktop` | a launcher for the desktop |
    | `bin/catalogue`, `bin/vw`, `bin/contacts` | the catalogue, the vault client and the address book's command ([contacts.md](contacts.md)), each a hibr script under `share/hibr/` |
    | `lib/hibr/*.so` | the modules, and the manifest |
-   | `share/hibr/desktop/` | the window manager, its apps and accessories |
+   | `share/hibr/desktop/` | the window manager, its apps and accessories: what `packaging/ships` lists and what those bring (below); `make install SHIP=all` places every one, and `make install-extras` only the ones the default leaves out |
+   | `share/applications/hibr-open.desktop`, `hibr-mimeapps.list` | so that in a hibr session `xdg-open` hands a folder, file or link to the running desktop (0.99.494) |
    | `share/hibr/calendars/`, `share/hibr/salat/` | the calendar systems and prayer-time methods the `hcal` and `salat` modules read |
    | `share/hibr/keyring.gpg` | the key the catalogue checks its index against |
    | `var/lib/hibr/` | the system scope, where `catalogue --system` installs for every user; `/var/lib/hibr` when the prefix is `/usr`, and left for the catalogue to make with `MKSYSDIR=no` |
    | `bin/please` | runs a command as root ([please.md](please.md)); on macOS always, on Linux only with the prefix `/usr`, beside the helpers below |
-   | `lib/hibr/hibr-access`, `hibr-settime`, `hibr-run`, `hibr-catalogue`, `hibr-loginset` | the root helpers `pkexec` runs, Linux with the prefix `/usr` only |
+   | `lib/hibr/hibr-access`, `hibr-settime`, `hibr-locale`, `hibr-run`, `hibr-catalogue`, `hibr-loginset` | the root helpers `pkexec` runs, Linux with the prefix `/usr` only |
    | `/usr/share/polkit-1/actions/org.hibr.policy` | the polkit actions naming them, the one path outside the prefix, because polkit reads no other |
    | `share/man/man1/hibr.1`, `desktop.1` | `man hibr` and `man desktop`, with the version and module directory filled in |
-   | `include/hibr/hibr.h`, `fetch.h` | the module ABI, and the fetch module's interface, for building a module of your own |
+   | `include/hibr/hibr.h`, `fetch.h`, `inspect.h` | the module ABI, and the fetch and inspect modules' interfaces, for building a module of your own |
 5. Runs the installed copy — not the one in the build tree — to check that it
    starts and that **every** module in the installed directory loads, one at a
    time, so an ABI bump that leaves a stale module behind is caught here rather
@@ -73,8 +74,8 @@ Options: `--prefix DIR` (default `/usr/local`), `--yes`, `--quiet`,
 install time and does nothing if they match. That checksum covers every module
 directory, not just `mods/*.c` — a module living in its own directory, as the
 prompt, console, cat and trace modules do, would otherwise change without the
-update noticing — and every file under `programs/desktop`, since the desktop
-is installed too. If the tree is a git checkout with
+update noticing — and every file under `programs`, since the desktop and
+the commands beside it are installed too. If the tree is a git checkout with
 a remote, it fast-forwards first. Then it repeats the sequence above, tests
 included, so an update can never install a tree that fails its own tests.
 
@@ -122,10 +123,12 @@ key signs the apt, dnf and pacman repositories.
 
 A package installs under `/usr`: the shell in `/usr/bin`, its modules in
 `/usr/lib/hibr`, the manual pages and the desktop beside them, the
-`desktop`, `catalogue`, `vw` and `please` commands, the root helpers and
+`desktop`, `catalogue`, `vw`, `contacts` and `please` commands, the root helpers and
 the polkit policy, and two PAM files: `/etc/pam.d/hibr`, which the screen
 lock checks a password with, and `/etc/pam.d/hibr-login`, the login
-screen's.
+screen's. The login screen's own systemd unit, `hibr-login@.service`,
+comes with it and is off until enabled for a terminal
+(`systemctl enable --now hibr-login@tty2`).
 
 The packages recommend `pkexec`, which `please`, Control Panel >
 Administrative Access, Date & Time, `catalogue --system` and the Login
@@ -157,8 +160,11 @@ Each release is packaged from this tree. `packaging/deb/build-deb.sh` runs
 modules actually use. `packaging/deb/publish.sh` adds the package to the
 repository (`itdlabs/hibr-apt`, mirrored to GitHub, served by Pages),
 regenerates its index with `apt-ftparchive`, signs it with the repository's
-own key, and pushes; it fails loudly if the push does. Every version ever
-published stays in the pool. `packaging/rpm/build-rpm.sh` and
+own key, and pushes; it fails loudly if the push does. The pool keeps only
+the newest few versions of each package for each architecture -- `KEEP` in
+`packaging/keep.sh`, which all three repositories share -- and the
+repository's history is one commit of what it holds now, replaced on every
+publish, so nothing older can be fetched. `packaging/rpm/build-rpm.sh` and
 `packaging/arch/build-pkg.sh` repack that same Debian package for dnf and
 pacman, so the three hold the same files byte for byte -- only the PAM
 files differ, using each system's own `login` rules -- and each has a

@@ -38,8 +38,10 @@ hibr: connect /nosuchsock: No such file or directory
 | form | does |
 |---|---|
 | `connect [-u\|-s] host port [var]` | connect; `-u` UDP, `-s` TLS. Sets `$var` (default `FD`) and `$RET` |
-| `send [-n\|-r] fd text…` | write; `-n` without a trailing newline, `-r` ending CRLF |
-| `recv [-a\|-n bytes] fd [var]` | read one line, or from a datagram socket one datagram; `-a` everything to end of stream, `-n` exactly that many bytes. Into `var`, `REPLY` by default |
+| `connect -U path [var]` | connect to a Unix domain socket |
+| `send [-n\|-r] [-p] fd text…` | write; `-n` without a trailing newline, `-r` ending CRLF. `-p` never waits: what the descriptor does not take now is kept for it, `send -p fd` with no text writes more, `RET` is how much is still kept and the status is 3 while any is |
+| `send -c fd` | forget what `-p` kept for fd |
+| `recv [-a\|-p\|-n bytes] fd [var]` | read one line, or from a datagram socket one datagram; `-a` everything to end of stream, `-n` exactly that many bytes, `-p` only what is waiting now, as it came, newlines included, never waiting. Into `var`, `REPLY` by default |
 | `accept [-t secs] listenfd [var]` | wait for one connection; sets `$var` (default `FD`) and `$REMOTE`. `-t` waits at most that long and fails if none came; `-t 0` only looks |
 | `listen [-f] [-n count] port handler` | serve; `-f` forks per connection, `-n` stops after that many |
 | `listen -b [-u] port [var]` | bind only, and hand back the descriptor; `-u` binds UDP |
@@ -106,8 +108,9 @@ status 2
 input and output and the peer as its first argument, inside the shell, so the
 handler can use your functions and variables; `-f` forks per connection
 instead. Both forms of `listen` mark the listening descriptor close-on-exec,
-so a program the handler or the script starts does not hold the socket open
-after the server has gone; one passed on with a redirection still gets it.
+and so do `accept` and `connect` for theirs, so a program the handler or the
+script starts does not hold a socket open after the server has gone; one
+passed on with a redirection still gets it.
 
 A `read` from a datagram socket -- `/dev/udp`, or one `listen -b -u` made --
 takes a whole datagram at a time, since the kernel drops whatever part of a
