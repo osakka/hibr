@@ -1566,4 +1566,7 @@ check("to a Blit of 0.3.126 subsurfaces with views are drawn as they always "
 og.quit(None, 0.3)
 po4.terminate()
 shutil.rmtree(D, True)
+for f in (p, p2, p3, p4):
+    if os.path.exists(f):
+        os.unlink(f)
 report(124)
