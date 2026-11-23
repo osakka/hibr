@@ -505,11 +505,7 @@ def nextver():
 # since that tag is admitted. It goes at the next release, and an entry that
 # names another tag, or a row that did not change, fails as stale -- an
 # exception never outlives the break it admits (ADR 0050).
-BREAKS = {
-    "dt_onrescan": ("v0.99.557", "Archives, its one caller, says which kinds need which program with "
-                    "dt_openerneeds, read and not run, and the desktop works that out on every rescan; "
-                    "a copy from before calls it behind command -v and keeps what it declared at load"),
-}
+BREAKS = {}
 
 
 def params(sig):
