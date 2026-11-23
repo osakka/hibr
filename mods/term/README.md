@@ -24,7 +24,7 @@ same underlying grid, not the interface itself.
 | `tm.h` | the terminal record, cells, and every function the files share |
 | `grid.c` | the screen model: cursor, scroll region, deferred wrap, insert and delete of lines and characters, wide characters kept whole, combining sequences, tab stops, resizing |
 | `sb.c` | the scrollback: a ring of the lines that went off the top, and the view that scrolls back through it |
-| `img.c` | the pictures a program put on this terminal: a sixel and the kitty graphics protocol kept as regions (where, how many cells, the escapes as they came) instead of being consumed, so `hold` can re-emit them onto a real terminal -- ADR 0037, Gitea #103. A region goes when a cell inside it is written, or when the screen is cleared, scrolled, resized or reset |
+| `img.c` | the pictures a program put on this terminal: a sixel and the kitty graphics protocol kept as regions (where, how many cells, the escapes as they came) instead of being consumed, so `hold` can re-emit them onto a real terminal -- ADR 0037, Gitea #103. A region goes when a cell inside it is written or erased, unless it was placed on a layer of its own (an explicit kitty `z`, below the text or above it), which stays until it is deleted; and every region goes when the screen is cleared, scrolled, switched, resized or reset |
 | `vt.c` | the escape parser -- Paul Williams' DEC state machine -- and everything it dispatches: cursor movement, erasing, modes, SGR, character sets, save and restore, OSC and DCS strings, and replies to queries |
 | `draw.c` | blitting the grid into a rectangle through the display interface |
 | `key.c` | turning a decoded key name (`up`, `ctrl-c`, `f5`) back into the bytes a program expects, and a mouse event into the report it asked for |
@@ -147,8 +147,8 @@ follows from it:
   (`DCS $ q`) answers for the scroll region, cursor shape and pen; XTGETTCAP
   (`DCS + q`) says it has nothing, which is still an answer.
 - Parameters keep their `:` sub-parameters, so `38:2::r:g:b`, `4:3` (curly
-  underline, drawn as plain) and `58;5;n` (underline colour, not drawn) all
-  mean what they say and nothing else.
+  underline, drawn as plain) and `58;5;n` (the line colour, kept for a
+  relay and not drawn in a window) all mean what they say and nothing else.
 
 What it implements, by group:
 
@@ -168,17 +168,24 @@ What it implements, by group:
   47, 1047, 1048 and 1049 each with their own mix of clearing and saving;
   DECSTR soft reset and RIS hard reset.
 - **Modes:** DECCKM (the arrows and Home/End become `ESC O` sequences),
-  DECKPAM/DECKPNM, DECAWM, DECTCEM, focus reports (1004), mouse (9, 1000,
+  DECKPAM/DECKPNM, DECAWM, DECTCEM, focus reports (1004, which `tm_api`
+  version 14's `focus` tells a relay to turn on at the real terminal), mouse (9, 1000,
   1002, 1003, 1006), bracketed paste (2004), synchronized output (2026: the
   frame as it was when the program began one is shown until it ends, or for
   a second at most; a relay keeps no such copy, and `tm_api` version 8's
   `syncleft` tells it how long to wait instead -- see hold's README).
 - **Replies:** DA1, DA2, DSR 5 and 6 (CPR, relative to the margins under
   DECOM), DECXCPR, DECRQM for every mode above, XTVERSION, the window size
-  (`CSI 18 t`).
+  (`CSI 18 t`), and the screen's and a cell's size in pixels (`CSI 14 t`,
+  `CSI 16 t`) once the real terminal has said what a cell measures.
 - **SGR:** bold, dim, italic, underline (and double, as underline), blink,
   reverse, conceal, strike and their resets; 16, 256 and 24-bit colour in
-  both spellings.
+  both spellings. Blit's own are kept on the cell and drawn through the
+  display like any attribute: framing (51 with its kind as a sub-parameter,
+  54 to end it), a window's shadow (66, 67) and how its colour icons are
+  drawn (68, 69). The line colour that framing and underline are drawn in
+  (58, 59) is kept per cell for a relay -- `tm_api` version 13's `ulat` --
+  and `hold` sends it on; a window does not draw it.
 
 ## Scroll hints
 
@@ -213,8 +220,9 @@ their coordinates no longer describe the grid.
 XTVERSION (`CSI > q`) is answered `hibr-term 0.25 deccra`, and never passed on
 to a real terminal. That is how a program on one of hibr's emulators, a
 desktop's terminal window, learns that the emulator applies a copy itself.
-Inside `hold`, the emulator has no pty to answer on, so the server says the
-same thing in `HIBR_HOLDCOPY` instead.
+Inside `hold`, where the emulator has no pty to answer on, the server writes
+the answer to the program (`reply`, below) and also says the same thing in
+`HIBR_HOLDCOPY`, which is all a server from 0.99.283 to 0.99.302 told it.
 
 ## Scrollback
 
@@ -227,8 +235,8 @@ a paste or a mouse event sent to the program goes back to the live screen,
 and so does a resize.
 
 A line is stored without its trailing blanks, so the cost is the text: a cell
-is 28 bytes and a line carries 4 more, so 1000 lines of 40 characters are
-about 1.1 MB. A short session costs next to nothing.
+(`tm_cell`) is 32 bytes and a line carries 4 more, so
+1000 lines of 40 characters are about 1.3 MB. A short session costs next to nothing.
 
 A window that shrinks under the cursor pushes its top lines into the
 scrollback rather than losing the line being typed on, and one that grows
@@ -290,8 +298,11 @@ What a program asks of the *pointer* is not drawn here and is kept for a
 relay to pass on: the shape it named with OSC 22 (`none` to hide it), which
 `tm_api` version 10's `pointer` hands over (Gitea #373), and DEC private
 mode 7701, Blit's pointer lock, which version 11's `plock` answers with a
-number that is new each time the program asks (Gitea #379). `hold` sends
-the lock to the one display that can hold the pointer and was used last.
+number that is new each time the program asks (Gitea #379). Version 15's
+`plockat` gives the cell the cursor was on when it asked -- the desktop
+puts it on the window that wants the pointer -- and `hold` sends the lock to
+a display that can hold the pointer and shows that cell -- the one used
+last where two do, where none does, or where nothing says where.
 
 Version 12's `shift` moves what the screen shows down and right, the cursor
 and the kept pictures with it. A relay calls it when its union of displays
@@ -363,5 +374,6 @@ program asking about them hears nothing back and falls back, as it would on
 xterm. The kitty keyboard protocol's query goes unanswered only in a window
 of the desktop; in a held session it is passed on, as above. Neither bitmap protocol is
 *rendered* either, for the reason above; both are kept.
-Underline styles and colours are parsed and drawn as a plain underline,
-since the display has only the one.
+Underline styles are parsed and drawn as a plain underline, since the
+display has only the one, and an underline colour is kept for a relay
+rather than drawn.

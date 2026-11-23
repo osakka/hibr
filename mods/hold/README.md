@@ -21,14 +21,14 @@ nothing has to be saved and restored.
 | `hold colours [name] auto\|24\|256\|16\|8` | send every display of the session this many colours whatever its terminal said, or `auto` for what each said (Control Panel > Pictures > Colours). Each display otherwise gets what its own terminal answered at attach, where its own `HIBR_COLOURS`, `COLORTERM` and `TERM` are |
 | `hold stats [name]` | one line per attached client: `name`, the bytes hold has sent it since it attached, and in how many frames (Gitea #353). Fails, quietly, against a server older than 0.99.313 |
 | `hold pointers [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal can hide its pointer, as it answered OSC 22's `?none` when it attached. A program's pointer shape (OSC 22) reaches every client whose terminal knows shapes, and `none` only one that said yes. Fails, quietly, against a server older than 0.99.311 |
-| `hold locks [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal can hold the pointer (Blit's `?7701`, Gitea #379), as it answered when it attached. A program's lock goes only to the one that can and sent input last, and that display's reports reach the program as the movement they are, its offset not added. Fails, quietly, against a server older than 0.99.365 |
+| `hold locks [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal can hold the pointer (Blit's `?7701`, Gitea #379), as it answered when it attached. A program's lock goes only to a display that can and shows the cell the program asked from -- the desktop puts the cursor on the window that wants the pointer (`"terminal"` version 15's `plockat`) -- the one that sent input last where two do, where none does, or where nothing says where -- and that display's reports reach the program as the movement they are, its offset not added. Fails, quietly, against a server older than 0.99.365 |
 | `hold pixels [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal reports the mouse in pixels (1016), as it said when it attached. Fails, quietly, against a server older than 0.99.304 |
 | *(Blit's performance panel)* | a client whose Blit says `HUD1 on` on its frame socket (Blit ADR 0203, wire version 2) tells the server, which answers a held program's `console hud` with whether any display's Blit asks, and passes that program's `console status` lines to each such client, which sends them on as `STA1`. Requests a server older than 0.99.407 does not know it closes, which reads as off |
 | `hold descriptors [name]` | one line per attached client: `name` and `yes` or `no`, whether its client has its own Blit session's frame socket open (Blit ADR 0202) -- dialled with the client's own `BLIT_FRAME_SOCKET` and `BLIT_FRAME_TOKEN` when it attached, since the held program's environment is frozen and may name another session or none. The desktop sends window pictures by descriptor (`console imgfd hold`) only when every line says yes: the program hands the server each frame as a sealed memfd, the server keeps the newest per picture and passes it to each such client, which hands it to Blit; the placement stays in the program's own output. Fails, quietly, against a server older than 0.99.397 |
-| `hold apps [name]` | one line per app in a process of its own that has opened a pictures connection (ADR 0050, "Pictures, by hold"): its `pid`, the pictures it keeps (`slots`), the frames taken, the frames `refused` past its caps, the bytes taken, and the dmabuf frames given straight back because their slot had no id yet. An app hands the server its frames itself under slot numbers of its own; the desktop places each picture under an id it took fresh and grants that id to the slot on its own frames connection (`grant PID SLOT ID`, `ungrant PID SLOT`, `revoke PID`); the server writes the id into the slot's frames, the slot back into what each display's Blit says of them, and refuses any other sender on that id. Each app is held to `HD_APPFPS` frames a second, `HD_APPBYTES` a frame, `HD_APPSLOTS` pictures and `HD_APPBUFS` dmabufs not yet given back; past them a frame is refused, counted here and logged at most every five seconds, a dmabuf one given straight back -- the app is never paused. A placement whose image has no frame yet waits for one, since Blit counts it against the eight a session may have waiting. Fails, quietly, against a server older than this |
+| `hold apps [name]` | one line per app in a process of its own that has opened a pictures connection (ADR 0050, "Pictures, by hold"): its `pid`, the pictures it keeps (`slots`), the frames taken, the frames `refused` past its caps, the bytes taken, and the dmabuf frames given straight back because their slot had no id yet. An app hands the server its frames itself under slot numbers of its own; the desktop places each picture under an id it took fresh and grants that id to the slot on its own frames connection (`grant PID SLOT ID`, `ungrant PID SLOT`, `revoke PID`); the server writes the id into the slot's frames, the slot back into what each display's Blit says of them, and refuses any other sender on that id. Each app is held to `HD_APPFPS` frames a second, `HD_APPBYTES` a frame, `HD_APPSLOTS` pictures and `HD_APPBUFS` dmabufs not yet given back; past them a frame is refused, counted here and logged at most every five seconds, a dmabuf one given straight back -- the app is never paused. A placement whose image has no frame yet waits for one, since Blit counts it against the eight a session may have waiting. Fails, quietly, against a server older than 0.99.558 |
 | `hold frames [name]` | `yes` from a server that keeps an edit of a whole picture in place of the edits before it, so what it keeps of a film is the picture and its latest frame. The desktop sets `console imgedit whole` only when this says yes and every display can edit. Fails, quietly, against a server older than 0.99.396, which keeps every edit |
 | `hold edits [name]` | one line per attached client: `name` and `yes` or `no`, whether its own terminal edits a kitty picture in place (`a=f,r=1`, which Blit takes from 0.3.1, Gitea #404), as it answered when it attached. The desktop turns `console imgedit` on only when every line says yes, since hold keeps an edited picture as the whole one and its edits after it and sends a display that cannot apply them the whole picture instead. A display carried across `hold upgrade` keeps its answer since 0.99.397; one carried from an older server reads `no` until it attaches again, which only costs it whole pictures. Fails, quietly, against a server older than 0.99.376 |
-| `hold gfx [name]` | one line per attached client: `name` and what its own terminal draws -- `kitty`, `sixel`, `none`, or `unknown` for a client that never said. Fails, quietly, against a server older than 0.99.235, which a caller reads as every display unknown |
+| `hold gfx [name]` | one line per attached client: `name` and what its own terminal draws -- `kitty`, `sixel`, `none`, `unknown` for one whose terminal answered nothing, or `unasked` for a client that never said -- one older than the asking, or carried across `hold upgrade` from a server that did not keep the answer (the table of all five is in `mods/gfxask.h`). Fails, quietly, against a server older than 0.99.235, which the desktop reads as every display unasked (Gitea #274) |
 | `hold blit [name]` | one line per attached client: `name` and `yes`, `no` or `unknown`, what XTVERSION said of its terminal |
 | `hold subst TABLE [name]` | what a display that is not Blit gets for Blit's glyphs: `CODEPOINT REPLACEMENT` a line, in hex, in order of code point |
 | `hold shift [name]` | how far the session's origin has been normalised since the server started, as `row col` -- what a program drawing on the union translates its own content by |
@@ -125,9 +125,12 @@ cells it fills (`c=,r=`), which Blit (ADR 0060) and kitty both honour
 placed by descriptor, from its newest frame; a sixel is paint and cannot be
 cut, and a picture whose size is not said cannot either, so those are still
 sent only to a client that holds them whole. Frames by descriptor go to
-every client a picture overlaps. A region goes when something writes a
-cell inside it, which is how a window that closed or moved takes its
-picture with it.
+every client a picture overlaps. A region that owns its cells goes when
+something writes a cell inside it, which is how a window that closed or
+moved takes its picture with it; one placed on a layer of its own -- a
+wallpaper or a window's picture below the text, a tray icon above it -- is
+kept until the program deletes it, as the console keeps it
+([the term module's README](../term/README.md)).
 
 **A picture that leaves a client keeps its image there.** It is sent
 `a=d,d=i` -- its placements go, its image stays -- and is kept on that
@@ -189,17 +192,17 @@ dragged, which is the case that causes a shift in the first place. The
 desktop reads it in `dt_size` and translates every window, icon and the
 Control Strip by the difference.
 
-That rule means **one picture spanning a union reaches nobody**: at a
-stacked arrangement a wallpaper drawn across both panes is held whole by
-neither client, so neither is sent it (measured at 0 images on both, hibr
-Gitea #238). The answer is not to clip it here -- a sixel is paint and
-would have to be re-encoded per client, and the kitty id space would have
-to become per-client too. It is for the thing placing the picture to place
-**one per display**, each of which is then held whole by its own client by
-construction. The desktop does that from 0.99.206: `DT_DISPLAYS` carries
-every client's rectangle from `hold clients`, and `dt_wall` fits the
-wallpaper to each. Anything else that wants a picture on every display of
-a union does the same, and this rule stays as it is.
+A picture that cannot be cut -- a sixel, or one whose size is not said --
+still **reaches nobody when it spans the union**: at a stacked arrangement
+a wallpaper drawn across both panes is held whole by neither client, so
+neither is sent it (measured at 0 images on both, hibr Gitea #238), and
+until 0.99.473 that was true of a kitty picture too. A sixel is paint and
+would have to be re-encoded per client. So it is for the thing placing the
+picture to place **one per display**, each of which is then held whole by
+its own client by construction. The desktop does that from 0.99.206:
+`DT_DISPLAYS` carries every client's rectangle from `hold clients`, and
+`dt_wall` fits the wallpaper to each. Anything else that wants a picture on
+every display of a union does the same.
 
 The other half is that a program can only draw pixels at all if it knows
 what a cell measures, and it learns that from `ws_xpixel`/`ws_ypixel` on its
@@ -231,13 +234,16 @@ both screens as it leaves. A client whose terminal did not answer is sent
 no flags, and its keys arrive in the old form, which the console still
 reads.
 The picture loop sends a kitty transmission only to a client that said
-kitty and a sixel only to one that said sixel; a client that never said --
-one older than this -- is sent none. `hold gfx` reports what each said,
-and the desktop draws its wallpaper as pixels on a display that draws the
-session's protocol and as half blocks on every other. The answer travels
-across `hold upgrade` on a `gfx` line of its own; a client carried from an
-older server has none and draws half blocks until it attaches again. A
-terminal that answers nothing at all costs the deadline, once, at attach.
+kitty and a sixel only to one that said sixel, and none to one whose
+terminal answered nothing (`unknown`). A client that never said -- one
+older than the asking, which is silent past `HD_GFXWAITMS`, or one carried
+from a server older than the asking -- is `unasked` and is sent what it was sent before,
+every picture its rectangle holds (Gitea #274, #279). `hold gfx` reports
+what each said, and the desktop draws its wallpaper as pixels on a display
+that draws the session's protocol, or is unasked, and as half blocks on
+every other. The answer travels across `hold upgrade` on a `gfx` line of
+its own. A terminal that answers nothing at all costs the deadline, once,
+at attach.
 
 ## One desktop, a Blit display and one that is not
 
@@ -311,9 +317,11 @@ A desktop's terminal window that scrolls is sent as one of these copies too
 The same 400-line scroll went from 119 kB to 36 kB on such a display, and
 stayed at 119 kB on one that does not copy.
 
-The program has to be told the server does this, and nothing inside hold
-answers its questions: the emulator has no pty to answer on. So the server
-puts `HIBR_HOLDCOPY=1` in its program's environment. A program under a
+The program has to be told the server does this, and until 0.99.303
+nothing inside hold answered its questions: the emulator has no pty to
+answer on. So the server puts `HIBR_HOLDCOPY=1` in its program's
+environment; since then the emulator's own XTVERSION answer, `deccra` in
+it, reaches the program as well (below). A program under a
 server older than 0.99.283 is never told, and never copies, even when the
 real terminal's feature 28 is relayed to it, since that old server's
 emulator would ignore the copy.
@@ -338,6 +346,11 @@ had no pty to write to, so a program asking where its cursor was waited for
 ever. It keeps them now, and the server writes them to the program after
 each read of its output. The questions that are about the real terminal --
 the device attributes, the kitty queries -- are still passed on to it.
+
+The modes a program sets for its terminal reach each display's: focus
+reports (1004, `"terminal"` version 14, Gitea #485) are turned on and off
+there as the program asks, so a held program hears when the terminal it is
+shown on gains or loses the focus.
 
 ## Synchronized output
 
@@ -458,11 +471,12 @@ connection on its queue every time anything retried.
 
 ## Interfaces
 
-hold asks for `"pty"` (`PY_API_VER` 4) and `"terminal"` (`TM_API_VER` 12)
-with `hibr_require` when it loads, and refuses to load without either. It
+hold asks for `"pty"` (`PY_API_VER`, `mods/pty.h`) and `"terminal"`
+(`TM_API_VER`, `mods/term.h`) with `hibr_require` when it loads, and
+refuses to load without either. It
 offers two of its own. `"hold"`, version 1, is the one named in its
 descriptor, so a module can find hold before it is loaded. `"holdframes"`
-(`HF_API_VER` 4, `mods/blitfr.h`) is what a program inside a session uses
+(`HF_API_VER`, `mods/blitfr.h`) is what a program inside a session uses
 to hand the server a picture's frame (`frame`) and, from version 2, the
 performance panel's status lines (`status`, `hud`; Blit ADR 0203). Version
 3 adds frames by dmabuf (Blit ADR 0223, Gitea #486): `open3` keeps a
@@ -508,6 +522,10 @@ not the view (`hd_vto`), since its Blit would map the pointer through a
 view the picture is not drawn through. Which pictures are subsurfaces the
 emulator says, by how each is placed; a view that arrives before its
 picture's placement waits for that (`hd_innat`).
+Version 5 (ADR 0050) is for an app in a process of its own: `appopen` and
+`appframe` are the app's own connection and its frames, and `appctl` is the
+desktop's `grant`, `ungrant` and `revoke` on its connection from `open3` --
+`hold apps`, above, and `apps.c`.
 `HD_FRM3` is `'N'` since 0.99.469: it was `'K'`, which `HD_HUDQ` already
 was, and `tests/999-hold-letters.t` now refuses any letter used twice. A
 session started before 0.99.469 needs `hold upgrade` before dmabuf frames
@@ -557,7 +575,8 @@ take the session back from the descriptors it kept open and the file
 | `render.c` | one client's own rectangle of the emulator's grid, diffed against a per-client front to send only what changed |
 | `mouse.c` | a client's own SGR mouse report, rewritten by its own offset, put in the session's pixels when the program asked for them (`hd_mpixel`), and re-encoded to legacy if that is what the program asked for |
 | `cli.c` | the client: raw mode, the relay, ctrl-\\, and giving the terminal back |
-| `frames.c` | picture frames by descriptor (Blit ADR 0202): the newest frame of each picture, handed over by the program as a sealed memfd, kept and passed to every client with Blit's frame socket open; a frame whose placement never comes is let go once `HD_FRMMAX` (32) are kept | Frames by dmabuf (`FRM3`, Blit ADR 0223) are kept as records with the displays that hold each, and released to the producer once they all have.
+| `frames.c` | picture frames by descriptor (Blit ADR 0202): the newest frame of each picture, handed over by the program as a sealed memfd, kept and passed to every client with Blit's frame socket open; a frame whose placement never comes is let go once `HD_FRMMAX` (32) are kept. Frames by dmabuf (`FRM3`, Blit ADR 0223) are kept as records with the displays that hold each, and released to the producer once they all have |
+| `apps.c` | pictures an app in a process of its own sends (ADR 0050): each app's connection, its slots and the ids the desktop grants them, its caps, and `hold apps` |
 | `hold.c` | the builtin, starting a server, and the interfaces it offers |
 
 ## Tests
@@ -597,7 +616,10 @@ reaching each display whole at its own corner and only the displays whose
 terminal draws them, the per-client questions (`gfx`, `pixels`,
 `pointers`, `locks`, the kitty keyboard flags), the mouse in pixels and a
 held pointer's movement passed on without the display's offset.
-`tests/936-hold-upgrade.t` is `hold upgrade`.
+`tests/936-hold-upgrade.t` is `hold upgrade`. `tests/hostpix.py` is an
+app's own pictures: hold's side of the grant against stand-in apps and a
+stand-in desktop on two stacked displays, and the console's from a held
+desktop's cells channel to the displays.
 
 ## What it does not do
 

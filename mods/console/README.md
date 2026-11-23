@@ -107,9 +107,13 @@ from 124 kB to 37 kB, with every cell the same.
 existing colours toward black by `pct` percent (55 if not given) and sets the
 dim attribute, in place — a shadow cast on whatever is already drawn there,
 before whatever casts it draws its own opaque content over its own footprint
-on top. Only an RGB colour can be scaled exactly; a palette index or the
-terminal's own default colour has no table to scale by, so those cells get
-the dim attribute alone. It reads back what `cn_put` already wrote, which
+on top. A palette index is resolved to the terminal's own colour for it
+(`cn_rgbof`, from the palette the display asked the terminal for, below,
+or the standard one) and scaled as RGB -- left unscaled until 0.99.406, a
+palette background showed through a shadow at full strength (Gitea #417).
+A cell at the terminal's own default colour is taken to be what `console
+darkdefault` names, below; with nothing named it has no colour to scale
+and gets the dim attribute alone. It reads back what `cn_put` already wrote, which
 `cn_fill` and `cn_put` themselves never do.
 
 `-s` makes it a shadow that can be cast any number of times and still comes
@@ -129,6 +133,10 @@ The other half shows what the cell showed:
 - a half block, such as a wallpaper drawn in them: that half's own colour;
 - over a picture under the text: the picture, since a default background is
   left default, and the darkened half is the picture's own colour scaled.
+
+`-l` and `-u` darken a thin edge instead, the left eighth of the cell
+(U+258F) or its top eighth (U+2594): the Thin shadow, which hugs what casts
+it. A half block or a full block is not one of the cells it may replace.
 
 The glyph is replaced, so only a cell with nothing to read takes one: a
 blank, a block, or a glyph a `fill` laid down outside every pane, which is a
@@ -309,8 +317,11 @@ app that draws a pane places, every time it draws, every picture it still
 shows. Files, the Image Viewer, Mail and both previews all do.
 
 On kitty such a picture goes **below** the cells (Gitea #374, ADR 0037),
-at `CN_ZUNDER` with the cells it covers blanked, so a window over part of
-it hides only that part; the wallpaper is at `CN_ZWALL` beneath it. The
+with the cells it covers blanked, so a window over part of it hides only
+that part: each pane has a band of `CN_ZBAND` layers between the
+wallpaper's `CN_ZWALL` and `CN_ZUNDER`, its window's picture in the middle
+of the band and a program window's subsurfaces below or above it
+(`cn_imgz`). The
 rule that a picture placed over another supersedes it (#172) holds between
 pictures that own their cells and not between two window pictures (0.99.345):
 each of those takes a layer of its own in the windows' stacking order, so
@@ -342,7 +353,7 @@ keeps such a picture until it is deleted, as it keeps one under the text.
 
 ## Pictures another program sends
 
-The `"dpframes"` interface (`DPF_API_VER` 1, `mods/display.h`), offered beside
+The `"dpframes"` interface (`DPF_API_VER`, `mods/display.h`), offered beside
 `"display"` and `"scroll"`, is a window's picture whose frames arrive by
 descriptor from another program: a window of Blit's compositor, through
 the frames module's socket (Gitea #486, Blit ADR 0223). A stream's picture
@@ -391,7 +402,13 @@ as `INPUT view <id> ...` once the picture is in a route under its id --
 its own, after `INPUT sock`, or its window's, after `INPUT member` -- since
 Blit maps the pointer through it and refuses one for a picture in no route.
 It is said again whenever a route is (a new id, or a new connection after
-`hold upgrade`), and only to a Blit of 0.3.125 or newer (`bf_say`). A
+`hold upgrade`), and only to a Blit of 0.3.125 or newer (`bf_say`).
+Version 3 (Gitea #496, Blit 0.3.74) adds `sub`, a program window's
+subsurface -- a picture of its own under or over its window's, placed from
+the window's drawing at its own pixels, never scaled, in a layer of the
+pane's band -- and `crop`, a placement showing only part of the stream's
+picture, so a window whose buffer holds a shadow round it is shown as its
+window alone. A
 subsurface is drawn through its view only by a Blit that takes a
 placement's size in pixels (`BF_SUBVIEW`, 0.3.127, `W=`/`T=`): the shown
 rectangle `cn_imgsubbox` cut to the body becomes the part of the buffer
@@ -457,7 +474,8 @@ one pen along a row, nones, and the links and translucencies they name.
 Nothing is resolved at the app: what is beneath a cell is the desktop's to
 know, so an `under` pen over none is sent as the record's kept bit, and a
 cell written under the app's own `console translucent` carries that
-translucency's ID.
+translucency's ID. `console cells again NAME` has the next flush send a
+view whole, and `console cells forget NAME` lets one go.
 
 At the desktop, `console cells own FD VIEW GEN PANE|- ROW COL H W` binds a
 view to a connection and a place, and refuses one over cells another
@@ -472,7 +490,9 @@ them, into the back grid through `cn_putg`, the very write `cn_put` and
 `cn_fill` lay every cell with (the `CN_PUTG` macro: as a function call it
 cost an 80x24 frame 575,000 instructions more, as a macro 130,000 fewer than
 before), so what is beneath, the translucency in force and the panes above
-decide each cell's background as they did in-process.
+decide each cell's background as they did in-process. `console cells drop
+FD [VIEW]` lets one view go, or every view of the connection and the
+connection with them.
 
 **Pictures** an app draws into a view (`img draw -m pixels`, a film's
 frames through `dp->image`) never cross the cells channel as pixels. In a
