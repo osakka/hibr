@@ -1233,10 +1233,11 @@ dt_rtrejoin() {
 			exec {DT_RTFD}>&-
 			DT_RTFD=
 		fi
-		# Refused, it is done: a restarted desktop knows the launch before
-		# it listens, so one that refuses it is not the desktop this
-		# process was kept for -- a restart that failed after all.
-		if [ -n "$DT_RTREFUSED" ]; then
+		# Told it is not kept, it is done: the restart failed after asking
+		# it to stay (dt_rsuncarry). Any other refusal may come from the
+		# old desktop still serving before its exec, so it is tried again
+		# until DT_RTREJOINMS, as an unanswered try is.
+		if [ -n "$DT_RTREFUSED" ] && [ "$DT_RTSAID" = "not kept" ]; then
 			dt_log "app runtime: rejoining: $DT_RTSAID"
 			return 1
 		fi

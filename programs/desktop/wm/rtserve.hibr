@@ -984,7 +984,16 @@ fn dt_rtmsg(int c, line) {
 		# is good for one hello.
 		x=${a[4]-}
 		if [ -z "$x" ] || [ -z "${DT_RTLAUNCH["$x"]+x}" ]; then
-			dt_rtsay "$c" "refused no%20launch%20of%20this%20desktop's"
+			# "not kept" only from a desktop whose restart failed after it
+			# asked its processes to stay (dt_rsuncarry): that one is final.
+			# "no launch" may be a desktop that has not taken the launch yet
+			# -- the old one, still serving before its exec -- and is tried
+			# again until the rejoin's deadline.
+			if [ -n "${DT_RSNOTKEPT-}" ]; then
+				dt_rtsay "$c" "refused not%20kept"
+			else
+				dt_rtsay "$c" "refused no%20launch%20of%20this%20desktop's"
+			fi
 			dt_log "app runtime: refused a hello from ${a[3]:-nothing} with no launch of this desktop's behind it"
 			dt_rtdrop "$c"
 			return 1

@@ -220,9 +220,11 @@ dt_rskeep() {
 # ends (runtime.hibr's dt_rtrejoin). The copies made to cross the exec are
 # closed.
 DT_RSZDUP=
+DT_RSNOTKEPT=
 dt_rsuncarry() {
 	local c x gone=
 
+	DT_RSNOTKEPT=1
 	for c in "${!DT_RSKEEPC[@]}"; do
 		if [ -n "${DT_RTC["$c"]+x}" ]; then
 			x := dt_rtline call 0 - carry ""
