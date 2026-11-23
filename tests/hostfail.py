@@ -440,11 +440,17 @@ do(t, "dt_mclose")
 before = log(t).count("quit unexpectedly")
 hp = readpid(".hpid", secs=1)
 zp = result(t, 'echo "$DT_RTZPID"')
+n0 = len(log(t))
 do(t, "dt_restart")
+# Failed, it shows every line logged from the restart on -- the app
+# processes' and the zygote's as well as the desktop's, which all write to
+# the one log -- since what was decided is said only there: "0 of them
+# kept" and why the zygote was not current (Gitea #630).
 check("after Restart Desktop an app process whose code is current is kept and "
       "joins the restarted desktop, its zygote kept with it",
       logwait(t, "joined the restarted desktop", 10) and not gone(hp) and not gone(zp)
-      and result(t, 'echo "$DT_RTZPID"') == zp, (hp, zombie(hp), zp, zombie(zp), log(t)[-800:]))
+      and result(t, 'echo "$DT_RTZPID"') == zp,
+      (hp, zombie(hp), zp, zombie(zp), log(t)[n0:]))
 check("and a restart is no app quitting: no note, nothing reopened",
       log(t).count("quit unexpectedly") == before and "reopened" not in log(t)[log(t).find("restarting into"):],
       log(t)[-600:])

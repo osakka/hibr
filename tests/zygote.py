@@ -19,7 +19,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screen
 from screen import Term, check, report, load, tree, scratch, expect
 
-MOD = tree("build/mods/console.so")
+# The modules from a copy of their own, for the same reason: a check
+# replaces one the zygote mapped, and replaced in the tree it was replaced
+# under every suite running beside this one -- whose zygote then maps a
+# deleted file, is not current, and is not kept across a Restart Desktop
+# (Gitea #630: hostfail's kept process "ended" that way, run beside this).
+TREEMODS = tree("build/mods")
+MODS = scratch("zygote-mods")
+os.makedirs(MODS)
+for f in os.listdir(TREEMODS):
+    if f.endswith(".so"):
+        shutil.copy2(os.path.join(TREEMODS, f), os.path.join(MODS, f))
+TREEZY = os.stat(os.path.join(TREEMODS, "zygote.so"))
+MODPATH = ":".join([MODS] + [d for d in os.environ["HIBR_MODPATH"].split(":") if d != TREEMODS])
+MOD = os.path.join(MODS, "console.so")
 WM = tree("programs/desktop/desktop.hibr")
 # The Terminal from a copy of its file, so a check can make it newer than
 # its process -- an update to the app -- without touching the tree.
@@ -93,7 +106,7 @@ open(p, "w").write(SESSION.replace(
 os.chdir(HERE)
 t = Term(p, rows=30, cols=110, settle=0.6,
          env={"DT_BARTIME": "12:00", "TW_CMD": WRITER, "ZY_MARK": "carried",
-              "DT_RTENDSECS": "2", "DT_RTLAUNCHSECS": "5"})
+              "DT_RTENDSECS": "2", "DT_RTLAUNCHSECS": "5", "HIBR_MODPATH": MODPATH})
 
 
 def do(cmd):
@@ -371,7 +384,15 @@ apid, zpid = napid2, nzpid
 # replace one, a new file renamed over the old -- with nothing else newer:
 # what the processes run is not what is on disk, and they are replaced.
 os.utime(TERM, (time.time() - 100, time.time() - 100))
-mod = tree("build/mods/zygote.so")
+mod = os.path.join(MODS, "zygote.so")
+maps = ""
+try:
+    maps = open("/proc/%s/maps" % zpid).read()
+except (OSError, ValueError):
+    pass
+check("the zygote maps this suite's own copy of its module, not the tree's",
+      mod in maps and os.path.join(TREEMODS, "zygote.so") not in maps,
+      [l for l in maps.splitlines() if "zygote.so" in l])
 shutil.copy2(mod, mod + ".new")
 os.rename(mod + ".new", mod)
 last = max(lines()) if lines() else -1
@@ -672,7 +693,7 @@ open(p2, "w").write(SESSION.replace(
     % (load(MOD), WM, tree("programs/desktop/apps/term.hibr"), MARK, MARK, MARK))
 # DT_TERMMS as shipped: a longer one holds the desktop's own frames, which
 # its tickers -- this suite's hands -- wait behind.
-t = Term(p2, rows=30, cols=110, settle=0.6, env={"DT_BARTIME": "12:00"})
+t = Term(p2, rows=30, cols=110, settle=0.6, env={"DT_BARTIME": "12:00", "HIBR_MODPATH": MODPATH})
 
 
 def drawn(f=None):
@@ -763,4 +784,10 @@ t.close()
 for f in (p, p2, MARK, SAID, SAID + ".pend", WRITER, PIDF, PULSE, COUNT, ECHO, ELAT, FIFO, LIVE, LCOUNT, TERM, KEEPER, OPENS):
     if os.path.exists(f):
         os.unlink(f)
-report(40)
+shutil.rmtree(MODS, True)
+now = os.stat(os.path.join(TREEMODS, "zygote.so"))
+check("the tree's modules are as this suite found them: nothing run beside it "
+      "saw a module it mapped replaced",
+      (now.st_ino, now.st_mtime_ns) == (TREEZY.st_ino, TREEZY.st_mtime_ns),
+      ((TREEZY.st_ino, TREEZY.st_mtime_ns), (now.st_ino, now.st_mtime_ns)))
+report(42)

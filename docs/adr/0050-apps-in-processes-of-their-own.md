@@ -1580,7 +1580,12 @@ than its launch (a stamp file each, beside the socket).
   from a new zygote read from disk when hibr's did -- which takes it up once
   its view is bound (`call SEQ ID resume DIR`), the Terminal's `term_resume`
   asking for its program by pid. The old process sees its socket end and
-  goes.
+  goes. Why one is not current is said in the log -- the zygote's hibr, a
+  library it maps that is ` (deleted)`, a desktop file or an app's file
+  newer than its start -- since a restart that keeps nothing otherwise
+  shows only the processes it ended (Gitea #630: `tests/zygote.py` renamed
+  a module over the tree's own, and every suite beside it lost its kept
+  processes; it replaces a copy of its own now).
 
 A terminal's program lives on either way. A crash snapshot has nothing kept:
 its hosted windows open fresh in a fresh process, and a Terminal there takes

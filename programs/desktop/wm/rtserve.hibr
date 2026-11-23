@@ -668,20 +668,34 @@ dt_rtzread() {
 # none newer than its start; then, for the process on connection c, each
 # file of its app's own (its file and its parts), none newer than its
 # launch. Status 0 when current. Where /proc is not, nothing is known
-# current, and every process is replaced.
+# current, and every process is replaced. Not current says why in the log:
+# a restart that keeps nothing is otherwise told from one that failed to
+# keep only by the processes it ended (Gitea #630).
 dt_rtcurrent() {
 	local f line
 
 	[ -n "$DT_RTZFD" ] && [ -n "$DT_RTZPID" ] && [ -e "$DT_RTZSTAMP" ] || return 1
-	[ "/proc/$DT_RTZPID/exe" -ef "$HIBR" ] || return 1
-	[ -r "/proc/$DT_RTZPID/maps" ] || return 1
+	if ! [ "/proc/$DT_RTZPID/exe" -ef "$HIBR" ]; then
+		dt_log "app runtime: the zygote $DT_RTZPID is not current: its hibr is not $HIBR"
+		return 1
+	fi
+	if ! [ -r "/proc/$DT_RTZPID/maps" ]; then
+		dt_log "app runtime: the zygote $DT_RTZPID is not current: its maps cannot be read"
+		return 1
+	fi
 	while read -r line; do
 		case $line in
-		*.so" (deleted)" | *.so.[0-9]*" (deleted)") return 1 ;;
+		*.so" (deleted)" | *.so.[0-9]*" (deleted)")
+			dt_log "app runtime: the zygote $DT_RTZPID is not current: it maps /${line#*/}"
+			return 1
+			;;
 		esac
 	done < "/proc/$DT_RTZPID/maps"
 	for f in "$DT_HERE"/*.hibr "$DT_HERE"/wm/*.hibr "$DT_HERE"/widgets/*.hibr "$DT_HERE"/lib/*.hibr; do
-		[ "$f" -nt "$DT_RTZSTAMP" ] && return 1
+		if [ "$f" -nt "$DT_RTZSTAMP" ]; then
+			dt_log "app runtime: the zygote $DT_RTZPID is not current: $f is newer than its start"
+			return 1
+		fi
 	done
 	return 0
 }
@@ -691,12 +705,17 @@ fn dt_rtappcurrent(int c) {
 
 	[ -n "$s" ] && [ -e "$s" ] && [ -n "$ap" ] && [ "$ap" != - ] || return 1
 	src=${DT_APPS["$ap"]["src"]-$ap}
-	[ -e "$src" ] || return 1
-	[ "$src" -nt "$s" ] && return 1
-	p := dt_rtpartfiles "$src" || return 0
-	mapfile -t fs <<< "$p"
+	if ! [ -e "$src" ]; then
+		dt_log "app runtime: $ap's process is not current: its file $src has gone"
+		return 1
+	fi
+	fs=("$src")
+	p := dt_rtpartfiles "$src" && mapfile -t -O 1 fs <<< "$p"
 	for p in "${fs[@]}"; do
-		[ -z "$p" ] || ! [ "$p" -nt "$s" ] || return 1
+		if [ -n "$p" ] && [ "$p" -nt "$s" ]; then
+			dt_log "app runtime: $ap's process is not current: $p is newer than its launch"
+			return 1
+		fi
 	done
 	return 0
 }
