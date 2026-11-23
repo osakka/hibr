@@ -38,7 +38,7 @@
 set -eu
 
 HIBR_GH=https://github.com/osakka/hibr
-FORMULA_REPO=https://git.home.arpa/itdlabs/homebrew-hibr
+FORMULA_REPO=https://git.uk.home.arpa/itdlabs/homebrew-hibr
 UNIT="$HOME/.config/systemd/user"
 CRONTAG="# hibr-homebrew-sync"
 VERBOSE=0
